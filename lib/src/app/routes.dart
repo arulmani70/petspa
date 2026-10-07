@@ -19,6 +19,7 @@ import 'package:shear_heaven_pet_spa/src/auth/views/forgot_password_page.dart';
 import 'package:shear_heaven_pet_spa/src/auth/views/otp_page.dart';
 import 'package:shear_heaven_pet_spa/src/auth/views/account_created_page.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/views/booking_confirmed_page.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/views/booking_details_page.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/views/booking_date_time_page.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/views/booking_review_page.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/views/booking_service_page.dart';
@@ -253,6 +254,17 @@ class Routes {
         name: RouteNames.bookingConfirmed,
         path: '/${RouteNames.bookingConfirmed}',
         builder: (context, state) => const BookingConfirmedPage(),
+      ),
+
+      GoRoute(
+        name: RouteNames.bookingDetails,
+        path: '/${RouteNames.bookingDetails}',
+        builder: (context, state) {
+          final extra = state.extra is Map<String, dynamic>
+              ? state.extra as Map<String, dynamic>
+              : (state.extra is Map ? Map<String, dynamic>.from(state.extra as Map) : null);
+          return BookingDetailsPage(bookingData: extra);
+        },
       ),
 
       GoRoute(

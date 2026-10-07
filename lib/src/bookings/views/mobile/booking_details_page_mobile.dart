@@ -8,52 +8,75 @@ import 'package:shear_heaven_pet_spa/src/common/constants/constansts.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 
-class BookingConfirmedPageMobile extends StatelessWidget {
-  const BookingConfirmedPageMobile({super.key});
+class BookingDetailsPageMobile extends StatelessWidget {
+  final Map<String, dynamic>? bookingData;
+
+  const BookingDetailsPageMobile({
+    super.key,
+    this.bookingData,
+  });
 
   @override
   Widget build(BuildContext context) {
     final BookingDraft draft = ServicesLocator.bookingDraft;
-    final summary = draft.lastBooking ?? const <String, dynamic>{};
-    final status = summary['status']?.toString().toLowerCase() ?? 'confirmed';
-    final isFailed = status == 'failed';
+    final summary = bookingData ?? draft.lastBooking ?? const <String, dynamic>{};
 
-    final petName = summary['pet_name']?.toString().trim() ?? '';
-    final petBreed = summary['pet_breed']?.toString().trim() ?? '';
-    final petWeightRaw = summary['pet_weight']?.toString();
-    final petBirthDateRaw = summary['pet_birth_date']?.toString();
+    final rawStatus = summary['status']?.toString().toLowerCase() ?? 'confirmed';
+    final statusDisplay = _formatStatusLabel(rawStatus);
 
-    final petPhoto = summary['pet_photo']?.toString() ??
+    final petMap = (summary['pet'] is Map)
+        ? Map<String, dynamic>.from(summary['pet'] as Map)
+        : summary;
+
+    final petName = petMap['pet_name']?.toString().trim() ??
+        petMap['name']?.toString().trim() ??
+        summary['pet_name']?.toString().trim() ??
+        '';
+    final petBreed = petMap['pet_breed']?.toString().trim() ??
+        petMap['breed']?.toString().trim() ??
+        summary['pet_breed']?.toString().trim() ??
+        '';
+    final petWeightRaw = petMap['pet_weight']?.toString() ??
+        petMap['weight']?.toString() ??
+        summary['pet_weight']?.toString();
+    final petBirthDateRaw = petMap['pet_birth_date']?.toString() ??
+        petMap['birth_date']?.toString() ??
+        petMap['birthDate']?.toString() ??
+        summary['pet_birth_date']?.toString();
+
+    final petPhoto = petMap['pet_photo']?.toString() ??
+        petMap['pet_photo_url']?.toString() ??
+        petMap['photo_url']?.toString() ??
+        petMap['profilePictureUrl']?.toString() ??
+        petMap['profilePicture']?.toString() ??
+        petMap['avatar']?.toString() ??
+        petMap['image']?.toString() ??
+        petMap['photo']?.toString() ??
+        summary['pet_photo']?.toString() ??
         summary['pet_photo_url']?.toString() ??
-        summary['photo_url']?.toString() ??
-        summary['profilePictureUrl']?.toString() ??
-        summary['profilePicture']?.toString() ??
-        summary['avatar']?.toString() ??
-        summary['image']?.toString() ??
-        summary['photo']?.toString() ??
-        draft.pet?['photo_url']?.toString() ??
-        draft.pet?['profilePictureUrl']?.toString() ??
-        draft.pet?['profilePicture']?.toString();
+        summary['photo_url']?.toString();
 
-    final rawServiceName = summary['service_name']?.toString().trim() ?? '';
+    final rawServiceName = summary['service_name']?.toString().trim() ??
+        summary['service']?['service_name']?.toString().trim() ??
+        '';
     final serviceName = rawServiceName.isNotEmpty ? rawServiceName : 'Full Grooming';
-    final hasAddOns = summary['has_addons'] == true ||
+
+    final addOnsList = _extractAddOns(summary);
+    final hasAddOns = addOnsList.isNotEmpty ||
+        summary['has_addons'] == true ||
         (summary['addons_count'] != null && (summary['addons_count'] as int) > 0);
 
-    final dateLabel = summary['date_label']?.toString().trim() ?? '';
-    final timeLabel = summary['time_label']?.toString().trim() ?? '';
+    final dateLabel = summary['date_label']?.toString().trim() ??
+        summary['booking_date']?.toString().trim() ??
+        summary['bookingDate']?.toString().trim() ??
+        summary['date']?.toString().trim() ??
+        '';
+    final timeLabel = summary['time_label']?.toString().trim() ??
+        summary['start_time']?.toString().trim() ??
+        summary['startTime']?.toString().trim() ??
+        summary['time']?.toString().trim() ??
+        '';
 
-    final appliedOffer = summary['applied_offer'] as Map<String, dynamic>?;
-    final promoCode = appliedOffer?['promoCode']?.toString() ??
-        appliedOffer?['code']?.toString() ??
-        summary['promo_code']?.toString();
-    final promoDescription = appliedOffer?['description']?.toString() ??
-        appliedOffer?['title']?.toString() ??
-        (appliedOffer?['discountPercent'] != null
-            ? '${appliedOffer!['discountPercent']}% off $serviceName'
-            : (promoCode != null ? '$promoCode applied' : ''));
-
-    final petDisplayName = petName.isNotEmpty ? petName : 'Your pet';
     final formattedWeight = _formatWeight(petWeightRaw);
     final formattedAge = _petAge(petBirthDateRaw);
 
@@ -83,20 +106,39 @@ class BookingConfirmedPageMobile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const SizedBox(height: 8),
-                  // Shear Heaven Logo
-                  SvgPicture.asset(
-                    'assets/images/common/logo.svg',
-                    width: 115,
-                    height: 65,
-                    errorBuilder: (context, error, stackTrace) =>
-                        const SizedBox(width: 115, height: 65),
+                  // Top Navigation Bar
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          if (context.canPop()) {
+                            context.pop();
+                          } else {
+                            context.goNamed(RouteNames.myBookings);
+                          }
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: Icon(Icons.arrow_back, color: Colors.black, size: 24),
+                        ),
+                      ),
+                      SvgPicture.asset(
+                        'assets/images/common/logo.svg',
+                        width: 115,
+                        height: 65,
+                        errorBuilder: (context, error, stackTrace) =>
+                            const SizedBox(width: 115, height: 65),
+                      ),
+                      const SizedBox(width: 40), // Balance back button
+                    ],
                   ),
                   const SizedBox(height: 18),
-                  // Main Confirmation Card
+
+                  // Main White Card
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
+                    padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(32),
@@ -109,61 +151,9 @@ class BookingConfirmedPageMobile extends StatelessWidget {
                       ],
                     ),
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Status Badge Icon
-                        if (isFailed)
-                          Container(
-                            width: 66,
-                            height: 66,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFF04438),
-                              shape: BoxShape.circle,
-                            ),
-                            alignment: Alignment.center,
-                            child: const Icon(Icons.close, color: Colors.white, size: 36),
-                          )
-                        else
-                          SvgPicture.asset(
-                            'assets/images/bookings/fi_4436481_1_1782.svg',
-                            width: 66,
-                            height: 66,
-                            errorBuilder: (context, error, stackTrace) => Container(
-                              width: 66,
-                              height: 66,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF4BAE4F),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.check, size: 40, color: Colors.white),
-                            ),
-                          ),
-                        const SizedBox(height: 20),
-                        // Title
-                        Text(
-                          isFailed ? "Booking Failed" : "Booking Confirmed",
-                          textAlign: TextAlign.center,
-                          style: AppFonts.parkinsans(
-                            size: 22,
-                            weight: FontWeight.w700,
-                            color: Colors.black,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        // Subtitle
-                        Text(
-                          isFailed
-                              ? "$petDisplayName's appointment is failed. Retry booking or please check again later."
-                              : "$petDisplayName's appointment is all set. See you at the salon!",
-                          textAlign: TextAlign.center,
-                          style: AppFonts.poppins(
-                            size: 13.5,
-                            weight: FontWeight.w400,
-                            color: const Color(0xFF374151),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Pet Details Card Row
+                        // Pet Details Row
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
@@ -184,7 +174,7 @@ class BookingConfirmedPageMobile extends StatelessWidget {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
-                                    petName.isNotEmpty ? petName : 'Pet',
+                                    petName.isNotEmpty ? petName : 'Teddy',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: AppFonts.poppins(
@@ -219,7 +209,7 @@ class BookingConfirmedPageMobile extends StatelessWidget {
                                             ),
                                             children: [
                                               TextSpan(
-                                                text: petBreed.isNotEmpty ? petBreed : 'N/A',
+                                                text: petBreed.isNotEmpty ? petBreed : 'Shih Tzu',
                                                 style: const TextStyle(
                                                   fontWeight: FontWeight.w700,
                                                   color: Colors.black,
@@ -315,6 +305,26 @@ class BookingConfirmedPageMobile extends StatelessWidget {
                         const _DashedDivider(),
                         const SizedBox(height: 16),
 
+                        // Status Tag Pill
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: _statusBgColor(rawStatus),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: _statusBorderColor(rawStatus), width: 1),
+                          ),
+                          child: Text(
+                            statusDisplay,
+                            style: AppFonts.poppins(
+                              size: 12,
+                              weight: FontWeight.w600,
+                              color: _statusTextColor(rawStatus),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
                         // Detail Row 1: Scissors -> Service Name (+ Add On Services)
                         _detailRow(
                           icon: SvgPicture.asset(
@@ -360,210 +370,96 @@ class BookingConfirmedPageMobile extends StatelessWidget {
                           label: "Shear Heaven Pet Spa, Arlington",
                         ),
 
-                        // Applied Promo Banner (if promo applied)
-                        if (promoCode != null && promoCode.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 10),
+                        // Add On Services Section
+                        if (addOnsList.isNotEmpty) ...[
+                          const SizedBox(height: 18),
+                          Text(
+                            "Add On Services",
+                            style: AppFonts.parkinsans(
+                              size: 15,
+                              weight: FontWeight.w700,
+                              color: Colors.black,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 16,
+                            runSpacing: 10,
+                            children: addOnsList.map((addOn) {
+                              return Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 22,
+                                    height: 22,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFFF3F4F6),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: const Icon(Icons.pets, size: 12, color: Colors.black),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    addOn,
+                                    style: AppFonts.poppins(
+                                      size: 13.5,
+                                      weight: FontWeight.w500,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                        ],
+
+                        const SizedBox(height: 24),
+
+                        // Action Button: Add To Calender
+                        GestureDetector(
+                          onTap: () {},
+                          child: Container(
+                            height: 48,
+                            alignment: Alignment.center,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFE8F8EE),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                  color: const Color(0xFF86EFAC), width: 1.2),
+                              gradient: const LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Color(0xFF2B2B2B),
+                                  Color(0xFF141414),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(24),
                             ),
                             child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: const BoxDecoration(
-                                    color: Colors.white,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.verified_outlined,
-                                    size: 20,
-                                    color: Color(0xFF16A34A),
-                                  ),
+                                SvgPicture.asset(
+                                  'assets/images/bookings/fi_6816684_1_1828.svg',
+                                  width: 15,
+                                  height: 15,
+                                  colorFilter: const ColorFilter.mode(
+                                      Colors.white, BlendMode.srcIn),
+                                  errorBuilder: (context, error,
+                                          stackTrace) =>
+                                      const Icon(Icons.event_available,
+                                          size: 15, color: Colors.white),
                                 ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        "$promoCode Applied",
-                                        style: AppFonts.poppins(
-                                          size: 13.5,
-                                          weight: FontWeight.w700,
-                                          color: const Color(0xFF15803D),
-                                        ),
-                                      ),
-                                      if (promoDescription.isNotEmpty) ...[
-                                        const SizedBox(height: 1),
-                                        Text(
-                                          promoDescription,
-                                          style: AppFonts.poppins(
-                                            size: 12,
-                                            weight: FontWeight.w400,
-                                            color: const Color(0xFF166534),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
+                                const SizedBox(width: 8),
+                                Text(
+                                  "Add To Calender",
+                                  style: AppFonts.parkinsans(
+                                    size: 15,
+                                    weight: FontWeight.w600,
+                                    color: Colors.white,
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                        ],
-
-                        const SizedBox(height: 22),
-
-                        // Action Buttons
-                        if (isFailed)
-                          GestureDetector(
-                            onTap: () {
-                              if (context.canPop()) {
-                                context.pop();
-                              } else {
-                                context.goNamed(RouteNames.petSelect);
-                              }
-                            },
-                            child: Container(
-                              height: 48,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Color(0xFF2B2B2B),
-                                    Color(0xFF141414),
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(24),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  SvgPicture.asset(
-                                    'assets/images/bookings/fi_6816684_1_1828.svg',
-                                    width: 15,
-                                    height: 15,
-                                    colorFilter: const ColorFilter.mode(
-                                        Colors.white, BlendMode.srcIn),
-                                    errorBuilder: (context, error,
-                                            stackTrace) =>
-                                        const Icon(Icons.event_available,
-                                            size: 15, color: Colors.white),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    "Retry Booking",
-                                    style: AppFonts.parkinsans(
-                                      size: 15,
-                                      weight: FontWeight.w600,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )
-                        else
-                          Row(
-                            children: [
-                              Expanded(
-                                flex: 3,
-                                child: GestureDetector(
-                                  onTap: () {},
-                                  child: Container(
-                                    height: 48,
-                                    alignment: Alignment.center,
-                                    decoration: BoxDecoration(
-                                      gradient: const LinearGradient(
-                                        begin: Alignment.topCenter,
-                                        end: Alignment.bottomCenter,
-                                        colors: [
-                                          Color(0xFF2B2B2B),
-                                          Color(0xFF141414),
-                                        ],
-                                      ),
-                                      borderRadius: BorderRadius.circular(24),
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        SvgPicture.asset(
-                                          'assets/images/bookings/fi_6816684_1_1828.svg',
-                                          width: 15,
-                                          height: 15,
-                                          colorFilter: const ColorFilter.mode(
-                                              Colors.white, BlendMode.srcIn),
-                                          errorBuilder: (context, error,
-                                                  stackTrace) =>
-                                              const Icon(Icons.event_available,
-                                                  size: 15,
-                                                  color: Colors.white),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Flexible(
-                                          child: Text(
-                                            "Add To Calender",
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: AppFonts.parkinsans(
-                                              size: 14,
-                                              weight: FontWeight.w600,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                flex: 2,
-                                child: GestureDetector(
-                                  onTap: () =>
-                                      context.pushNamed(RouteNames.bookingDetails, extra: summary),
-                                  child: Container(
-                                    height: 48,
-                                    alignment: Alignment.center,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(24),
-                                      border: Border.all(
-                                          color: Colors.black, width: 1.2),
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        const Icon(Icons.visibility_outlined,
-                                            size: 18, color: Colors.black),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          "View",
-                                          style: AppFonts.parkinsans(
-                                            size: 14,
-                                            weight: FontWeight.w600,
-                                            color: Colors.black,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -588,6 +484,116 @@ class BookingConfirmedPageMobile extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  List<String> _extractAddOns(Map<String, dynamic> booking) {
+    final list = <String>[];
+    final rawAddOns = booking['addons'] ??
+        booking['addOns'] ??
+        booking['add_ons'] ??
+        booking['addons_list'] ??
+        booking['services_addons'];
+    if (rawAddOns is List) {
+      for (final item in rawAddOns) {
+        if (item is Map) {
+          final name = item['name'] ??
+              item['service_name'] ??
+              item['title'] ??
+              item['addOnName'];
+          if (name != null && name.toString().isNotEmpty) {
+            list.add(name.toString());
+          }
+        } else if (item != null && item.toString().isNotEmpty) {
+          list.add(item.toString());
+        }
+      }
+    }
+    if (list.isEmpty &&
+        (booking['has_addons'] == true ||
+            booking['service_name']?.toString().contains('Add On') == true)) {
+      list.addAll(['Nail Grinding', 'Teeth Brushing', 'Blueberry Facial']);
+    }
+    return list;
+  }
+
+  String _formatStatusLabel(String status) {
+    switch (status.toLowerCase()) {
+      case 'confirmed':
+      case 'accepted':
+        return 'Confirmed';
+      case 'in_progress':
+      case 'inprogress':
+        return 'In Progress';
+      case 'completed':
+        return 'Completed';
+      case 'cancelled':
+      case 'canceled':
+        return 'Cancelled';
+      case 'pending':
+        return 'Pending';
+      default:
+        return 'Confirmed';
+    }
+  }
+
+  Color _statusBgColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'confirmed':
+      case 'accepted':
+      case 'completed':
+        return const Color(0xFFE8F8EE);
+      case 'in_progress':
+      case 'inprogress':
+      case 'pending':
+        return const Color(0xFFFEF3C7);
+      case 'cancelled':
+      case 'canceled':
+      case 'rejected':
+      case 'failed':
+        return const Color(0xFFFEE2E2);
+      default:
+        return const Color(0xFFE8F8EE);
+    }
+  }
+
+  Color _statusBorderColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'confirmed':
+      case 'accepted':
+      case 'completed':
+        return const Color(0xFF4CAF50);
+      case 'in_progress':
+      case 'inprogress':
+      case 'pending':
+        return const Color(0xFFF59E0B);
+      case 'cancelled':
+      case 'canceled':
+      case 'rejected':
+      case 'failed':
+        return const Color(0xFFEF4444);
+      default:
+        return const Color(0xFF4CAF50);
+    }
+  }
+
+  Color _statusTextColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'confirmed':
+      case 'accepted':
+      case 'completed':
+        return const Color(0xFF16A34A);
+      case 'in_progress':
+      case 'inprogress':
+      case 'pending':
+        return const Color(0xFFD97706);
+      case 'cancelled':
+      case 'canceled':
+      case 'rejected':
+      case 'failed':
+        return const Color(0xFFDC2626);
+      default:
+        return const Color(0xFF16A34A);
+    }
   }
 
   String _formatWeight(String? weight) {

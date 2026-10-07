@@ -44,6 +44,7 @@ mixin RouteNames {
   static const bookingReview = "booking-review";
 
   static const bookingConfirmed = "booking-confirmed";
+  static const bookingDetails = "booking-details";
 
   static const myBookings = "my-bookings";
 
