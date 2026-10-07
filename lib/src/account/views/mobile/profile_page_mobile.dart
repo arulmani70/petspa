@@ -1,0 +1,999 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:logger/logger.dart';
+import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
+import 'package:shear_heaven_pet_spa/src/common/constants/constansts.dart';
+import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
+import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
+import 'package:shear_heaven_pet_spa/src/common/utils/app_formatters.dart';
+import 'package:shear_heaven_pet_spa/src/common/widgets/password_requirements_view.dart';
+
+class ProfilePageMobile extends StatefulWidget {
+  const ProfilePageMobile({super.key});
+
+  @override
+  State<ProfilePageMobile> createState() => _ProfilePageMobileState();
+}
+
+class _ProfilePageMobileState extends State<ProfilePageMobile> {
+  final Logger _log = Logger();
+
+  // Profile fields
+  final _nameCtrl    = TextEditingController();
+  final _emailCtrl   = TextEditingController();
+  final _mobileCtrl  = TextEditingController();
+  final _addressCtrl = TextEditingController();
+  String _gender     = 'Male';
+  String? _photoUrl;
+  String? _pickedPhotoPath;
+
+  // Change-password fields (inline, post-login)
+  final _pwCtrl        = TextEditingController();
+  final _cpwCtrl       = TextEditingController();
+  final _pwFocusNode   = FocusNode();
+  bool _showPwSection  = false;
+  bool _showPw         = false;
+  bool _showCpw        = false;
+  bool _changingPw     = false;
+  String? _pwError;
+  String? _pwSuccess;
+
+  // Page state
+  bool    _loading       = true;
+  bool    _saving        = false;
+  String? _errorMsg;
+  String? _successMsg;
+  bool    _emailVerified = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
+    _mobileCtrl.dispose();
+    _addressCtrl.dispose();
+    _pwCtrl.dispose();
+    _cpwCtrl.dispose();
+    _pwFocusNode.dispose();
+    super.dispose();
+  }
+
+  // ── GET /api/auth/profile ─────────────────────────────────────────────────
+  Future<void> _loadProfile() async {
+    setState(() {
+      _loading  = true;
+      _errorMsg = null;
+    });
+    try {
+      _log.d('ProfilePage::_loadProfile::GET /api/auth/profile');
+      final data = await ServicesLocator.authRepository.getProfile();
+      if (!mounted) return;
+      final photo = data['profilePictureUrl']?.toString() ??
+          data['profilePicture']?.toString() ??
+          data['avatar']?.toString() ??
+          data['photoUrl']?.toString() ??
+          data['image']?.toString();
+      setState(() {
+        _nameCtrl.text    = data['name']?.toString()    ?? '';
+        _emailCtrl.text   = data['email']?.toString()   ?? '';
+        _mobileCtrl.text  = data['mobile']?.toString()  ?? '';
+        _addressCtrl.text = data['address']?.toString() ?? data['homeAddress']?.toString() ?? '';
+        final g           = data['gender']?.toString();
+        if (g != null && (g == 'Female' || g == 'female')) {
+          _gender = 'Female';
+        } else {
+          _gender = 'Male';
+        }
+        _emailVerified   = data['emailVerified'] == true;
+        _photoUrl        = (photo != null && photo.isNotEmpty) ? photo : null;
+        _pickedPhotoPath = null;
+        _loading         = false;
+      });
+    } catch (e) {
+      _log.e('ProfilePage::_loadProfile::Error: $e');
+      if (!mounted) return;
+      final user        = ServicesLocator.sessionService.getSessionUser();
+      _nameCtrl.text    = user?['name']?.toString()    ?? '';
+      _emailCtrl.text   = user?['email']?.toString()   ?? '';
+      _mobileCtrl.text  = user?['mobile']?.toString()  ?? '';
+      _addressCtrl.text = user?['address']?.toString() ?? user?['homeAddress']?.toString() ?? '';
+      final g           = user?['gender']?.toString();
+      if (g != null && (g == 'Female' || g == 'female')) {
+        _gender = 'Female';
+      } else {
+        _gender = 'Male';
+      }
+      final photo       = user?['profilePictureUrl']?.toString() ??
+          user?['profilePicture']?.toString() ??
+          user?['avatar']?.toString() ??
+          user?['photoUrl']?.toString() ??
+          user?['image']?.toString();
+      setState(() {
+        _photoUrl = (photo != null && photo.isNotEmpty) ? photo : null;
+        _loading  = false;
+        _errorMsg = 'Could not load live profile. Showing cached data.';
+      });
+    }
+  }
+
+  // ── PUT /api/auth/profile ─────────────────────────────────────────────────
+  Future<void> _saveProfile() async {
+    final name   = _nameCtrl.text.trim();
+    final mobile = _mobileCtrl.text.trim().replaceAll(RegExp(r'[^0-9]'), '');
+
+    if (name.isEmpty) {
+      setState(() => _errorMsg = 'Name cannot be empty.');
+      return;
+    }
+    setState(() {
+      _saving     = true;
+      _errorMsg   = null;
+      _successMsg = null;
+    });
+
+    try {
+      _log.d('ProfilePage::_saveProfile::name=$name mobile=$mobile photoPath=$_pickedPhotoPath');
+      final updated = await ServicesLocator.authRepository.updateProfilePut(
+        name     : name,
+        mobile   : mobile.isNotEmpty ? mobile : null,
+        photoPath: _pickedPhotoPath,
+      );
+      if (!mounted) return;
+      final newPhoto = updated['profilePictureUrl']?.toString() ??
+          updated['profilePicture']?.toString() ??
+          updated['avatar']?.toString() ??
+          updated['photoUrl']?.toString();
+      setState(() {
+        _saving     = false;
+        _successMsg = 'Profile updated successfully.';
+        if (newPhoto != null && newPhoto.isNotEmpty) {
+          _photoUrl = newPhoto;
+        } else if (_pickedPhotoPath != null) {
+          _photoUrl = _pickedPhotoPath;
+        }
+        _pickedPhotoPath = null;
+      });
+    } catch (e) {
+      _log.e('ProfilePage::_saveProfile::Error: $e');
+      if (!mounted) return;
+      setState(() {
+        _saving   = false;
+        _errorMsg = _msg(e);
+      });
+    }
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+      if (picked != null && mounted) {
+        setState(() {
+          _pickedPhotoPath = picked.path;
+          _errorMsg = null;
+        });
+      }
+    } catch (e) {
+      _log.e('ProfilePage::_pickImage::Error: $e');
+      if (mounted) {
+        setState(() => _errorMsg = 'Could not access image: $e');
+      }
+    }
+  }
+
+  void _showImagePickerModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE5E7EB),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'Profile Photo',
+                  style: AppFonts.parkinsans(
+                    size: 18,
+                    weight: FontWeight.w700,
+                    color: const Color(0xFF111827),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Choose a photo for your profile',
+                  style: AppFonts.poppins(
+                    size: 13,
+                    color: const Color(0xFF6B7280),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3F4F6),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.camera_alt_outlined,
+                        color: Color(0xFF111827), size: 22),
+                  ),
+                  title: Text('Take Photo',
+                      style: AppFonts.poppins(
+                          size: 15,
+                          weight: FontWeight.w600,
+                          color: const Color(0xFF111827))),
+                  subtitle: Text('Use camera to take a photo',
+                      style: AppFonts.poppins(
+                          size: 12, color: const Color(0xFF9CA3AF))),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _pickImage(ImageSource.camera);
+                  },
+                ),
+                const SizedBox(height: 6),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3F4F6),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.photo_library_outlined,
+                        color: Color(0xFF111827), size: 22),
+                  ),
+                  title: Text('Choose from Gallery',
+                      style: AppFonts.poppins(
+                          size: 15,
+                          weight: FontWeight.w600,
+                          color: const Color(0xFF111827))),
+                  subtitle: Text('Select an image from device',
+                      style: AppFonts.poppins(
+                          size: 12, color: const Color(0xFF9CA3AF))),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _pickImage(ImageSource.gallery);
+                  },
+                ),
+                if (_pickedPhotoPath != null || (_photoUrl != null && _photoUrl!.isNotEmpty)) ...[
+                  const SizedBox(height: 6),
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.delete_outline,
+                          color: Color(0xFFEF4444), size: 22),
+                    ),
+                    title: Text('Remove Photo',
+                        style: AppFonts.poppins(
+                            size: 15,
+                            weight: FontWeight.w600,
+                            color: const Color(0xFFEF4444))),
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      setState(() {
+                        _pickedPhotoPath = null;
+                        _photoUrl = null;
+                      });
+                    },
+                  ),
+                ],
+                const SizedBox(height: 6),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ── POST /api/auth/reset-password (inline, no OTP needed post-login) ──────
+  Future<void> _changePassword() async {
+    final pw    = _pwCtrl.text;
+    final cpw   = _cpwCtrl.text;
+    final email = _emailCtrl.text.trim().toLowerCase();
+
+    final missingMsg = PasswordValidator.getFirstMissingMessage(pw);
+    if (missingMsg != null) {
+      setState(() => _pwError = missingMsg);
+      return;
+    }
+    if (pw != cpw) {
+      setState(() => _pwError = 'Passwords do not match.');
+      return;
+    }
+
+    setState(() {
+      _changingPw = true;
+      _pwError    = null;
+      _pwSuccess  = null;
+    });
+
+    try {
+      _log.d('ProfilePage::_changePassword::email=$email');
+      await ServicesLocator.authRepository.resetPassword(
+        email          : email,
+        password       : pw,
+        confirmPassword: cpw,
+      );
+      if (!mounted) return;
+      _pwCtrl.clear();
+      _cpwCtrl.clear();
+      setState(() {
+        _changingPw    = false;
+        _showPwSection = false;
+        _pwSuccess     = 'Password changed successfully.';
+      });
+    } catch (e) {
+      _log.e('ProfilePage::_changePassword::Error: $e');
+      if (!mounted) return;
+      setState(() {
+        _changingPw = false;
+        _pwError    = _msg(e);
+      });
+    }
+  }
+
+  String _msg(dynamic e) {
+    final s = e.toString();
+    return s.contains('Exception:')
+        ? s.replaceAll('Exception:', '').trim()
+        : 'Something went wrong. Please try again.';
+  }
+
+  Widget _buildAvatarContent() {
+    if (_pickedPhotoPath != null && _pickedPhotoPath!.isNotEmpty) {
+      return Image.file(
+        File(_pickedPhotoPath!),
+        width: 96,
+        height: 96,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => const Icon(
+          Icons.person_outline,
+          size: 44,
+          color: Color(0xFF374151),
+        ),
+      );
+    }
+
+    if (_photoUrl != null && _photoUrl!.isNotEmpty) {
+      final raw = _photoUrl!;
+      if (!raw.startsWith('http') && File(raw).existsSync()) {
+        return Image.file(
+          File(raw),
+          width: 96,
+          height: 96,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => const Icon(
+            Icons.person_outline,
+            size: 44,
+            color: Color(0xFF374151),
+          ),
+        );
+      }
+      final fullUrl = raw.startsWith('http')
+          ? raw
+          : '${Constants.app.BASE_URL}${raw.startsWith('/') ? '' : '/'}$raw';
+      return Image.network(
+        fullUrl,
+        width: 96,
+        height: 96,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => const Icon(
+          Icons.person_outline,
+          size: 44,
+          color: Color(0xFF374151),
+        ),
+      );
+    }
+
+    return const Icon(
+      Icons.person_outline,
+      size: 44,
+      color: Color(0xFF374151),
+    );
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor      : Colors.white,
+        surfaceTintColor     : Colors.transparent,
+        elevation            : 0,
+        titleSpacing         : 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF111827), size: 24),
+          onPressed: () => context.canPop()
+              ? context.pop()
+              : context.goNamed(RouteNames.settings),
+        ),
+        title: Text('My Profile',
+            style: AppFonts.parkinsans(
+                size  : 20,
+                weight: FontWeight.w700,
+                color : const Color(0xFF111827))),
+        actions: [
+          IconButton(
+            icon    : const Icon(Icons.refresh, color: Color(0xFF111827)),
+            tooltip : 'Refresh',
+            onPressed: _loading ? null : _loadProfile,
+          ),
+        ],
+      ),
+      body: _loading
+          ? const Center(
+              child: CircularProgressIndicator(
+                  color: Color(0xFF111827), strokeWidth: 2.5))
+          : SafeArea(
+              bottom: false,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                child  : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 8),
+
+                    // ── Avatar ──────────────────────────────────────────
+                    Center(
+                      child: GestureDetector(
+                        onTap: _showImagePickerModal,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Container(
+                              width : 96,
+                              height: 96,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEDEFEF),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: const Color(0xFF111827).withValues(alpha: 0.15),
+                                  width: 2.5,
+                                ),
+                              ),
+                              child: ClipOval(
+                                child: _buildAvatarContent(),
+                              ),
+                            ),
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: Container(
+                                width : 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF111827),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 2,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.15),
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.camera_alt,
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    if (_emailVerified) ...[
+                      const SizedBox(height: 8),
+                      Center(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.verified,
+                                size: 14, color: Color(0xFF111827)),
+                            const SizedBox(width: 4),
+                            Text('Email Verified',
+                                style: AppFonts.poppins(
+                                  size  : 12,
+                                  weight: FontWeight.w500,
+                                  color : const Color(0xFF111827),
+                                )),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 24),
+
+                    // ── Profile error / success ─────────────────────────
+                    if (_errorMsg != null) ...[
+                      _Banner(msg: _errorMsg!, isError: true),
+                      const SizedBox(height: 14),
+                    ],
+                    if (_successMsg != null) ...[
+                      _Banner(msg: _successMsg!, isError: false),
+                      const SizedBox(height: 14),
+                    ],
+
+                    // ── Full Name ───────────────────────────────────────
+                    _Field(
+                      label     : 'Full Name',
+                      controller: _nameCtrl,
+                      hint      : 'Your name',
+                    ),
+                    const SizedBox(height: 14),
+
+                    // ── Email (read-only) ───────────────────────────────
+                    _Field(
+                      label    : 'Email Address',
+                      controller: _emailCtrl,
+                      hint     : 'Email',
+                      readOnly : true,
+                      trailing : const Icon(Icons.lock_outline,
+                          size: 16, color: Color(0xFF9CA3AF)),
+                    ),
+                    const SizedBox(height: 4),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: Text('Email address cannot be changed.',
+                          style: AppFonts.poppins(
+                              size : 11,
+                              color: const Color(0xFF9CA3AF))),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // ── Phone Number ────────────────────────────────────
+                    _Field(
+                      label          : 'Phone Number',
+                      controller     : _mobileCtrl,
+                      hint           : '(817) 123-4567',
+                      type           : TextInputType.phone,
+                      inputFormatters: const [
+                        UsPhoneInputFormatter(),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+
+                    // ── Gender ──────────────────────────────────────────
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Gender',
+                          style: AppFonts.poppins(
+                            size  : 14,
+                            weight: FontWeight.w500,
+                            color : const Color(0xFF111827),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => setState(() => _gender = 'Male'),
+                                child: Container(
+                                  height   : 48,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: _gender == 'Male'
+                                        ? const Color(0xFF111827)
+                                        : Colors.white,
+                                    borderRadius: BorderRadius.circular(60),
+                                    border: Border.all(
+                                      color: const Color(0xFF111827),
+                                      width: 1.2,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Male',
+                                    style: AppFonts.poppins(
+                                      size  : 15,
+                                      weight: FontWeight.w600,
+                                      color : _gender == 'Male'
+                                          ? Colors.white
+                                          : const Color(0xFF111827),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => setState(() => _gender = 'Female'),
+                                child: Container(
+                                  height   : 48,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: _gender == 'Female'
+                                        ? const Color(0xFF111827)
+                                        : Colors.white,
+                                    borderRadius: BorderRadius.circular(60),
+                                    border: Border.all(
+                                      color: const Color(0xFF111827),
+                                      width: 1.2,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Female',
+                                    style: AppFonts.poppins(
+                                      size  : 15,
+                                      weight: FontWeight.w600,
+                                      color : _gender == 'Female'
+                                          ? Colors.white
+                                          : const Color(0xFF111827),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+
+                    // ── Home Address (Optional) ─────────────────────────
+                    _Field(
+                      label     : 'Home Address (Optional)',
+                      controller: _addressCtrl,
+                      hint      : 'Add Your Address',
+                    ),
+                    const SizedBox(height: 20),
+
+                    // ── Change Password (inline, no navigation) ─────────
+                    _buildChangePasswordSection(),
+                    const SizedBox(height: 14),
+
+                    // ── Save Changes ────────────────────────────────────
+                    GestureDetector(
+                      onTap: _saving ? null : _saveProfile,
+                      child: Container(
+                        height    : 52,
+                        alignment : Alignment.center,
+                        decoration: BoxDecoration(
+                          color       : _saving
+                              ? const Color(0xFF6B7280)
+                              : const Color(0xFF111827),
+                          borderRadius: BorderRadius.circular(60),
+                        ),
+                        child: _saving
+                            ? const SizedBox(
+                                width: 22, height: 22,
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2.5))
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text('Save Changes',
+                                      style: AppFonts.parkinsans(
+                                          size  : 16,
+                                          weight: FontWeight.w700,
+                                          color : Colors.white)),
+                                  const SizedBox(width: 8),
+                                  const Icon(Icons.save_outlined,
+                                      size: 18, color: Colors.white),
+                                ],
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                  ],
+                ),
+              ),
+            ),
+    );
+  }
+
+  // ── Change-password inline section ───────────────────────────────────────
+  Widget _buildChangePasswordSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Toggle header button
+        GestureDetector(
+          onTap: () => setState(() {
+            _showPwSection = !_showPwSection;
+            _pwError   = null;
+            _pwSuccess = null;
+          }),
+          child: Container(
+            height    : 50,
+            alignment : Alignment.center,
+            decoration: BoxDecoration(
+              color       : Colors.white,
+              borderRadius: BorderRadius.circular(60),
+              border      : Border.all(
+                  color: const Color(0xFF111827), width: 1.2),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('Change Password',
+                    style: AppFonts.parkinsans(
+                        size  : 15,
+                        weight: FontWeight.w700,
+                        color : const Color(0xFF111827))),
+                const SizedBox(width: 8),
+                AnimatedRotation(
+                  turns   : _showPwSection ? 0.5 : 0.0,
+                  duration: const Duration(milliseconds: 200),
+                  child   : const Icon(Icons.keyboard_arrow_down,
+                      size: 20, color: Color(0xFF111827)),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Expandable section
+        AnimatedSize(
+          duration : const Duration(milliseconds: 260),
+          curve    : Curves.easeInOut,
+          alignment: Alignment.topCenter,
+          child    : _showPwSection
+              ? Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child  : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Section error / success
+                      if (_pwError != null) ...[
+                        _Banner(msg: _pwError!, isError: true),
+                        const SizedBox(height: 12),
+                      ],
+                      if (_pwSuccess != null) ...[
+                        _Banner(msg: _pwSuccess!, isError: false),
+                        const SizedBox(height: 12),
+                      ],
+
+                      _Field(
+                        label     : 'New Password',
+                        controller: _pwCtrl,
+                        focusNode : _pwFocusNode,
+                        hint      : '••••••••••••••••••••',
+                        type      : TextInputType.visiblePassword,
+                        obscure   : !_showPw,
+                        trailing  : IconButton(
+                          icon: Icon(
+                            _showPw
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                            size : 20,
+                            color: const Color(0xFF6B7280),
+                          ),
+                          onPressed: () =>
+                              setState(() => _showPw = !_showPw),
+                        ),
+                      ),
+
+                      PasswordRequirementsView(
+                        controller: _pwCtrl,
+                        focusNode : _pwFocusNode,
+                      ),
+                      const SizedBox(height: 14),
+
+                      _Field(
+                        label     : 'Confirm New Password',
+                        controller: _cpwCtrl,
+                        hint      : '••••••••••••••••••••',
+                        type      : TextInputType.visiblePassword,
+                        obscure   : !_showCpw,
+                        trailing  : IconButton(
+                          icon: Icon(
+                            _showCpw
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                            size : 20,
+                            color: const Color(0xFF6B7280),
+                          ),
+                          onPressed: () =>
+                              setState(() => _showCpw = !_showCpw),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      GestureDetector(
+                        onTap: _changingPw ? null : _changePassword,
+                        child: Container(
+                          height    : 50,
+                          alignment : Alignment.center,
+                          decoration: BoxDecoration(
+                            color       : _changingPw
+                                ? const Color(0xFF6B7280)
+                                : const Color(0xFF111827),
+                            borderRadius: BorderRadius.circular(60),
+                          ),
+                          child: _changingPw
+                              ? const SizedBox(
+                                  width: 20, height: 20,
+                                  child: CircularProgressIndicator(
+                                      color      : Colors.white,
+                                      strokeWidth: 2.5))
+                              : Text('Update Password',
+                                  style: AppFonts.parkinsans(
+                                      size  : 15,
+                                      weight: FontWeight.w700,
+                                      color : Colors.white)),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reusable pill text field
+// ─────────────────────────────────────────────────────────────────────────────
+class _Field extends StatelessWidget {
+  final String                label;
+  final TextEditingController controller;
+  final String                hint;
+  final TextInputType         type;
+  final bool                  readOnly;
+  final bool                  obscure;
+  final FocusNode?            focusNode;
+  final List<TextInputFormatter>? inputFormatters;
+  final Widget?               trailing;
+
+  const _Field({
+    required this.label,
+    required this.controller,
+    required this.hint,
+    this.type            = TextInputType.text,
+    this.readOnly        = false,
+    this.obscure         = false,
+    this.focusNode,
+    this.inputFormatters,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: AppFonts.poppins(
+                size  : 14,
+                weight: FontWeight.w500,
+                color : const Color(0xFF111827))),
+        const SizedBox(height: 6),
+        Container(
+          height    : 52,
+          padding   : const EdgeInsets.symmetric(horizontal: 20),
+          decoration: BoxDecoration(
+            color       : readOnly ? const Color(0xFFF9FAFB) : Colors.white,
+            borderRadius: BorderRadius.circular(60),
+            border      : Border.all(
+              color: readOnly
+                  ? const Color(0xFFE5E7EB)
+                  : const Color(0xFF111827),
+              width: 1.2,
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller     : controller,
+                  focusNode      : focusNode,
+                  keyboardType   : type,
+                  readOnly       : readOnly,
+                  obscureText    : obscure,
+                  inputFormatters: inputFormatters,
+                  style          : AppFonts.poppins(
+                      size  : 15,
+                      weight: FontWeight.w600,
+                      color : const Color(0xFF111827)),
+                  decoration: InputDecoration(
+                    isDense  : true,
+                    border   : InputBorder.none,
+                    hintText : hint,
+                    hintStyle: AppFonts.poppins(
+                        size  : 15,
+                        weight: FontWeight.w400,
+                        color : const Color(0xFF9CA3AF)),
+                  ),
+                ),
+              ),
+              ?trailing,
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Info / error banner
+// ─────────────────────────────────────────────────────────────────────────────
+class _Banner extends StatelessWidget {
+  final String msg;
+  final bool   isError;
+  const _Banner({required this.msg, required this.isError});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding   : const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color       : isError
+            ? const Color(0xFFFEE2E2)
+            : const Color(0xFFDCFCE7),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isError
+                ? Icons.error_outline
+                : Icons.check_circle_outline,
+            size : 16,
+            color: isError
+                ? const Color(0xFF991B1B)
+                : const Color(0xFF166534),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(msg,
+                style: AppFonts.poppins(
+                    size : 13,
+                    color: isError
+                        ? const Color(0xFF991B1B)
+                        : const Color(0xFF166534))),
+          ),
+        ],
+      ),
+    );
+  }
+}

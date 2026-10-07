@@ -1,0 +1,30 @@
+{
+	"ClientID":"SHEAR-001",
+	"RegionId":"DWG-001",
+	"StoreId":"SHEAR-001",
+	"Groomers": [
+	{
+	  "GroomerId": "G001",
+	  "FirstName": "Merisa",
+	  "LastName": "Brown",
+	  "Role": "Lead Groomer",
+	  "Highlights": "Best lead groomer in town"
+	},
+	{
+	  "GroomerId": "G002",
+	  "FirstName": "Richard",
+	  "LastName": "Cooke",
+	  "Role": "Senior Groomer",
+	  "Highlights": "Best groomer in town, got award in 2025!"
+	}
+	],
+	"Bathers": [
+	{
+	  "BatherId": "B001",
+	  "FirstName": "Jeremiah",
+	  "LastName": "Smith",
+	  "Role": "Junio Bather",
+	  "Highlights": "I am the best Bather"
+	}
+	]
+}

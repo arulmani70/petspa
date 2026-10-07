@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "453666994172",
+    "project_id": "shpr-3b7ce",
+    "storage_bucket": "shpr-3b7ce.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:453666994172:android:eacf850f263237834ae479",
+        "android_client_info": {
+          "package_name": "com.shearheaven.shear_heaven_pet_spa"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBekT7WdMFzSzuMOGNf54NQMwU08nqCCEs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

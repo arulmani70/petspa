@@ -1,0 +1,213 @@
+{
+	"ClientID":"SHEAR-001",
+	"RegionId":"DWG-001",
+	"StoreId":"SHEAR-001",
+	"Breeds": [
+	{
+	  "BreedTypeId": "S",
+	  "BreedType": "Small Breeds", 
+	  "Grooming" : {"Price":"45", "TimeinMinutes": "60"},
+	  "Bathing" : {"Price":"75", "TimeinMinutes": "30"},
+	  "GroomingAndBathing" : {"Price":"110", "TimeinMinutes": "75"},
+	  "BreedExample": 
+	  [{
+	  "BreedId": "BS0001",
+	  "Name": ""
+	  },
+	  {
+	  "BreedId": "BS0002",
+	  "Name": ""
+	  },
+	  {
+	  "BreedId": "BS0003",
+	  "Name": ""
+	  }]
+	},
+	{
+	  "BreedTypeId": "M",
+	  "BreedType": "Medium Breeds", 
+	  "Grooming" : {"Price":"55", "TimeinMinutes": "75"},
+	  "Bathing" : {"Price":"95", "TimeinMinutes": "45"},
+	  "GroomingAndBathing" : {"Price":"130", "TimeinMinutes": "105"},
+	  "BreedExample": 
+	  [{
+	  "BreedId": "BM0001",
+	  "Name": ""
+	  },
+	  {
+	  "BreedId": "BM0002",
+	  "Name": ""
+	  },
+	  {
+	  "BreedId": "BM0003",
+	  "Name": ""
+	  }]
+	},
+	{
+	  "BreedTypeId": "S",
+	  "BreedType": "Large Breeds", 
+	  "Grooming" : {"Price":"60", "TimeinMinutes": "60"},
+	  "Bathing" : {"Price":"90", "TimeinMinutes": "30"},
+	  "GroomingAndBathing" : {"Price":"140", "TimeinMinutes": "75"},
+	  "BreedExample": 
+	  [{
+	  "BreedId": "BL0001",
+	  "Name": ""
+	  },
+	  {
+	  "BreedId": "BL0002",
+	  "Name": ""
+	  },
+	  {
+	  "BreedId": "BL0003",
+	  "Name": ""
+	  }]	
+	}
+	],
+	"Packages": [
+	{
+	  "PackageId": "P0001",	
+	  "PackageName": "",
+	  "TimeinMinutes": "60",
+	  "Includes": ["","",""],
+	  "Price": "$24.00"
+	},
+	{
+	  "PackageId": "P0002",
+	  "PackageName": "",
+	  "TimeinMinutes": "60",
+	  "Includes": ["","",""],
+	  "Price": "$24.00"
+	},
+	{
+	  "PackageName": "P0003",
+	  "TimeinMinutes": "60",
+	  "Includes": ["","",""],
+	  "Price": "$24.00"
+	}
+	],
+	"AddOns": [
+	{
+	  "AddOnId": "A0001", 
+	  "Name": "Nail Grinding",
+	  "Price": "$18.00",
+	  "Sufix": " & up",
+	  "TimeinMinutes": "60",	  
+	  "Includes": ["",""]
+	},
+	{
+	  "AddOnId": "A0002",  	
+	  "Name": "Teeth Brushing",
+	  "Price": "$16.00",
+	  "Sufix": " & up",
+	  "TimeinMinutes": "60",	  
+	  "Includes": ["",""]
+	},
+	{
+	  "AddOnId": "A0003",
+	  "Name": "Blueberry Facial",
+	  "Price": "$12.00",
+	  "Sufix": " & up",
+	  "TimeinMinutes": "60",	  
+	  "Includes": ["",""]
+	},
+	{
+	  "AddOnId": "A0004",
+	  "Name": "Flea Bath",
+	  "Price": "$14.00",
+	  "Sufix": " & up",
+	  "TimeinMinutes": "60",	  
+	  "Includes": ["",""]
+	},
+	{
+	  "AddOnId": "A0005",
+	  "Name": "Furminator",
+	  "Price": "$25.00",
+	  "Sufix": " & up",
+	  "TimeinMinutes": "60",
+	  "Includes": ["",""]
+	},
+	{
+	  "AddOnId": "A0006",
+	  "Name": "Dental Package",
+	  "Price": "$20.00",
+	  "TimeinMinutes": "60",
+	  "Sufix": " & up",
+	  "Includes": ["Teeth Brushing Dental Spray & Treat"]
+	},
+	{
+	  "AddOnId": "A0007",
+	  "Name": "Medicated Bath",
+	  "Price": "$18.00",
+	  "Sufix": "",
+	  "TimeinMinutes": "60",
+	  "Includes": ["",""]
+	},
+	{
+	  "AddOnId": "A0008",
+	  "Name": "De-Odorize",
+	  "Price": "$18.00",
+	  "Sufix": "",
+	  "TimeinMinutes": "60",
+	  "Includes": ["",""]
+	},
+	{
+	  "AddOnId": "A0009",
+	  "Name": "Brush/Dematt",
+	  "Price": "$10.00",
+	  "Sufix": "Per 15 minutes",
+	  "TimeinMinutes": "Not Applicable",
+	  "Includes": ["",""]
+	},
+	{
+	  "AddOnId": "A0010",
+	  "Name": "Hard To Handle",
+	  "Price": "$18.00",
+	  "Sufix": "",
+	  "TimeinMinutes": "60",
+	  "Includes": ["",""]
+	},
+	{
+	  "AddOnId": "A0011",
+	  "Name": "Express Service",
+	  "Price": "$18.00",
+	  "Sufix": " & Up",
+	  "TimeinMinutes": "60",
+	  "Includes": ["",""]
+	},
+	{
+	  "AddOnId": "A0011",
+	  "Name": "Scissoring",
+	  "Price": "$10.00",
+	  "Sufix": " & Up",
+	  "TimeinMinutes": "60",
+	  "Includes": ["",""]
+	}
+	],
+	"Walk In Services": [
+	{
+	  "WalkInServiceId" : "W0001",
+	  "Name": "Nail Trim",
+	  "TimeinMinutes": "60",
+	  "Price": "$18.00"
+	},
+	{
+	  "WalkInServiceId" : "W0002",
+	  "Name": "Nail Grind",
+	  "TimeinMinutes": "60",
+	  "Price": "$24.00"
+	},
+	{
+	  "WalkInServiceId" : "W0003",
+	  "Name": "Anal Glands",
+	  "TimeinMinutes": "60",
+	  "Price": "$12.00"
+	},
+	{
+	  "WalkInServiceId" : "W0004",
+	  "Name": "Face & Feet Trim",
+	  "TimeinMinutes": "60",
+	  "Price": "$20.00"
+	}
+	]
+}
