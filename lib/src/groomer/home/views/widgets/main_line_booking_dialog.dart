@@ -197,10 +197,9 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
           ),
           child: Text(
             '–',
-            style: TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: 8,
-              fontWeight: FontWeight.w600,
+            style: AppFonts.poppins(
+              size: 8,
+              weight: FontWeight.w600,
               color: fg,
             ),
           ),
@@ -2146,13 +2145,11 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                         textAlign: TextAlign.center,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontFamily: 'Poppins',
-                                          fontSize: 11.5,
-                                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                                        style: AppFonts.poppins(
+                                          size: 11.5,
+                                          weight: isSelected ? FontWeight.w600 : FontWeight.w500,
                                           color: fg,
                                           decoration: (isBooked || isPast) ? TextDecoration.lineThrough : null,
-                                          decorationColor: fg,
                                         ),
                                       ),
                                     ),

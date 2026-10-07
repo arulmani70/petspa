@@ -257,7 +257,14 @@ class _BreakScheduleDialogState extends State<BreakScheduleDialog> {
                 ..._commonReasons.map((r) {
                   final isSelected = !_isCustomReason && _reason == r;
                   return ChoiceChip(
-                    label: Text(r, style: TextStyle(fontSize: 11.5, color: isSelected ? Colors.white : const Color(0xFF374151))),
+                    label: Text(
+                      r,
+                      style: AppFonts.poppins(
+                        size: 11.5,
+                        weight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                        color: isSelected ? Colors.white : const Color(0xFF374151),
+                      ),
+                    ),
                     selected: isSelected,
                     selectedColor: const Color(0xFF0F766E),
                     backgroundColor: const Color(0xFFF3F4F6),
@@ -274,7 +281,14 @@ class _BreakScheduleDialogState extends State<BreakScheduleDialog> {
                   );
                 }),
                 ChoiceChip(
-                  label: const Text('Other', style: TextStyle(fontSize: 11.5)),
+                  label: Text(
+                    'Other',
+                    style: AppFonts.poppins(
+                      size: 11.5,
+                      weight: _isCustomReason ? FontWeight.w600 : FontWeight.w400,
+                      color: _isCustomReason ? Colors.white : const Color(0xFF374151),
+                    ),
+                  ),
                   selected: _isCustomReason,
                   selectedColor: const Color(0xFF0F766E),
                   backgroundColor: const Color(0xFFF3F4F6),

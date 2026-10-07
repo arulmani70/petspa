@@ -759,7 +759,14 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
+              child: Text(
+                'Cancel',
+                style: AppFonts.poppins(
+                  size: 14,
+                  weight: FontWeight.w500,
+                  color: const Color(0xFF6B7280),
+                ),
+              ),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -767,7 +774,14 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                 foregroundColor: Colors.white,
               ),
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Save Changes'),
+              child: Text(
+                'Save Changes',
+                style: AppFonts.parkinsans(
+                  size: 14,
+                  weight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
             ),
           ],
         ),
@@ -822,7 +836,11 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
             onPressed: () => Navigator.pop(context, false),
             child: Text(
               'Cancel',
-              style: AppFonts.poppins(size: 14, color: Colors.grey.shade600),
+              style: AppFonts.poppins(
+                size: 14,
+                weight: FontWeight.w500,
+                color: const Color(0xFF6B7280),
+              ),
             ),
           ),
           ElevatedButton(
@@ -834,7 +852,14 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
               ),
             ),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Logout'),
+            child: Text(
+              'Logout',
+              style: AppFonts.parkinsans(
+                size: 14,
+                weight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
           ),
         ],
       ),
@@ -1442,12 +1467,12 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                               const SizedBox(width: 3),
                               Text(
                                 '•',
-                                style: TextStyle(
-                                  fontSize: 8,
+                                style: AppFonts.poppins(
+                                  size: 8,
                                   color: isSelected
                                       ? Colors.white
                                       : const Color(0xFF0F766E),
-                                  fontWeight: FontWeight.bold,
+                                  weight: FontWeight.w700,
                                 ),
                               ),
                             ],
@@ -1534,12 +1559,12 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                         color: const Color(0xFF0F766E),
                         borderRadius: BorderRadius.circular(5),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Today',
-                        style: TextStyle(
-                          fontSize: 9,
+                        style: AppFonts.poppins(
+                          size: 9,
                           color: Colors.white,
-                          fontWeight: FontWeight.w700,
+                          weight: FontWeight.w700,
                         ),
                       ),
                     ),
@@ -2282,7 +2307,14 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
             ),
             onPressed: _loadAllData,
             icon: const Icon(Icons.refresh_rounded, size: 15),
-            label: const Text('Retry'),
+            label: Text(
+              'Retry',
+              style: AppFonts.parkinsans(
+                size: 13,
+                weight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
           ),
         ],
       ),
@@ -2952,9 +2984,13 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                         minimumSize: Size.zero,
                       ),
                       onPressed: () => _handleRejectCancellation(booking),
-                      child: const Text(
+                      child: Text(
                         'Reject',
-                        style: TextStyle(fontSize: 11),
+                        style: AppFonts.poppins(
+                          size: 11,
+                          weight: FontWeight.w600,
+                          color: const Color(0xFF4B5563),
+                        ),
                       ),
                     ),
                   ],
@@ -3089,9 +3125,13 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                             minimumSize: Size.zero,
                           ),
                           onPressed: () => _handleApproveBooking(booking),
-                          child: const Text(
+                          child: Text(
                             'Approve',
-                            style: TextStyle(fontSize: 11),
+                            style: AppFonts.poppins(
+                              size: 11,
+                              weight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -3106,9 +3146,13 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                             minimumSize: Size.zero,
                           ),
                           onPressed: () => _handleRejectBooking(booking),
-                          child: const Text(
+                          child: Text(
                             'Reject',
-                            style: TextStyle(fontSize: 11),
+                            style: AppFonts.poppins(
+                              size: 11,
+                              weight: FontWeight.w600,
+                              color: const Color(0xFFEF4444),
+                            ),
                           ),
                         ),
                       ],
@@ -3213,7 +3257,14 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                   ),
                   onPressed: _handleEditProfileDialog,
                   icon: const Icon(Icons.edit_outlined, size: 16),
-                  label: const Text('Edit Profile'),
+                  label: Text(
+                    'Edit Profile',
+                    style: AppFonts.poppins(
+                      size: 13,
+                      weight: FontWeight.w600,
+                      color: const Color(0xFF111827),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -3566,10 +3617,10 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                     ),
                     child: Text(
                       unreadCount > 9 ? '9+' : '$unreadCount',
-                      style: const TextStyle(
+                      style: AppFonts.poppins(
                         color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
+                        size: 9,
+                        weight: FontWeight.w700,
                       ),
                       textAlign: TextAlign.center,
                     ),

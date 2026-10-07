@@ -218,9 +218,13 @@ class GroomerWorkingHoursTableWidget extends StatelessWidget {
                         color: const Color(0xFF0F766E),
                         borderRadius: BorderRadius.circular(4),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Today',
-                        style: TextStyle(fontSize: 8.5, color: Colors.white, fontWeight: FontWeight.w700),
+                        style: AppFonts.poppins(
+                          size: 8.5,
+                          color: Colors.white,
+                          weight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ],
@@ -328,9 +332,13 @@ class GroomerWorkingHoursTableWidget extends StatelessWidget {
                           color: const Color(0xFF0F766E),
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: const Text(
+                        child: Text(
                           'Today',
-                          style: TextStyle(fontSize: 8, color: Colors.white, fontWeight: FontWeight.w700),
+                          style: AppFonts.poppins(
+                            size: 8,
+                            color: Colors.white,
+                            weight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ],

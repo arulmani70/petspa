@@ -315,9 +315,9 @@ class _GroomerLoginPageMobileState extends State<GroomerLoginPageMobile> {
                             )
                           : Text(
                               'Login',
-                              style: AppFonts.poppins(
+                              style: AppFonts.parkinsans(
                                 size: 16,
-                                weight: FontWeight.w600,
+                                weight: FontWeight.w700,
                                 color: Colors.white,
                               ),
                             ),

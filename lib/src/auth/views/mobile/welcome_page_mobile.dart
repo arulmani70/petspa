@@ -238,7 +238,7 @@ class _WelcomePageMobileState extends State<WelcomePageMobile>
             top: skipTop,
             right: skipRight,
             child: GestureDetector(
-              onTap: () => context.goNamed(RouteNames.home),
+              onTap: () => context.goNamed(RouteNames.login),
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 18,

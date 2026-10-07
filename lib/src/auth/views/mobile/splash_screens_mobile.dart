@@ -287,7 +287,7 @@ class _SplashScreensMobileState extends State<SplashScreensMobile>
             top: skipTop,
             right: skipRight,
             child: GestureDetector(
-              onTap: () => context.goNamed(RouteNames.home),
+              onTap: () => context.goNamed(RouteNames.login),
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 18,

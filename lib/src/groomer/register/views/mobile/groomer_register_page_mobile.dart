@@ -367,9 +367,9 @@ class _GroomerRegisterPageMobileState extends State<GroomerRegisterPageMobile> {
                             )
                           : Text(
                               'Complete Setup',
-                              style: AppFonts.poppins(
+                              style: AppFonts.parkinsans(
                                 size: 16,
-                                weight: FontWeight.w600,
+                                weight: FontWeight.w700,
                                 color: Colors.white,
                               ),
                             ),
