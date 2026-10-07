@@ -361,7 +361,90 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
     );
   }
 
+  void _showGuestLoginPrompt() {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Sign In to Book Appointment',
+          style: AppFonts.parkinsans(
+            size: 18,
+            weight: FontWeight.w700,
+            color: const Color(0xFF111827),
+          ),
+        ),
+        content: Text(
+          'Please sign in or create an account to finalize your booking and secure your appointment.',
+          style: AppFonts.poppins(
+            size: 14,
+            color: const Color(0xFF374151),
+            height: 1.4,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(
+              'Cancel',
+              style: AppFonts.poppins(
+                size: 14,
+                weight: FontWeight.w500,
+                color: const Color(0xFF6B7280),
+              ),
+            ),
+          ),
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Color(0xFF111827)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              context.pushNamed(RouteNames.signup);
+            },
+            child: Text(
+              'Create Account',
+              style: AppFonts.poppins(
+                size: 14,
+                weight: FontWeight.w600,
+                color: const Color(0xFF111827),
+              ),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF111827),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              context.pushNamed(RouteNames.login);
+            },
+            child: Text(
+              'Sign In',
+              style: AppFonts.poppins(
+                size: 14,
+                weight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _confirmBooking() async {
+    if (!ServicesLocator.sessionService.isLoggedIn) {
+      _showGuestLoginPrompt();
+      return;
+    }
+
     if (_confirming) return;
     setState(() => _confirming = true);
 
@@ -598,6 +681,9 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
           'addons_count': _draft.addOns.length,
           'date_label': _draft.date != null ? DateFormat('MMM d, yyyy').format(_draft.date!) : '',
           'time_label': _formatSlotTime(_draft.timeSlot ?? ''),
+          'booking_date': _draft.date != null ? DateFormat('yyyy-MM-dd').format(_draft.date!) : '',
+          'start_time': _draft.timeSlot ?? '',
+          'end_time': _draft.endTime ?? '',
           'groomer_name': _draft.groomer?['name']?.toString() ?? '',
           'applied_offer': _draft.appliedOffer,
           'discount_amount': _draft.discountAmount,

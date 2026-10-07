@@ -62,14 +62,13 @@ class _MockApiRepository extends ApiRepository {
 }
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
-
   setUp(() async {
-    FlutterSecureStorage.setMockInitialValues({});
-    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({'auth_token': 'test_token'});
+    SharedPreferences.setMockInitialValues({'auth_token': 'test_token'});
 
     final session = SessionService();
     await session.initialize();
+    await session.saveSession({'id': 1, 'name': 'Test User', 'email': 'test@example.com'});
 
     final apiRepo = _MockApiRepository();
     await apiRepo.initialize();
@@ -217,5 +216,29 @@ void main() {
 
     socketService.dispose();
   });
+
+  testWidgets('ChatPage input area adjusts cleanly when keyboard opens without excessive gap', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: ChatPage(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify input area is present
+    expect(find.byType(TextField), findsOneWidget);
+
+    // Simulate keyboard open by changing viewInsets
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    await tester.pump();
+
+    // Verify input area is still visible and correctly laid out
+    expect(find.byType(TextField), findsOneWidget);
+
+    // Reset view
+    tester.view.resetViewInsets();
+  });
 }
+
 

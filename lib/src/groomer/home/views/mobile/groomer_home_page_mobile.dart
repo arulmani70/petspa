@@ -2919,6 +2919,11 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFEF4444),
                         foregroundColor: Colors.white,
+                        elevation: 0,
+                        shadowColor: Colors.transparent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
                           vertical: 4,
@@ -2926,9 +2931,13 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                         minimumSize: Size.zero,
                       ),
                       onPressed: () => _handleApproveCancellation(booking),
-                      child: const Text(
+                      child: Text(
                         'Approve Cancellation',
-                        style: TextStyle(fontSize: 11),
+                        style: AppFonts.poppins(
+                          size: 11,
+                          weight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -4332,6 +4341,7 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                     backgroundColor: const Color(0xFFEF4444),
                     foregroundColor: Colors.white,
                     elevation: 0,
+                    shadowColor: Colors.transparent,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),
@@ -4344,7 +4354,11 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                   onPressed: () => _handleApproveCancellation(booking),
                   child: Text(
                     'Approve Cancellation',
-                    style: AppFonts.poppins(size: 12, weight: FontWeight.w600),
+                    style: AppFonts.poppins(
+                      size: 12,
+                      weight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ],

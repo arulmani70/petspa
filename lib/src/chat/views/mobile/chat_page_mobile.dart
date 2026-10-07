@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
 import 'package:shear_heaven_pet_spa/src/chat/bloc/chat_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/chat/models/chat_message_model.dart';
+import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/toast_util.dart';
 
@@ -23,7 +24,9 @@ class _ChatPageMobileState extends State<ChatPageMobile> {
   @override
   void initState() {
     super.initState();
-    context.read<ChatBloc>().add(const InitializeChat());
+    if (ServicesLocator.sessionService.isLoggedIn) {
+      context.read<ChatBloc>().add(const InitializeChat());
+    }
   }
 
   @override
@@ -71,8 +74,39 @@ class _ChatPageMobileState extends State<ChatPageMobile> {
 
   @override
   Widget build(BuildContext context) {
+    if (!ServicesLocator.sessionService.isLoggedIn) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black, size: 22),
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.goNamed(RouteNames.home);
+              }
+            },
+          ),
+          title: Text(
+            'Chat Support',
+            style: AppFonts.parkinsans(
+              size: 20,
+              weight: FontWeight.w700,
+              color: Colors.black,
+            ),
+          ),
+          centerTitle: false,
+        ),
+        body: _buildGuestState(),
+      );
+    }
     return Scaffold(
       backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -512,14 +546,12 @@ class _ChatPageMobileState extends State<ChatPageMobile> {
   Widget _buildInputArea(ChatState state) {
     final isSending = state.isTyping || state.status == ChatStatus.sending;
     final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
-    final bottomInset = MediaQuery.of(context).viewPadding.bottom;
-    // 78 (dock height) + 34 (dock bottom margin) + 12 (spacing above dock) = 124
-    final double bottomPadding = keyboardOpen
-        ? (bottomInset > 0 ? bottomInset : 12.0)
-        : (112.0 + 12.0);
+    // When keyboard is open: snug 8px padding directly above the keyboard.
+    // When keyboard is closed: 112px (dock 78 + margin 34) + 12px spacing = 124px.
+    final double bottomPadding = keyboardOpen ? 8.0 : 124.0;
 
     return Container(
-      padding: EdgeInsets.only(left: 16, right: 16, top: 10, bottom: bottomPadding),
+      padding: EdgeInsets.only(left: 16, right: 16, top: 8, bottom: bottomPadding),
       decoration: const BoxDecoration(
         color: Colors.white,
       ),
@@ -569,6 +601,74 @@ class _ChatPageMobileState extends State<ChatPageMobile> {
                         ),
                       )
                     : const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGuestState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 90,
+              height: 90,
+              decoration: const BoxDecoration(
+                color: Color(0xFFF3F4F6),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.chat_bubble_outline_rounded,
+                size: 46,
+                color: Color(0xFF111827),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Sign In to Chat with Support',
+              style: AppFonts.parkinsans(
+                size: 20,
+                weight: FontWeight.w700,
+                color: const Color(0xFF111827),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Have questions about services or an existing booking? Sign in to chat directly with our team.',
+              style: AppFonts.poppins(
+                size: 14,
+                color: const Color(0xFF6B7280),
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF111827),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(60),
+                  ),
+                ),
+                onPressed: () => context.pushNamed(RouteNames.login),
+                child: Text(
+                  'Sign In / Register',
+                  style: AppFonts.parkinsans(
+                    size: 16,
+                    weight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ),
           ],

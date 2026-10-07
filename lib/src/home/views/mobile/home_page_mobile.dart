@@ -84,11 +84,13 @@ class _HomePageMobileState extends State<HomePageMobile> {
   }
 
   Future<void> _loadUser() async {
+    final isLoggedIn = ServicesLocator.sessionService.isLoggedIn;
     final user = await ServicesLocator.authRepository.getCurrentUser();
     if (!mounted) return;
     setState(() {
-      final name =
-          user?[Constants.database.COLUMN_NAME]?.toString() ?? 'Alexander';
+      final name = isLoggedIn
+          ? (user?[Constants.database.COLUMN_NAME]?.toString() ?? 'Alexander')
+          : 'Guest';
       _name = name;
     });
   }
@@ -240,86 +242,101 @@ class _HomePageMobileState extends State<HomePageMobile> {
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
         child: Row(
           children: [
-            ClipOval(
-              child: SizedBox(
-                width: 58,
-                height: 58,
-                child: FigmaImage(
-                  asset: 'assets/images/common/avatar.png',
-                  fit: BoxFit.cover,
-                  fallback: Container(
-                    color: const Color(0xFFEEEEEE),
-                    alignment: Alignment.center,
-                    child: Text(
-                      _name.isNotEmpty ? _name[0].toUpperCase() : 'A',
-                      style: AppFonts.poppins(
-                        size: 22,
-                        weight: FontWeight.w600,
+            Expanded(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () async {
+                  await context.pushNamed(RouteNames.profile);
+                  if (mounted) {
+                    _loadUser();
+                  }
+                },
+                child: Row(
+                  children: [
+                    ClipOval(
+                      child: SizedBox(
+                        width: 58,
+                        height: 58,
+                        child: FigmaImage(
+                          asset: 'assets/images/common/avatar.png',
+                          fit: BoxFit.cover,
+                          fallback: Container(
+                            color: const Color(0xFFEEEEEE),
+                            alignment: Alignment.center,
+                            child: Text(
+                              _name.isNotEmpty ? _name[0].toUpperCase() : 'A',
+                              style: AppFonts.poppins(
+                                size: 22,
+                                weight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  'Hi, $_name',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppFonts.poppins(
+                                    size: 18,
+                                    weight: FontWeight.w500,
+                                    height: 17.579 / 18,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              SvgPicture.asset(
+                                'assets/images/home/fi_17895307_1_917.svg',
+                                width: 17,
+                                height: 17,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          Row(
+                            children: [
+                              SvgPicture.asset(
+                                'assets/images/common/icon_pin.svg',
+                                width: 8,
+                                height: 10,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    const Icon(
+                                      Icons.location_on,
+                                      size: 10,
+                                      color: Colors.black,
+                                    ),
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  'California',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppFonts.poppins(
+                                    size: 14,
+                                    weight: FontWeight.w400,
+                                    height: 17.579 / 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          'Hi, $_name',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppFonts.poppins(
-                            size: 18,
-                            weight: FontWeight.w500,
-                            height: 17.579 / 18,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      SvgPicture.asset(
-                        'assets/images/home/fi_17895307_1_917.svg',
-                        width: 17,
-                        height: 17,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      SvgPicture.asset(
-                        'assets/images/common/icon_pin.svg',
-                        width: 8,
-                        height: 10,
-                        errorBuilder: (context, error, stackTrace) =>
-                            const Icon(
-                              Icons.location_on,
-                              size: 10,
-                              color: Colors.black,
-                            ),
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          'California',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppFonts.poppins(
-                            size: 14,
-                            weight: FontWeight.w400,
-                            height: 17.579 / 14,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
               ),
             ),
             Row(

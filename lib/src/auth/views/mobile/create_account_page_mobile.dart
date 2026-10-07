@@ -316,7 +316,7 @@ class _CreateAccountPageMobileState extends State<CreateAccountPageMobile> {
                     ),
                     const SizedBox(height: 28),
 
-                    // ── Divider "or continue with" ──
+                    // ── Divider "or" ──
                     Row(
                       children: [
                         const Expanded(
@@ -328,7 +328,7 @@ class _CreateAccountPageMobileState extends State<CreateAccountPageMobile> {
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 14),
                           child: Text(
-                            'or continue with',
+                            'or',
                             style: AppFonts.dmSans(
                               size: 14,
                               weight: FontWeight.w400,
@@ -346,22 +346,42 @@ class _CreateAccountPageMobileState extends State<CreateAccountPageMobile> {
                     ),
                     const SizedBox(height: 18),
 
-                    // ── Social Buttons (Google & Apple) ──
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SocialPillButton(
-                          iconPath: 'assets/images/auth/google.svg',
-                          label: 'Google',
-                          onTap: () {},
+                    // ── Continue as Guest Button ──
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: OutlinedButton(
+                        onPressed: () => context.goNamed(RouteNames.home),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(
+                            color: Color(0xFF111827),
+                            width: 1.5,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(60),
+                          ),
+                          backgroundColor: Colors.transparent,
                         ),
-                        const SizedBox(width: 14),
-                        SocialPillButton(
-                          iconPath: 'assets/images/auth/apple.svg',
-                          label: 'Apple',
-                          onTap: () {},
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.explore_outlined,
+                              size: 20,
+                              color: Color(0xFF111827),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Continue as Guest',
+                              style: AppFonts.parkinsans(
+                                size: 16,
+                                weight: FontWeight.w600,
+                                color: const Color(0xFF111827),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                     const SizedBox(height: 20),
 

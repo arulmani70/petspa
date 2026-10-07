@@ -17,6 +17,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<ForgotPasswordSubmitted>(_onForgotPasswordSubmitted);
     on<ResetPasswordSubmitted>(_onResetPasswordSubmitted);
     on<LogoutSubmitted>(_onLogoutSubmitted);
+    on<DeleteAccountSubmitted>(_onDeleteAccountSubmitted);
   }
 
   final AuthRepository _repository;
@@ -175,6 +176,26 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     } catch (e) {
       _log.e("AuthBloc::_onLogoutSubmitted::Error: $e");
       emit(state.copyWith(status: () => AuthStatus.unauthenticated, message: () => e.toString()));
+    }
+  }
+
+  Future<void> _onDeleteAccountSubmitted(DeleteAccountSubmitted event, Emitter<AuthState> emit) async {
+    _log.d("AuthBloc::_onDeleteAccountSubmitted::Deleting account");
+    try {
+      emit(state.copyWith(status: () => AuthStatus.loading));
+      await _repository.deleteAccount();
+      emit(state.copyWith(
+        status: () => AuthStatus.unauthenticated,
+        user: () => null,
+        message: () => 'Account deleted successfully',
+      ));
+    } catch (e) {
+      _log.e("AuthBloc::_onDeleteAccountSubmitted::Error: $e");
+      emit(state.copyWith(
+        status: () => AuthStatus.unauthenticated,
+        user: () => null,
+        message: () => e.toString(),
+      ));
     }
   }
 }

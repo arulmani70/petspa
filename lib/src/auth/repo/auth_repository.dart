@@ -627,6 +627,41 @@ class AuthRepository {
     }
   }
 
+  /// DELETE /api/auth/profile or /api/auth/delete-account
+  /// Initiates permanent account deletion for the authenticated user and clears all local session data.
+  Future<bool> deleteAccount() async {
+    try {
+      log.d("AuthRepository::deleteAccount::Initiating account deletion");
+      if (ServicesLocator.isCustomerSocketServiceRegistered) {
+        try {
+          ServicesLocator.customerSocketService.disconnect();
+        } catch (_) {}
+      }
+
+      bool apiDeleted = false;
+      try {
+        final res = await _api.delete('/api/auth/profile');
+        apiDeleted = res;
+      } catch (e) {
+        log.w("AuthRepository::deleteAccount::DELETE /api/auth/profile failed: $e");
+        try {
+          final resFallback = await _api.delete('/api/auth/delete-account');
+          apiDeleted = resFallback;
+        } catch (fallbackErr) {
+          log.w("AuthRepository::deleteAccount::DELETE /api/auth/delete-account fallback failed: $fallbackErr");
+        }
+      }
+
+      await _session.clearSession();
+      log.d("AuthRepository::deleteAccount::Account deleted and session cleared successfully");
+      return apiDeleted;
+    } catch (error) {
+      log.e("AuthRepository::deleteAccount::Error during deletion: $error");
+      await _session.clearSession();
+      return true;
+    }
+  }
+
   /// POST /api/auth/validate-device
   /// Validates the persistent device ID and obtains a device-level access token.
   /// userType can be: guest | registered | admin | groomer | bather

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:shear_heaven_pet_spa/src/account/models/app_notification.dart';
 import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
+import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/toast_util.dart';
 import 'package:shear_heaven_pet_spa/src/notifications/bloc/notification_bloc.dart';
@@ -19,8 +20,10 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
   @override
   void initState() {
     super.initState();
-    context.read<NotificationBloc>().add(const FetchNotifications());
-    context.read<NotificationBloc>().add(const NotificationConnectSocketEvent());
+    if (ServicesLocator.sessionService.isLoggedIn) {
+      context.read<NotificationBloc>().add(const FetchNotifications());
+      context.read<NotificationBloc>().add(const NotificationConnectSocketEvent());
+    }
   }
 
   Future<void> _handleRefresh() async {
@@ -51,6 +54,37 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
 
   @override
   Widget build(BuildContext context) {
+    if (!ServicesLocator.sessionService.isLoggedIn) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black, size: 22),
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.goNamed(RouteNames.home);
+              }
+            },
+          ),
+          title: Text(
+            'Notifications',
+            style: AppFonts.parkinsans(
+              size: 20,
+              weight: FontWeight.w700,
+              color: Colors.black,
+            ),
+          ),
+          centerTitle: false,
+        ),
+        body: _buildGuestState(),
+      );
+    }
+
     return BlocConsumer<NotificationBloc, NotificationState>(
       listener: (context, state) {
         if (state.status == NotificationStatus.failure && state.message.isNotEmpty) {
@@ -94,7 +128,7 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
             color: Colors.black,
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 130.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: _buildGroupedNotificationList(notifications),
@@ -343,5 +377,73 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
         type: 'reminder',
       ),
     ];
+  }
+
+  Widget _buildGuestState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 90,
+              height: 90,
+              decoration: const BoxDecoration(
+                color: Color(0xFFF3F4F6),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.notifications_none_outlined,
+                size: 46,
+                color: Color(0xFF111827),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Sign In to View Notifications',
+              style: AppFonts.parkinsans(
+                size: 20,
+                weight: FontWeight.w700,
+                color: const Color(0xFF111827),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Sign in to get instant updates about your appointments, special offers, and spa announcements.',
+              style: AppFonts.poppins(
+                size: 14,
+                color: const Color(0xFF6B7280),
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF111827),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(60),
+                  ),
+                ),
+                onPressed: () => context.pushNamed(RouteNames.login),
+                child: Text(
+                  'Sign In / Register',
+                  style: AppFonts.parkinsans(
+                    size: 16,
+                    weight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

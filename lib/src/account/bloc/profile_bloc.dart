@@ -38,8 +38,8 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
       _log.e('ProfileBloc::_onLoadProfile::Error: $e');
       final user = ServicesLocator.sessionService.getSessionUser() ?? {};
       emit(state.copyWith(
-        status: () => ProfileStatus.failure,
-        message: () => 'Could not load live profile. Showing cached data.',
+        status: () => ProfileStatus.loaded,
+        message: () => '',
         profileData: () => user,
       ));
     }

@@ -153,13 +153,74 @@ class SettingsPageMobile extends StatelessWidget {
     );
   }
 
+  void _showDeleteAccountDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Delete Account',
+          style: AppFonts.parkinsans(
+            size: 18,
+            weight: FontWeight.w700,
+            color: const Color(0xFF111827),
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to permanently delete your account? All your personal profile data, pet records, and booking history will be permanently removed. This action cannot be undone.',
+          style: AppFonts.poppins(
+            size: 14,
+            color: const Color(0xFF374151),
+            height: 1.4,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(
+              'Cancel',
+              style: AppFonts.poppins(
+                size: 14,
+                weight: FontWeight.w500,
+                color: const Color(0xFF6B7280),
+              ),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              context.read<AuthBloc>().add(const DeleteAccountSubmitted());
+              context.goNamed(RouteNames.welcome);
+            },
+            child: Text(
+              'Delete Account',
+              style: AppFonts.poppins(
+                size: 14,
+                weight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildProfileCard(BuildContext context) {
+    final isLoggedIn = ServicesLocator.sessionService.isLoggedIn;
     final user = ServicesLocator.sessionService.getSessionUser();
-    final name =
-        user?[Constants.database.COLUMN_NAME]?.toString() ?? 'Alexander';
-    final email =
-        user?[Constants.database.COLUMN_EMAIL]?.toString() ??
-        'alexander@gmail.com';
+    final name = isLoggedIn
+        ? (user?[Constants.database.COLUMN_NAME]?.toString() ?? 'Alexander')
+        : 'Guest User';
+    final email = isLoggedIn
+        ? (user?[Constants.database.COLUMN_EMAIL]?.toString() ?? 'alexander@gmail.com')
+        : 'Sign in to access your account & bookings';
 
     return Container(
       key: const Key('settings_profile_card'),
@@ -182,18 +243,28 @@ class SettingsPageMobile extends StatelessWidget {
             child: SizedBox(
               width: 63,
               height: 63,
-              child: FigmaImage(
-                asset: 'assets/images/common/avatar.png',
-                fit: BoxFit.cover,
-                fallback: Container(
-                  color: const Color(0xFFEEEEEE),
-                  alignment: Alignment.center,
-                  child: Text(
-                    name.isNotEmpty ? name[0].toUpperCase() : 'A',
-                    style: AppFonts.poppins(size: 24, weight: FontWeight.w600),
-                  ),
-                ),
-              ),
+              child: isLoggedIn
+                  ? FigmaImage(
+                      asset: 'assets/images/common/avatar.png',
+                      fit: BoxFit.cover,
+                      fallback: Container(
+                        color: const Color(0xFFEEEEEE),
+                        alignment: Alignment.center,
+                        child: Text(
+                          name.isNotEmpty ? name[0].toUpperCase() : 'A',
+                          style: AppFonts.poppins(size: 24, weight: FontWeight.w600),
+                        ),
+                      ),
+                    )
+                  : Container(
+                      color: const Color(0xFFF3F4F6),
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.person_outline,
+                        size: 32,
+                        color: Color(0xFF6B7280),
+                      ),
+                    ),
             ),
           ),
           const SizedBox(width: 13),
@@ -203,7 +274,7 @@ class SettingsPageMobile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Hi, $name',
+                  isLoggedIn ? 'Hi, $name' : name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppFonts.poppins(
@@ -215,21 +286,23 @@ class SettingsPageMobile extends StatelessWidget {
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    const Icon(
-                      Icons.mail_outline,
-                      size: 10,
-                      color: Color(0xFF343434),
+                    Icon(
+                      isLoggedIn ? Icons.mail_outline : Icons.info_outline,
+                      size: 11,
+                      color: const Color(0xFF343434),
                     ),
                     const SizedBox(width: 5),
-                    Text(
-                      email,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppFonts.poppins(
-                        size: 12,
-                        weight: FontWeight.w300,
-                        color: const Color(0xFF343434),
-                        height: 1.0,
+                    Expanded(
+                      child: Text(
+                        email,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppFonts.poppins(
+                          size: 11,
+                          weight: FontWeight.w300,
+                          color: const Color(0xFF343434),
+                          height: 1.0,
+                        ),
                       ),
                     ),
                   ],
@@ -237,12 +310,31 @@ class SettingsPageMobile extends StatelessWidget {
               ],
             ),
           ),
+          if (!isLoggedIn)
+            GestureDetector(
+              onTap: () => context.pushNamed(RouteNames.login),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF111827),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  'Sign In',
+                  style: AppFonts.parkinsans(
+                    size: 12,
+                    weight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Widget _item(Widget iconWidget, String label, VoidCallback onTap) {
+  Widget _item(Widget iconWidget, String label, VoidCallback onTap, {Color? textColor}) {
     return InkWell(
       onTap: onTap,
       child: SizedBox(
@@ -261,6 +353,7 @@ class SettingsPageMobile extends StatelessWidget {
                   size: 18,
                   weight: FontWeight.w400,
                   height: 1.0,
+                  color: textColor ?? Colors.black,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -330,6 +423,8 @@ class SettingsPageMobile extends StatelessWidget {
   }
 
   Widget _buildSupportCard(BuildContext context) {
+    final isLoggedIn = ServicesLocator.sessionService.isLoggedIn;
+
     return Container(
       key: const Key('settings_support_card'),
       decoration: BoxDecoration(
@@ -381,17 +476,36 @@ class SettingsPageMobile extends StatelessWidget {
             'Terms & Condition',
             () => context.pushNamed(RouteNames.termsCondition),
           ),
-          const SizedBox(height: 19),
-          _item(
-            const Icon(Icons.logout, size: 27, color: Colors.red),
-            'Log Out',
-            () {
-              context.read<AuthBloc>().add(const LogoutSubmitted());
-              context.go('/${RouteNames.login}');
-            },
-          ),
+          if (isLoggedIn) ...[
+            const SizedBox(height: 19),
+            _item(
+              const Icon(Icons.logout, size: 27, color: Colors.red),
+              'Log Out',
+              () {
+                context.read<AuthBloc>().add(const LogoutSubmitted());
+                context.go('/${RouteNames.login}');
+              },
+              textColor: Colors.red,
+            ),
+            const SizedBox(height: 19),
+            _item(
+              const Icon(Icons.delete_forever_outlined, size: 27, color: Colors.red),
+              'Delete Account',
+              () => _showDeleteAccountDialog(context),
+              textColor: Colors.red,
+            ),
+          ] else ...[
+            const SizedBox(height: 19),
+            _item(
+              const Icon(Icons.login, size: 27, color: Color(0xFF111827)),
+              'Log In / Register',
+              () => context.pushNamed(RouteNames.login),
+            ),
+          ],
         ],
       ),
     );
   }
 }
+
+

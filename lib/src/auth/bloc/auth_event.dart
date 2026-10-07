@@ -79,3 +79,8 @@ class ForgotPasswordSubmitted extends AuthEvent {
 class LogoutSubmitted extends AuthEvent {
   const LogoutSubmitted();
 }
+
+class DeleteAccountSubmitted extends AuthEvent {
+  const DeleteAccountSubmitted();
+}
+

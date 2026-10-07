@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
 import 'package:shear_heaven_pet_spa/src/common/common.dart';
+import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/shimmer_loading.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/utils.dart';
@@ -14,6 +15,8 @@ class MyPetsPageMobile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLoggedIn = ServicesLocator.sessionService.isLoggedIn;
+
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAFA),
       appBar: AppBar(
@@ -40,7 +43,9 @@ class MyPetsPageMobile extends StatelessWidget {
           },
         ),
       ),
-      body: BlocConsumer<PetBloc, PetState>(
+      body: !isLoggedIn
+          ? _buildGuestState(context)
+          : BlocConsumer<PetBloc, PetState>(
         listener: (context, state) {
           if (state.status == PetStatus.success) {
             ToastUtil.showSuccessToast(context, state.message);
@@ -265,6 +270,74 @@ class MyPetsPageMobile extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildGuestState(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 90,
+              height: 90,
+              decoration: const BoxDecoration(
+                color: Color(0xFFF3F4F6),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.pets_outlined,
+                size: 46,
+                color: Color(0xFF111827),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Sign In to Manage Pets',
+              style: AppFonts.parkinsans(
+                size: 20,
+                weight: FontWeight.w700,
+                color: const Color(0xFF111827),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Save your dogs, track grooming preferences, and streamline your appointment bookings.',
+              style: AppFonts.poppins(
+                size: 14,
+                color: const Color(0xFF6B7280),
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF111827),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(60),
+                  ),
+                ),
+                onPressed: () => context.pushNamed(RouteNames.login),
+                child: Text(
+                  'Sign In / Register',
+                  style: AppFonts.parkinsans(
+                    size: 16,
+                    weight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -25,11 +25,13 @@ class SessionService {
 
   Future<void> saveSession(Map<String, dynamic> user) async {
     try {
-      log.d("SessionService::saveSession::Saving user session");
-      await _prefs?.setString(
-        Constants.app.SESSION_KEY,
-        user['id']?.toString() ?? '',
-      );
+      final newId = user['id']?.toString() ?? user['userId']?.toString();
+      if (newId != null && newId.isNotEmpty) {
+        await _prefs?.setString(
+          Constants.app.SESSION_KEY,
+          newId,
+        );
+      }
       await _prefs?.setString(Constants.app.USER_KEY, jsonEncode(user));
     } catch (error) {
       log.e("SessionService::saveSession::Error: $error");

@@ -102,6 +102,7 @@ void main() {
 
     sessionService = SessionService();
     await sessionService.initialize();
+    await sessionService.saveSession({'id': 1, 'name': 'Jane Doe', 'email': 'jane@example.com', 'mobile': '1234567890'});
 
     mockApi = _MockApiRepository();
     await mockApi.initialize();

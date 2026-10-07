@@ -90,7 +90,9 @@ class _MyBookingsPageMobileState extends State<MyBookingsPageMobile> {
     _initRealtimeNotifications();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        context.read<PetBloc>().add(const GetAllPets());
+        try {
+          context.read<PetBloc>().add(const GetAllPets());
+        } catch (_) {}
       }
     });
   }
@@ -310,7 +312,6 @@ class _MyBookingsPageMobileState extends State<MyBookingsPageMobile> {
     final rawStatus = (booking['status']?.toString() ?? 'pending')
         .toUpperCase();
     final isPending = rawStatus == 'PENDING';
-    final isConfirmed = rawStatus == 'CONFIRMED';
 
     // ── Status-aware confirm dialog ───────────────────────────────────────
     final String dialogTitle;
@@ -349,7 +350,7 @@ class _MyBookingsPageMobileState extends State<MyBookingsPageMobile> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            style: TextButton.styleFrom(foregroundColor: _kBlack),
+            style: TextButton.styleFrom(foregroundColor: _kSubText),
             child: Text(
               'Keep It',
               style: AppFonts.poppins(size: 14, weight: FontWeight.w500),
@@ -358,17 +359,22 @@ class _MyBookingsPageMobileState extends State<MyBookingsPageMobile> {
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: isConfirmed
-                  ? const Color(0xFFF59E0B) // amber for request
-                  : Colors.red.shade700,
+              backgroundColor: _kBlack,
               foregroundColor: Colors.white,
+              elevation: 0,
+              shadowColor: Colors.transparent,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(30),
               ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             ),
             child: Text(
               confirmLabel,
-              style: AppFonts.poppins(size: 14, weight: FontWeight.w600),
+              style: AppFonts.poppins(
+                size: 14,
+                weight: FontWeight.w600,
+                color: Colors.white,
+              ),
             ),
           ),
         ],
@@ -420,6 +426,30 @@ class _MyBookingsPageMobileState extends State<MyBookingsPageMobile> {
 
   @override
   Widget build(BuildContext context) {
+    final isLoggedIn = ServicesLocator.sessionService.isLoggedIn;
+    if (!isLoggedIn) {
+      return Scaffold(
+        backgroundColor: _kPageBg,
+        appBar: AppBar(
+          backgroundColor: _kCardBg,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black, size: 22),
+            onPressed: () => context.canPop()
+                ? context.pop()
+                : context.goNamed(RouteNames.home),
+          ),
+          centerTitle: false,
+          title: Text(
+            'My Bookings',
+            style: AppFonts.parkinsans(size: 20, weight: FontWeight.w600),
+          ),
+        ),
+        body: _buildGuestState(),
+      );
+    }
+
     return Scaffold(
       backgroundColor: _kPageBg,
       appBar: AppBar(
@@ -517,6 +547,74 @@ class _MyBookingsPageMobileState extends State<MyBookingsPageMobile> {
       _bookings[_activeTab] ?? [];
   String? get _currentError => _error[_activeTab];
 
+  Widget _buildGuestState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 90,
+              height: 90,
+              decoration: const BoxDecoration(
+                color: Color(0xFFF3F4F6),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.calendar_month_outlined,
+                size: 46,
+                color: Color(0xFF111827),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Sign In to View Bookings',
+              style: AppFonts.parkinsans(
+                size: 20,
+                weight: FontWeight.w700,
+                color: const Color(0xFF111827),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Keep track of your upcoming spa sessions, appointment history, and reschedule with ease.',
+              style: AppFonts.poppins(
+                size: 14,
+                color: const Color(0xFF6B7280),
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF111827),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(60),
+                  ),
+                ),
+                onPressed: () => context.pushNamed(RouteNames.login),
+                child: Text(
+                  'Sign In / Register',
+                  style: AppFonts.parkinsans(
+                    size: 16,
+                    weight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildContent() {
     if (_loadingCurrent) {
       // ── Skeleton loading ────────────────────────────────────────────────
@@ -549,7 +647,10 @@ class _MyBookingsPageMobileState extends State<MyBookingsPageMobile> {
       );
     }
 
-    final pets = context.watch<PetBloc>().state.pets;
+    List<Map<String, dynamic>> pets = const [];
+    try {
+      pets = context.watch<PetBloc>().state.pets;
+    } catch (_) {}
 
     return RefreshIndicator(
       color: _kBlack,
@@ -1180,11 +1281,13 @@ class _BookingCard extends StatelessWidget {
               children: [
                 if (onBookAgain != null)
                   Expanded(
-                    child: OutlinedButton(
+                    child: ElevatedButton(
                       onPressed: onBookAgain,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: _kBlack,
-                        side: const BorderSide(color: _kBlack),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _kBlack,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shadowColor: Colors.transparent,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(30),
                         ),
@@ -1193,8 +1296,9 @@ class _BookingCard extends StatelessWidget {
                       child: Text(
                         'Book Again',
                         style: AppFonts.poppins(
-                          size: 16,
+                          size: 14,
                           weight: FontWeight.w600,
+                          color: Colors.white,
                         ),
                       ),
                     ),
@@ -1203,33 +1307,25 @@ class _BookingCard extends StatelessWidget {
                 // status allows cancellation
                 if (onCancel != null && _canCancel)
                   Expanded(
-                    child: OutlinedButton(
+                    child: ElevatedButton(
                       onPressed: cancelling ? null : onCancel,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: _status == 'CONFIRMED'
-                            ? const Color(
-                                0xFFB45309,
-                              ) // amber for request-cancel
-                            : Colors.red.shade700, // red for direct cancel
-                        side: BorderSide(
-                          color: _status == 'CONFIRMED'
-                              ? const Color(0xFFB45309)
-                              : Colors.red.shade700,
-                        ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _kBlack,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shadowColor: Colors.transparent,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(30),
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 11),
                       ),
                       child: cancelling
-                          ? SizedBox(
+                          ? const SizedBox(
                               width: 18,
                               height: 18,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: _status == 'CONFIRMED'
-                                    ? const Color(0xFFB45309)
-                                    : Colors.red.shade700,
+                                color: Colors.white,
                               ),
                             )
                           : Text(
@@ -1237,9 +1333,7 @@ class _BookingCard extends StatelessWidget {
                               style: AppFonts.poppins(
                                 size: 14,
                                 weight: FontWeight.w600,
-                                color: _status == 'CONFIRMED'
-                                    ? const Color(0xFFB45309)
-                                    : Colors.red.shade700,
+                                color: Colors.white,
                               ),
                             ),
                     ),

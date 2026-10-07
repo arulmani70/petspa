@@ -1,10 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:logger/logger.dart';
 import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
+import 'package:shear_heaven_pet_spa/src/auth/bloc/auth_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/common/constants/constansts.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
@@ -119,7 +121,7 @@ class _ProfilePageMobileState extends State<ProfilePageMobile> {
       setState(() {
         _photoUrl = (photo != null && photo.isNotEmpty) ? photo : null;
         _loading  = false;
-        _errorMsg = 'Could not load live profile. Showing cached data.';
+        _errorMsg = null;
       });
     }
   }
@@ -458,14 +460,16 @@ class _ProfilePageMobileState extends State<ProfilePageMobile> {
           ),
         ],
       ),
-      body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(
-                  color: Color(0xFF111827), strokeWidth: 2.5))
-          : SafeArea(
-              bottom: false,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      body: !ServicesLocator.sessionService.isLoggedIn
+          ? _buildGuestState()
+          : _loading
+              ? const Center(
+                  child: CircularProgressIndicator(
+                      color: Color(0xFF111827), strokeWidth: 2.5))
+              : SafeArea(
+                  bottom: false,
+                  child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 140),
                 child  : Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -695,10 +699,27 @@ class _ProfilePageMobileState extends State<ProfilePageMobile> {
                         height    : 52,
                         alignment : Alignment.center,
                         decoration: BoxDecoration(
+                          gradient: _saving
+                              ? null
+                              : const LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Color(0xFF2B2B2B),
+                                    Color(0xFF141414),
+                                  ],
+                                ),
                           color       : _saving
                               ? const Color(0xFF6B7280)
-                              : const Color(0xFF111827),
+                              : null,
                           borderRadius: BorderRadius.circular(60),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.15),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
                         child: _saving
                             ? const SizedBox(
@@ -720,11 +741,163 @@ class _ProfilePageMobileState extends State<ProfilePageMobile> {
                               ),
                       ),
                     ),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 14),
+
+                    // ── Delete Account Button ──
+                    SizedBox(
+                      height: 48,
+                      child: TextButton.icon(
+                        onPressed: _showDeleteAccountDialog,
+                        icon: const Icon(Icons.delete_forever_outlined, color: Colors.red, size: 20),
+                        label: Text(
+                          'Delete Account',
+                          style: AppFonts.poppins(
+                            size: 15,
+                            weight: FontWeight.w600,
+                            color: Colors.red,
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(60),
+                            side: const BorderSide(color: Color(0xFFFCA5A5), width: 1),
+                          ),
+                          backgroundColor: const Color(0xFFFEF2F2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                   ],
                 ),
               ),
             ),
+    );
+  }
+
+  void _showDeleteAccountDialog() {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Delete Account',
+          style: AppFonts.parkinsans(
+            size: 18,
+            weight: FontWeight.w700,
+            color: const Color(0xFF111827),
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to permanently delete your account? All your personal profile data, pet records, and booking history will be permanently removed. This action cannot be undone.',
+          style: AppFonts.poppins(
+            size: 14,
+            color: const Color(0xFF374151),
+            height: 1.4,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(
+              'Cancel',
+              style: AppFonts.poppins(
+                size: 14,
+                weight: FontWeight.w500,
+                color: const Color(0xFF6B7280),
+              ),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              context.read<AuthBloc>().add(const DeleteAccountSubmitted());
+              context.goNamed(RouteNames.welcome);
+            },
+            child: Text(
+              'Delete Account',
+              style: AppFonts.poppins(
+                size: 14,
+                weight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGuestState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 90,
+              height: 90,
+              decoration: const BoxDecoration(
+                color: Color(0xFFF3F4F6),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.person_outline,
+                size: 48,
+                color: Color(0xFF111827),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Sign In to Your Account',
+              style: AppFonts.parkinsans(
+                size: 20,
+                weight: FontWeight.w700,
+                color: const Color(0xFF111827),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Sign in or create an account to view and update your profile details.',
+              style: AppFonts.poppins(
+                size: 14,
+                color: const Color(0xFF6B7280),
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF111827),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(60),
+                  ),
+                ),
+                onPressed: () => context.pushNamed(RouteNames.login),
+                child: Text(
+                  'Sign In / Register',
+                  style: AppFonts.parkinsans(
+                    size: 16,
+                    weight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

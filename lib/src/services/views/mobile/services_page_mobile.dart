@@ -10,15 +10,14 @@ import 'package:shear_heaven_pet_spa/src/services/bloc/service_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/services/repo/service_repository.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Colours
+// Colours — Project Theme (Black & Neutral White/Grey)
 // ─────────────────────────────────────────────────────────────────────────────
-const _kTeal      = Color(0xFF0F766E);
-const _kTealLight = Color(0xFFCCFBF1);
 const _kBlack     = Color(0xFF111827);
 const _kSubText   = Color(0xFF6B7280);
 const _kBorder    = Color(0xFFE5E7EB);
 const _kPageBg    = Color(0xFFFAFAFA);
 const _kCardBg    = Color(0xFFFFFFFF);
+const _kLightGrey = Color(0xFFF3F4F6);
 const _kBaseUrl   = 'https://shear-heaven-api.genzcodershub.com';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -29,7 +28,7 @@ class ServicesPageMobile extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (_) => ServiceBloc(repository: ServicesLocator.serviceRepository)
-          ..add(const InitializeServices()),
+        ..add(const InitializeServices()),
       child: const _ServicesView(),
     );
   }
@@ -44,20 +43,19 @@ class _ServicesView extends StatelessWidget {
     return Scaffold(
       backgroundColor: _kPageBg,
       appBar: AppBar(
-        backgroundColor    : Colors.white,
-        elevation          : 0,
+        backgroundColor: Colors.white,
+        elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black, size: 20),
+          icon: const Icon(Icons.arrow_back, color: Colors.black, size: 24),
           onPressed: () => context.canPop() ? context.pop() : context.goNamed(RouteNames.home),
         ),
-        title: const Text(
+        title: Text(
           'All Services',
-          style: TextStyle(
-            fontFamily : 'Parkinsans',
-            fontSize   : 20,
-            fontWeight : FontWeight.w600,
-            color      : Colors.black,
+          style: AppFonts.parkinsans(
+            size: 20,
+            weight: FontWeight.w700,
+            color: Colors.black,
           ),
         ),
       ),
@@ -95,7 +93,7 @@ class _ServicesView extends StatelessWidget {
           }
 
           return RefreshIndicator(
-            color   : _kTeal,
+            color: _kBlack,
             onRefresh: () async =>
                 context.read<ServiceBloc>().add(const RefreshServices()),
             child: CustomScrollView(
@@ -112,7 +110,7 @@ class _ServicesView extends StatelessWidget {
                         (ctx, i) => Padding(
                           padding: const EdgeInsets.only(bottom: 14),
                           child: _ServiceListCard(
-                            item : bs.walkIn[i],
+                            item: bs.walkIn[i],
                             onTap: () => ctx.pushNamed(
                               RouteNames.serviceDetail,
                               pathParameters: {
@@ -137,7 +135,7 @@ class _ServicesView extends StatelessWidget {
                         (ctx, i) => Padding(
                           padding: const EdgeInsets.only(bottom: 14),
                           child: _ServiceListCard(
-                            item : bs.addOns[i],
+                            item: bs.addOns[i],
                             onTap: () => ctx.pushNamed(
                               RouteNames.serviceDetail,
                               pathParameters: {
@@ -162,7 +160,7 @@ class _ServicesView extends StatelessWidget {
                         (ctx, i) => Padding(
                           padding: const EdgeInsets.only(bottom: 14),
                           child: _ServiceListCard(
-                            item : bs.breeds[i],
+                            item: bs.breeds[i],
                             onTap: () => ctx.pushNamed(
                               RouteNames.serviceDetail,
                               pathParameters: {
@@ -202,11 +200,16 @@ class _SectionHeader extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(17, 20, 17, 4),
         child: Row(
           children: [
-            Icon(icon, size: 18, color: _kTeal),
+            Icon(icon, size: 18, color: _kBlack),
             const SizedBox(width: 8),
-            Text(label,
-                style: AppFonts.parkinsans(
-                    size: 16, weight: FontWeight.w700, color: _kBlack)),
+            Text(
+              label,
+              style: AppFonts.parkinsans(
+                size: 16,
+                weight: FontWeight.w700,
+                color: _kBlack,
+              ),
+            ),
           ],
         ),
       ),
@@ -228,14 +231,14 @@ class _ServiceListCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color       : _kCardBg,
+          color: _kCardBg,
           borderRadius: BorderRadius.circular(16),
-          border      : Border.all(color: _kBorder),
-          boxShadow   : [
+          border: Border.all(color: _kBorder),
+          boxShadow: [
             BoxShadow(
-              color    : Colors.black.withValues(alpha: 0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 6,
-              offset   : const Offset(0, 2),
+              offset: const Offset(0, 2),
             ),
           ],
         ),
@@ -245,13 +248,13 @@ class _ServiceListCard extends StatelessWidget {
             // Image
             ClipRRect(
               borderRadius: const BorderRadius.only(
-                topLeft   : Radius.circular(15),
+                topLeft: Radius.circular(15),
                 bottomLeft: Radius.circular(15),
               ),
               child: SizedBox(
-                width : 90,
+                width: 90,
                 height: 90,
-                child : _ApiOrLocalImage(item: item),
+                child: _ApiOrLocalImage(item: item),
               ),
             ),
             // Content
@@ -261,48 +264,54 @@ class _ServiceListCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(item.name,
-                        style: AppFonts.poppins(
-                            size  : 14,
-                            weight: FontWeight.w600,
-                            color : _kBlack),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis),
+                    Text(
+                      item.name,
+                      style: AppFonts.poppins(
+                        size: 14,
+                        weight: FontWeight.w600,
+                        color: _kBlack,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     if (item.description.isNotEmpty) ...[
                       const SizedBox(height: 3),
-                      Text(item.description,
-                          style: AppFonts.poppins(
-                              size  : 11,
-                              weight: FontWeight.w300,
-                              color : _kSubText),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis),
+                      Text(
+                        item.description,
+                        style: AppFonts.poppins(
+                          size: 11.5,
+                          weight: FontWeight.w400,
+                          color: _kSubText,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ],
                     const SizedBox(height: 8),
                     Wrap(
-                      spacing   : 6,
+                      spacing: 6,
                       runSpacing: 4,
-                      children  : [
+                      children: [
                         if (item.priceDisplay.isNotEmpty)
                           _Chip(
-                            icon : Icons.attach_money,
+                            icon: Icons.attach_money,
                             label: item.priceDisplay,
-                            color: _kTeal,
-                            bg   : _kTealLight,
+                            color: _kBlack,
+                            bg: _kLightGrey,
                           ),
                         if (item.durationMinutes > 0)
                           _Chip(
-                            icon : Icons.schedule_outlined,
+                            icon: Icons.schedule_outlined,
                             label: _fmtDur(item.durationMinutes),
                             color: _kSubText,
-                            bg   : const Color(0xFFF3F4F6),
+                            bg: _kLightGrey,
                           ),
                         if (item.isAddOn)
                           _Chip(
-                            icon : Icons.add,
+                            icon: Icons.add,
                             label: 'Add-On',
-                            color: const Color(0xFF7C3AED),
-                            bg   : const Color(0xFFEDE9FE),
+                            color: _kBlack,
+                            bg: _kLightGrey,
                           ),
                       ],
                     ),
@@ -313,8 +322,11 @@ class _ServiceListCard extends StatelessWidget {
             // Arrow
             Padding(
               padding: const EdgeInsets.only(top: 16, right: 12),
-              child: Icon(Icons.arrow_forward_ios,
-                  size: 14, color: _kSubText),
+              child: const Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 14,
+                color: _kSubText,
+              ),
             ),
           ],
         ),
@@ -346,8 +358,8 @@ class _ApiOrLocalImage extends StatelessWidget {
           serviceAssetFor(item.name);
       if (localAsset != null) {
         return FigmaImage(
-          asset   : localAsset,
-          fit     : BoxFit.cover,
+          asset: localAsset,
+          fit: BoxFit.cover,
           fallback: _icon(),
         );
       }
@@ -358,15 +370,17 @@ class _ApiOrLocalImage extends StatelessWidget {
       final fullUrl = url.startsWith('http') ? url : '$_kBaseUrl$url';
       return Image.network(
         fullUrl,
-        fit         : BoxFit.cover,
+        fit: BoxFit.cover,
         errorBuilder: (ctx, err, st) => fallback(),
         loadingBuilder: (ctx, child, progress) {
           if (progress == null) return child;
           return Container(
-            color    : const Color(0xFFF3F4F6),
+            color: const Color(0xFFF3F4F6),
             alignment: Alignment.center,
-            child    : const CircularProgressIndicator(
-                strokeWidth: 2, color: _kTeal),
+            child: const CircularProgressIndicator(
+              strokeWidth: 2,
+              color: _kBlack,
+            ),
           );
         },
       );
@@ -376,24 +390,19 @@ class _ApiOrLocalImage extends StatelessWidget {
 
   Widget _icon() {
     IconData icon;
-    Color    bg;
     if (item.isPackage) {
       icon = Icons.auto_awesome;
-      bg   = const Color(0xFFF0FDF4);
     } else if (item.isAddOn) {
       icon = Icons.add_circle_outline;
-      bg   = _kTealLight;
     } else if (item.name.toLowerCase().contains('bath')) {
       icon = Icons.shower_outlined;
-      bg   = const Color(0xFFEFF6FF);
     } else {
       icon = Icons.content_cut;
-      bg   = const Color(0xFFFDF4FF);
     }
     return Container(
-      color    : bg,
+      color: _kLightGrey,
       alignment: Alignment.center,
-      child    : Icon(icon, size: 28, color: _kSubText),
+      child: Icon(icon, size: 28, color: _kSubText),
     );
   }
 }
@@ -403,18 +412,22 @@ class _ApiOrLocalImage extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 class _Chip extends StatelessWidget {
   final IconData icon;
-  final String   label;
-  final Color    color;
-  final Color    bg;
-  const _Chip({required this.icon, required this.label,
-      required this.color, required this.bg});
+  final String label;
+  final Color color;
+  final Color bg;
+  const _Chip({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.bg,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding    : const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration : BoxDecoration(
-        color       : bg,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+      decoration: BoxDecoration(
+        color: bg,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -422,9 +435,14 @@ class _Chip extends StatelessWidget {
         children: [
           Icon(icon, size: 11, color: color),
           const SizedBox(width: 3),
-          Text(label,
-              style: AppFonts.poppins(
-                  size: 11, weight: FontWeight.w600, color: color)),
+          Text(
+            label,
+            style: AppFonts.poppins(
+              size: 11,
+              weight: FontWeight.w600,
+              color: color,
+            ),
+          ),
         ],
       ),
     );
@@ -435,7 +453,7 @@ class _Chip extends StatelessWidget {
 // Error / empty state
 // ─────────────────────────────────────────────────────────────────────────────
 class _ErrorView extends StatelessWidget {
-  final String       message;
+  final String message;
   final VoidCallback onRetry;
   const _ErrorView({required this.message, required this.onRetry});
 
@@ -448,35 +466,49 @@ class _ErrorView extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 68, height: 68,
+              width: 68,
+              height: 68,
               decoration: const BoxDecoration(
-                  color: Color(0xFFFEE2E2), shape: BoxShape.circle),
-              child: const Icon(Icons.wifi_off_rounded,
-                  size: 32, color: Color(0xFF991B1B)),
+                color: Color(0xFFFEE2E2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.wifi_off_rounded,
+                size: 32,
+                color: Color(0xFF991B1B),
+              ),
             ),
             const SizedBox(height: 16),
-            Text('Unable to load services',
-                style: AppFonts.parkinsans(
-                    size: 16, weight: FontWeight.w600, color: _kBlack),
-                textAlign: TextAlign.center),
+            Text(
+              'Unable to load services',
+              style: AppFonts.parkinsans(
+                size: 16,
+                weight: FontWeight.w700,
+                color: _kBlack,
+              ),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 8),
-            Text(message.contains('missing_identifiers')
-                ? 'Store information unavailable.'
-                : 'Please check your connection.',
-                style: AppFonts.poppins(size: 13, color: _kSubText),
-                textAlign: TextAlign.center),
+            Text(
+              message.contains('missing_identifiers')
+                  ? 'Store information unavailable.'
+                  : 'Please check your connection.',
+              style: AppFonts.poppins(size: 13, color: _kSubText),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 20),
             ElevatedButton.icon(
               onPressed: onRetry,
-              icon : const Icon(Icons.refresh, size: 17),
+              icon: const Icon(Icons.refresh, size: 17),
               label: const Text('Try Again'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: _kBlack,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 12),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30)),
-                textStyle: AppFonts.poppins(size: 14, weight: FontWeight.w600),
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                textStyle: AppFonts.parkinsans(size: 14, weight: FontWeight.w600),
               ),
             ),
           ],
@@ -498,17 +530,22 @@ class _EmptyView extends StatelessWidget {
         children: [
           const Icon(Icons.search_off_rounded, size: 52, color: _kSubText),
           const SizedBox(height: 14),
-          Text('No services available',
-              style: AppFonts.parkinsans(
-                  size: 16, weight: FontWeight.w600, color: _kBlack)),
+          Text(
+            'No services available',
+            style: AppFonts.parkinsans(
+              size: 16,
+              weight: FontWeight.w700,
+              color: _kBlack,
+            ),
+          ),
           const SizedBox(height: 20),
           TextButton.icon(
             onPressed: onRetry,
-            icon : const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh),
             label: const Text('Retry'),
             style: TextButton.styleFrom(
-              foregroundColor: _kTeal,
-              textStyle: AppFonts.poppins(size: 14, weight: FontWeight.w600),
+              foregroundColor: _kBlack,
+              textStyle: AppFonts.parkinsans(size: 14, weight: FontWeight.w600),
             ),
           ),
         ],

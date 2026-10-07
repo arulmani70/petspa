@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/services/booking_calendar_service.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/services/booking_draft.dart';
 import 'package:shear_heaven_pet_spa/src/common/constants/constansts.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
@@ -226,72 +227,92 @@ class BookingDetailsPageMobile extends StatelessWidget {
                                   const SizedBox(height: 4),
                                   Row(
                                     children: [
-                                      SvgPicture.asset(
-                                        'assets/images/pets/icon_pet_weight.svg',
-                                        width: 13,
-                                        height: 13,
-                                        colorFilter: const ColorFilter.mode(
-                                            Color(0xFF374151), BlendMode.srcIn),
-                                        errorBuilder: (c, e, s) => const Icon(
-                                            Icons.fitness_center,
-                                            size: 13,
-                                            color: Color(0xFF374151)),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text.rich(
-                                        TextSpan(
-                                          text: "Weight: ",
-                                          style: AppFonts.poppins(
-                                            size: 12,
-                                            weight: FontWeight.w400,
-                                            color: const Color(0xFF374151),
-                                          ),
+                                      Flexible(
+                                        flex: 1,
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            TextSpan(
-                                              text: formattedWeight,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w700,
-                                                color: Colors.black,
+                                            SvgPicture.asset(
+                                              'assets/images/pets/icon_pet_weight.svg',
+                                              width: 13,
+                                              height: 13,
+                                              colorFilter: const ColorFilter.mode(
+                                                  Color(0xFF374151), BlendMode.srcIn),
+                                              errorBuilder: (c, e, s) => const Icon(
+                                                  Icons.fitness_center,
+                                                  size: 13,
+                                                  color: Color(0xFF374151)),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Flexible(
+                                              child: Text.rich(
+                                                TextSpan(
+                                                  text: "Weight: ",
+                                                  style: AppFonts.poppins(
+                                                    size: 12,
+                                                    weight: FontWeight.w400,
+                                                    color: const Color(0xFF374151),
+                                                  ),
+                                                  children: [
+                                                    TextSpan(
+                                                      text: formattedWeight,
+                                                      style: const TextStyle(
+                                                        fontWeight: FontWeight.w700,
+                                                        color: Colors.black,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
                                               ),
                                             ),
                                           ],
                                         ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                      const SizedBox(width: 10),
-                                      SvgPicture.asset(
-                                        'assets/images/pets/icon_pet_age.svg',
-                                        width: 13,
-                                        height: 13,
-                                        colorFilter: const ColorFilter.mode(
-                                            Color(0xFF374151), BlendMode.srcIn),
-                                        errorBuilder: (c, e, s) => const Icon(
-                                            Icons.cake_outlined,
-                                            size: 13,
-                                            color: Color(0xFF374151)),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text.rich(
-                                        TextSpan(
-                                          text: "Age: ",
-                                          style: AppFonts.poppins(
-                                            size: 12,
-                                            weight: FontWeight.w400,
-                                            color: const Color(0xFF374151),
-                                          ),
+                                      const SizedBox(width: 8),
+                                      Flexible(
+                                        flex: 1,
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            TextSpan(
-                                              text: formattedAge,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w700,
-                                                color: Colors.black,
+                                            SvgPicture.asset(
+                                              'assets/images/pets/icon_pet_age.svg',
+                                              width: 13,
+                                              height: 13,
+                                              colorFilter: const ColorFilter.mode(
+                                                  Color(0xFF374151), BlendMode.srcIn),
+                                              errorBuilder: (c, e, s) => const Icon(
+                                                  Icons.cake_outlined,
+                                                  size: 13,
+                                                  color: Color(0xFF374151)),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Flexible(
+                                              child: Text.rich(
+                                                TextSpan(
+                                                  text: "Age: ",
+                                                  style: AppFonts.poppins(
+                                                    size: 12,
+                                                    weight: FontWeight.w400,
+                                                    color: const Color(0xFF374151),
+                                                  ),
+                                                  children: [
+                                                    TextSpan(
+                                                      text: formattedAge,
+                                                      style: const TextStyle(
+                                                        fontWeight: FontWeight.w700,
+                                                        color: Colors.black,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
                                               ),
                                             ),
                                           ],
                                         ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ],
                                   ),
@@ -418,7 +439,7 @@ class BookingDetailsPageMobile extends StatelessWidget {
 
                         // Action Button: Add To Calender
                         GestureDetector(
-                          onTap: () {},
+                          onTap: () => BookingCalendarService.addToCalendar(context, summary),
                           child: Container(
                             height: 48,
                             alignment: Alignment.center,
@@ -449,7 +470,7 @@ class BookingDetailsPageMobile extends StatelessWidget {
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  "Add To Calender",
+                                  "Add To Calendar",
                                   style: AppFonts.parkinsans(
                                     size: 15,
                                     weight: FontWeight.w600,
@@ -678,6 +699,8 @@ class BookingDetailsPageMobile extends StatelessWidget {
         Expanded(
           child: Text(
             label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: AppFonts.poppins(
               size: 14,
               weight: FontWeight.w400,

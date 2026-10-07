@@ -34,9 +34,10 @@ void main() {
 
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
-    FlutterSecureStorage.setMockInitialValues({});
-    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({'auth_token': 'token'});
+    SharedPreferences.setMockInitialValues({'auth_token': 'token'});
     await ServicesLocator.initialize();
+    await ServicesLocator.sessionService.saveSession({'id': 1, 'name': 'Test User'});
 
     mockRepo = MockBookingRepository();
 

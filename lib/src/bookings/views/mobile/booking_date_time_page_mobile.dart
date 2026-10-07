@@ -1370,24 +1370,37 @@ class _BookingDateTimePageMobileState
     // Loading
     if (_loadingStep1 || _loadingStep2) {
       return Container(
-        height: 120,
+        width: double.infinity,
+        height: 130,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: _kCardBg,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _kBorderLight),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const CircularProgressIndicator(
-                color: Colors.black, strokeWidth: 2),
-            const SizedBox(height: 10),
+            const SizedBox(
+              width: 26,
+              height: 26,
+              child: CircularProgressIndicator(
+                color: _kSectionText,
+                strokeWidth: 2.2,
+              ),
+            ),
+            const SizedBox(height: 12),
             Text(
               _loadingStep1
                   ? 'Calculating service duration…'
                   : 'Loading available slots…',
+              textAlign: TextAlign.center,
               style: AppFonts.poppins(
-                  size: 12, weight: FontWeight.w400, color: _kSubText),
+                size: 13,
+                weight: FontWeight.w400,
+                color: _kSubText,
+              ),
             ),
           ],
         ),
@@ -1397,35 +1410,78 @@ class _BookingDateTimePageMobileState
     // Error
     if (_slotsError) {
       return Container(
-        padding: const EdgeInsets.all(20),
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
           color: _kCardBg,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _kBorderLight),
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(Icons.wifi_off_rounded, size: 36, color: _kRed.withValues(alpha: 0.7)),
-            const SizedBox(height: 10),
-            Text(
-              _slotsErrorMessage ?? 'Unable to load slots.',
-              textAlign: TextAlign.center,
-              style: AppFonts.poppins(
-                  size: 13,
-                  weight: FontWeight.w500,
-                  color: _kRed),
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F4F6),
+                shape: BoxShape.circle,
+                border: Border.all(color: _kBorderLight),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(
+                Icons.wifi_off_rounded,
+                size: 26,
+                color: _kSectionText,
+              ),
             ),
             const SizedBox(height: 14),
+            Text(
+              'Unable to Load Availability',
+              textAlign: TextAlign.center,
+              style: AppFonts.parkinsans(
+                size: 15,
+                weight: FontWeight.w600,
+                color: _kSectionText,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _slotsErrorMessage ?? 'Please check your connection and try again.',
+              textAlign: TextAlign.center,
+              style: AppFonts.poppins(
+                size: 13,
+                weight: FontWeight.w400,
+                color: _kSubText,
+              ),
+            ),
+            const SizedBox(height: 18),
             ElevatedButton.icon(
               onPressed: _loadAvailability,
-              icon: const Icon(Icons.refresh, size: 16),
-              label: const Text('Retry'),
+              icon: const Icon(Icons.refresh_rounded, size: 16, color: Colors.white),
+              label: Text(
+                'Retry',
+                style: AppFonts.poppins(
+                  size: 13,
+                  weight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.black,
+                backgroundColor: _kSectionText,
                 foregroundColor: Colors.white,
+                elevation: 0,
+                shadowColor: Colors.transparent,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(22)),
+                  borderRadius: BorderRadius.circular(24),
+                ),
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 24, vertical: 10),
+                  horizontal: 24,
+                  vertical: 11,
+                ),
               ),
             ),
           ],
@@ -1442,36 +1498,112 @@ class _BookingDateTimePageMobileState
     final hasAvailableGroomer =
         _rawGroomers.whereType<Map>().any((g) => g['available'] == true);
     if (!hasAvailableGroomer && _rawGroomers.isNotEmpty) {
-      return _buildBanner(
-        icon: Icons.person_off_outlined,
-        iconColor: _kAmber,
-        title: 'No Groomers Available',
-        message: 'No groomers are available on this date. Please try another date.',
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: _kCardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _kBorderLight),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF3C7),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFFDE68A)),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(
+                Icons.person_off_outlined,
+                size: 26,
+                color: _kAmber,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'No Groomers Available',
+              textAlign: TextAlign.center,
+              style: AppFonts.parkinsans(
+                size: 15,
+                weight: FontWeight.w600,
+                color: _kSectionText,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'No groomers are available on this date. Please try another date.',
+              textAlign: TextAlign.center,
+              style: AppFonts.poppins(
+                size: 13,
+                weight: FontWeight.w400,
+                color: _kSubText,
+              ),
+            ),
+          ],
+        ),
       );
     }
 
     // No slots after filtering
     if (_slots.isEmpty) {
       return Container(
-        padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
           color: _kCardBg,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _kBorderLight),
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(Icons.event_busy,
-                size: 36, color: Colors.grey.shade400),
-            const SizedBox(height: 10),
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F4F6),
+                shape: BoxShape.circle,
+                border: Border.all(color: _kBorderLight),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(
+                Icons.event_busy_rounded,
+                size: 26,
+                color: _kSubText,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'No Available Slots',
+              textAlign: TextAlign.center,
+              style: AppFonts.parkinsans(
+                size: 15,
+                weight: FontWeight.w600,
+                color: _kSectionText,
+              ),
+            ),
+            const SizedBox(height: 6),
             Text(
               _selectedGroomerId == 'any'
-                  ? 'No slots available on this date.'
+                  ? 'No slots available on this date. Please select another date.'
                   : 'No available slots for this groomer on this date.',
               textAlign: TextAlign.center,
               style: AppFonts.poppins(
-                  size: 13,
-                  weight: FontWeight.w400,
-                  color: _kSubText),
+                size: 13,
+                weight: FontWeight.w400,
+                color: _kSubText,
+              ),
             ),
           ],
         ),

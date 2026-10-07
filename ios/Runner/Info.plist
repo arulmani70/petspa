@@ -57,6 +57,18 @@
 	<string>This app requires access to your camera to take photos of your pets and groomer profile pictures.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This app requires access to your photo library to select and upload pet photos and groomer profile pictures.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>This app requires access to your calendar to add your pet grooming appointments.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>This app requires access to your calendar to add your pet grooming appointments.</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>This app requires access to your calendar to add your pet grooming appointments.</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>https</string>
+		<string>http</string>
+		<string>calshow</string>
+	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

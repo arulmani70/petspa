@@ -30,6 +30,7 @@ class MainShell extends StatelessWidget {
     final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
     return Scaffold(
       backgroundColor: Colors.transparent,
+      resizeToAvoidBottomInset: false,
       body: NetworkStatusWidget(child: navigationShell),
       extendBody: true,
       bottomNavigationBar: keyboardOpen
