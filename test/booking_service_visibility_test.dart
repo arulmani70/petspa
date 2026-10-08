@@ -97,7 +97,7 @@ void main() {
     expect(find.textContaining('Add-On'), findsWidgets);
   });
 
-  testWidgets('Breed section is hidden when pet is pre-selected', (WidgetTester tester) async {
+  testWidgets('Breed section is visible when pet is pre-selected', (WidgetTester tester) async {
     final draft = ServicesLocator.bookingDraft;
     draft.setPet({'pet_id': '123', 'pet_name': 'Teddy'}); // existingPet state
 
@@ -106,14 +106,13 @@ void main() {
     // Wait for the async _loadData to complete
     await tester.pumpAndSettle();
 
-    // The text 'Breed' should NOT exist
-    expect(find.text('Breed'), findsNothing);
-    // But Packages and Add-on should still exist
+    // The Breed tab should still be available for breed selection
+    expect(find.text('Breed'), findsWidgets);
     expect(find.text('Packages'), findsWidgets);
     expect(find.textContaining('Add-On'), findsWidgets);
   });
 
-  testWidgets('Breed section transitions correctly on state change', (WidgetTester tester) async {
+  testWidgets('Breed section remains accessible on state change', (WidgetTester tester) async {
     final draft = ServicesLocator.bookingDraft;
     draft.reset(); // start with newBooking
 
@@ -129,16 +128,16 @@ void main() {
     // Pump frames so ListenableBuilder reacts
     await tester.pumpAndSettle();
 
-    // Breed should immediately disappear
-    expect(find.text('Breed'), findsNothing);
+    // Breed tab remains accessible
+    expect(find.text('Breed'), findsWidgets);
     expect(find.text('Packages'), findsWidgets);
 
-    // Simulate resetting the pet (back to newBooking)
+    // Simulate resetting the pet
     draft.reset();
     
     await tester.pumpAndSettle();
     
-    // Breed should reappear
+    // Breed should remain visible
     expect(find.text('Breed'), findsWidgets);
   });
 }

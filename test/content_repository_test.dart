@@ -133,7 +133,7 @@ void main() {
 
       final result = await contentRepo.getStoreContactInfo();
       expect(result.storeName, 'Shear Heaven Main Branch');
-      expect(result.phone, '(817) 277-8433');
+      expect(result.phone, '(669)-338-5227');
       expect(result.email, 'contact@shearheaven.com');
     });
 

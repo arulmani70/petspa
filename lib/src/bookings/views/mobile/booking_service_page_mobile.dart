@@ -46,7 +46,18 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final extra = GoRouterState.of(context).extra;
       if (extra is Map && extra['service'] != null) {
-        _draft.setService(extra['service'] as Map<String, dynamic>);
+        final svc = extra['service'] as Map<String, dynamic>;
+        _draft.setService(svc);
+        if (_draft.pet == null) {
+          final svcName = svc['service_name']?.toString() ?? svc['name']?.toString() ?? '';
+          final breedName = svcName.contains(' — ') ? svcName.split(' — ').first.trim() : 'My Pet';
+          _draft.setPet({
+            'pet_name': breedName,
+            'breed': breedName != 'My Pet' ? breedName : 'All Breeds',
+            'weight': 'Standard',
+            'photo_url': svc['imageUrl'] ?? svc['photo_url'],
+          });
+        }
       }
     });
   }
@@ -99,11 +110,11 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
               );
             }
 
-            // Build tab list — breeds only when no pet selected
+            // Build tab list — Breed tab is always accessible so users can choose/change breed
             final tabs     = <_TabDef>[];
             final tabViews = <Widget>[];
 
-            if (!hasPet && bs.breeds.isNotEmpty) {
+            if (bs.breeds.isNotEmpty) {
               tabs.add(const _TabDef(label: 'Breed', icon: Icons.pets));
               tabViews.add(_BreedTab(breeds: bs.breeds, draft: _draft));
             }
@@ -366,7 +377,31 @@ class _BreedTab extends StatelessWidget {
                 item      : item,
                 isSelected: draft.service?['serviceId'] == item.id,
                 isAddOn   : false,
-                onTap     : () => draft.setService(item.toMap()),
+                onTap     : () {
+                  draft.setService(item.toMap());
+                  final breedName = entry.key.trim();
+                  if (draft.pet == null) {
+                    draft.setPet({
+                      'pet_name': breedName,
+                      'breed': breedName,
+                      'weight': 'Standard',
+                      'photo_url': item.imageUrl,
+                    });
+                  } else {
+                    final updated = Map<String, dynamic>.from(draft.pet!);
+                    final petId = int.tryParse(updated['id']?.toString() ?? '0') ?? 0;
+                    if (petId == 0) {
+                      updated['pet_name'] = breedName;
+                      updated['breed'] = breedName;
+                    } else {
+                      updated['breed'] = breedName;
+                    }
+                    if (item.imageUrl != null && item.imageUrl!.isNotEmpty) {
+                      updated['photo_url'] = item.imageUrl;
+                    }
+                    draft.setPet(updated);
+                  }
+                },
               ),
             )),
           ]),
@@ -396,7 +431,17 @@ class _PackageTab extends StatelessWidget {
             item      : item,
             isSelected: draft.service?['packageId'] == item.id,
             isAddOn   : false,
-            onTap     : () => draft.setService(item.toMap()),
+            onTap     : () {
+              draft.setService(item.toMap());
+              if (draft.pet == null) {
+                draft.setPet({
+                  'pet_name': 'My Pet',
+                  'breed': 'All Breeds',
+                  'weight': 'Standard',
+                  'photo_url': item.imageUrl,
+                });
+              }
+            },
           ),
         )).toList(),
       ),
@@ -465,7 +510,17 @@ class _WalkInTab extends StatelessWidget {
             item      : item,
             isSelected: draft.service?['serviceId'] == item.id,
             isAddOn   : false,
-            onTap     : () => draft.setService(item.toMap()),
+            onTap     : () {
+              draft.setService(item.toMap());
+              if (draft.pet == null) {
+                draft.setPet({
+                  'pet_name': 'My Pet',
+                  'breed': 'All Breeds',
+                  'weight': 'Standard',
+                  'photo_url': item.imageUrl,
+                });
+              }
+            },
           ),
         )).toList(),
       ),

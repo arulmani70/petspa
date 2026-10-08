@@ -166,7 +166,7 @@ void main() {
 
       expect(find.text('Unable to load services'), findsNothing);
       expect(mockServiceRepo.isCalled, isTrue);
-      expect(find.text('Bath'), findsOneWidget);
+      expect(find.text('Poodle — Grooming'), findsOneWidget);
     });
 
     testWidgets('6. Invalid API response (400) -> friendly error state', (tester) async {
@@ -215,7 +215,7 @@ void main() {
 
       expect(find.text('Unable to load services'), findsNothing);
       expect(mockServiceRepo.isCalled, isTrue);
-      expect(find.text('Bath'), findsOneWidget);
+      expect(find.text('Poodle — Grooming'), findsOneWidget);
     });
 
     testWidgets('8. Retry while IDs remain missing -> error state remains', (tester) async {

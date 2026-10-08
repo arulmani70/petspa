@@ -175,7 +175,7 @@ class BookingDetailsPageMobile extends StatelessWidget {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
-                                    petName.isNotEmpty ? petName : 'Teddy',
+                                    petName.isNotEmpty ? petName : 'My Pet',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: AppFonts.poppins(
@@ -210,7 +210,7 @@ class BookingDetailsPageMobile extends StatelessWidget {
                                             ),
                                             children: [
                                               TextSpan(
-                                                text: petBreed.isNotEmpty ? petBreed : 'Shih Tzu',
+                                                text: petBreed.isNotEmpty && petBreed != 'N/A' ? petBreed : 'All Breeds',
                                                 style: const TextStyle(
                                                   fontWeight: FontWeight.w700,
                                                   color: Colors.black,
@@ -618,17 +618,18 @@ class BookingDetailsPageMobile extends StatelessWidget {
   }
 
   String _formatWeight(String? weight) {
-    if (weight == null || weight.isEmpty) return '16kg';
+    if (weight == null || weight.isEmpty || weight == 'null' || weight == 'N/A') return 'Standard';
     final trimmed = weight.trim();
     if (trimmed.toLowerCase().endsWith('kg') ||
-        trimmed.toLowerCase().endsWith('lbs')) {
+        trimmed.toLowerCase().endsWith('lbs') ||
+        trimmed.toLowerCase() == 'standard') {
       return trimmed;
     }
     return '${trimmed}kg';
   }
 
   String _petAge(String? birthDate) {
-    if (birthDate == null || birthDate.isEmpty) return '2yrs';
+    if (birthDate == null || birthDate.isEmpty || birthDate == 'null' || birthDate == 'N/A') return 'All Ages';
     final parsed = DateTime.tryParse(birthDate);
     if (parsed == null) return birthDate;
     final now = DateTime.now();

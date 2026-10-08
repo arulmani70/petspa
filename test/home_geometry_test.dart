@@ -1,4 +1,5 @@
 import 'package:responsive_framework/responsive_framework.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -150,10 +151,16 @@ class _FakeNotificationRepository extends NotificationRepository {
 }
 
 void main() {
-  setUpAll(() {
-    if (!serviceLocator.isRegistered<SessionService>()) {
-      serviceLocator.registerSingleton<SessionService>(SessionService());
+  setUpAll(() async {
+    SharedPreferences.setMockInitialValues({});
+    final session = SessionService();
+    await session.initialize();
+    await session.saveSession({'id': 1, 'name': 'Alexander'});
+    await session.saveTokens(accessToken: 'mock_token', refreshToken: 'mock_refresh');
+    if (serviceLocator.isRegistered<SessionService>()) {
+      serviceLocator.unregister<SessionService>();
     }
+    serviceLocator.registerSingleton<SessionService>(session);
     if (serviceLocator.isRegistered<AuthRepository>()) {
       serviceLocator.unregister<AuthRepository>();
     }
@@ -220,11 +227,11 @@ void main() {
     // (BoxFit.fill) clipped at radius 24, with the white->transparent gradient
     // overlay; at 390x844 (SafeArea 0) it sits at (17,108)-(373,291) and the dog
     // hugs the bottom-right corner.
-    final banner = _rect(tester, 'assets/images/rectangle_41.png');
+    final banner = _rect(tester, 'assets/images/common/welcome_bg.png');
     expect(banner, const Rect.fromLTRB(17, 108, 373, 291));
-    final dog = _rect(tester, 'assets/images/promo_dog.png');
-    expect(dog, const Rect.fromLTRB(247, 133, 373, 291));
-    expect(find.text('Where every\npet gets the royal\ntreatment'), findsOneWidget);
+    final dog = _rect(tester, 'assets/images/home/promo_dog.png');
+    expect(dog, const Rect.fromLTRB(228, 126, 383, 291));
+    expect(find.text('Where Every\nPet Gets The Royal\nTreatment'), findsOneWidget);
     expect(find.text('Trusted by 35k+ pet parents'), findsOneWidget);
     expect(find.text('Book Appointment'), findsWidgets);
     // Banner white-fade gradient (Rectangle 41 GRADIENT_LINEAR overlay) washes

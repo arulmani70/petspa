@@ -37,6 +37,39 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
     if (_draft.appliedPromoCode != null) {
       _promoController.text = _draft.appliedPromoCode!;
     }
+    _ensurePetDetails();
+  }
+
+  Future<void> _ensurePetDetails() async {
+    try {
+      if (ServicesLocator.sessionService.isLoggedIn) {
+        final pets = await ServicesLocator.petRepository.getAllPets();
+        if (pets.isNotEmpty && mounted) {
+          final currentPetId = int.tryParse(_draft.pet?['id']?.toString() ?? '0') ?? 0;
+          if (currentPetId == 0) {
+            final selectedBreed = _draft.pet?['breed']?.toString().toLowerCase() ?? '';
+            final matched = pets.firstWhere(
+              (p) => selectedBreed.isNotEmpty && p['breed']?.toString().toLowerCase() == selectedBreed,
+              orElse: () => pets.first,
+            );
+            _draft.setPet(matched);
+          }
+        }
+      }
+    } catch (e) {
+      _log.d("BookingReviewPage::_ensurePetDetails::Error: $e");
+    }
+
+    if (_draft.pet == null) {
+      final svcName = _draft.service?['service_name']?.toString() ?? _draft.service?['name']?.toString() ?? '';
+      final breedName = svcName.contains(' — ') ? svcName.split(' — ').first.trim() : 'My Pet';
+      _draft.setPet({
+        'pet_name': breedName,
+        'breed': breedName != 'My Pet' ? breedName : 'All Breeds',
+        'weight': 'Standard',
+        'photo_url': _draft.service?['imageUrl'] ?? _draft.service?['photo_url'],
+      });
+    }
   }
 
   @override
@@ -451,7 +484,38 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
     try {
       _log.d("BookingReviewPage::_confirmBooking::Starting booking confirmation");
 
-      final petId = int.tryParse(_draft.pet?['id']?.toString() ?? '0') ?? 0;
+      int petId = int.tryParse(_draft.pet?['id']?.toString() ?? '0') ?? 0;
+      if (petId == 0 && ServicesLocator.sessionService.isLoggedIn) {
+        try {
+          final pets = await ServicesLocator.petRepository.getAllPets();
+          if (pets.isNotEmpty) {
+            final selectedBreed = _draft.pet?['breed']?.toString().toLowerCase() ?? '';
+            final matched = pets.firstWhere(
+              (p) => selectedBreed.isNotEmpty && p['breed']?.toString().toLowerCase() == selectedBreed,
+              orElse: () => pets.first,
+            );
+            _draft.setPet(matched);
+            petId = int.tryParse(matched['id']?.toString() ?? '0') ?? 0;
+          } else {
+            final rawName = _draft.pet?['pet_name']?.toString() ?? 'My Pet';
+            final rawBreed = _draft.pet?['breed']?.toString() ?? 'All Breeds';
+            final newPetId = await ServicesLocator.petRepository.createPet({
+              Constants.database.COLUMN_PET_NAME: rawName,
+              Constants.database.COLUMN_BREED: rawBreed != 'All Breeds' ? rawBreed : 'Dog',
+              Constants.database.COLUMN_WEIGHT: _draft.pet?['weight']?.toString() ?? 'Standard',
+            });
+            if (newPetId > 0) {
+              petId = newPetId;
+              final newPetMap = Map<String, dynamic>.from(_draft.pet ?? {});
+              newPetMap['id'] = newPetId;
+              _draft.setPet(newPetMap);
+            }
+          }
+        } catch (e) {
+          _log.w("BookingReviewPage::_confirmBooking::Auto-resolve pet exception: $e");
+        }
+      }
+
       final ids = _draft.extractServiceIds();
       final serviceId = ids['serviceId'] as int?;
       final packageId = ids['packageId'] as int?;
@@ -472,6 +536,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
           startTime.isEmpty ||
           endTime.isEmpty ||
           (packageId == null && serviceId == null)) {
+        if (!mounted) return;
         ToastUtil.showErrorToast(
             context, 'Missing required booking information. Please go back and select a time slot.');
         setState(() => _confirming = false);
@@ -479,6 +544,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
       }
 
       if (_draft.date == null || !BookingDateUtils.isDateAllowed(_draft.date)) {
+        if (!mounted) return;
         ToastUtil.showErrorToast(
             context, BookingDateUtils.invalidDateMessage);
         setState(() => _confirming = false);
@@ -726,13 +792,41 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
   @override
   Widget build(BuildContext context) {
     const db = DatabaseConstants();
-    final petName = _draft.pet?[db.COLUMN_PET_NAME]?.toString() ?? '';
-    final petBreed = _draft.pet?[db.COLUMN_BREED]?.toString() ?? '';
-    final petWeight = _draft.pet?[db.COLUMN_WEIGHT]?.toString();
-    final petBirth = _draft.pet?[db.COLUMN_BIRTH_DATE]?.toString();
-    final petPhoto = _draft.pet?[db.COLUMN_PHOTO_URL]?.toString();
-    final serviceName = _draft.service?[db.COLUMN_SERVICE_NAME]?.toString() ?? 'Full Grooming';
-    final serviceDesc = _draft.service?[db.COLUMN_DESCRIPTION]?.toString() ?? 'Bath, trim, nails, and ears — the complete pampering session.';
+    final petData = _draft.pet;
+    final svcName = _draft.service?['service_name']?.toString() ?? _draft.service?['name']?.toString() ?? '';
+    final inferredBreed = svcName.contains(' — ') ? svcName.split(' — ').first.trim() : '';
+
+    String petName = petData?[db.COLUMN_PET_NAME]?.toString() ?? petData?['pet_name']?.toString() ?? '';
+    if (petName.isEmpty || petName == 'N/A') {
+      petName = inferredBreed.isNotEmpty ? inferredBreed : 'My Pet';
+    }
+
+    String petBreed = petData?[db.COLUMN_BREED]?.toString() ?? petData?['breed']?.toString() ?? '';
+    if (petBreed.isEmpty || petBreed == 'N/A') {
+      petBreed = inferredBreed.isNotEmpty ? inferredBreed : 'All Breeds';
+    }
+
+    final rawWeight = petData?[db.COLUMN_WEIGHT]?.toString() ?? petData?['weight']?.toString();
+    final petWeight = (rawWeight != null && rawWeight.isNotEmpty && rawWeight != 'N/A')
+        ? (rawWeight.toLowerCase().endsWith('kg') || rawWeight.toLowerCase().endsWith('lbs') || rawWeight.toLowerCase() == 'standard'
+            ? rawWeight
+            : '${rawWeight}kg')
+        : 'Standard';
+
+    final petBirth = petData?[db.COLUMN_BIRTH_DATE]?.toString() ?? petData?['birth_date']?.toString();
+    final rawAge = petData?['age']?.toString();
+    final petAgeDisplay = (petBirth != null && petBirth.isNotEmpty && petBirth != 'null')
+        ? _petAge(petBirth)
+        : (rawAge != null && rawAge.isNotEmpty && rawAge != 'N/A' ? rawAge : 'All Ages');
+
+    final petPhoto = petData?[db.COLUMN_PHOTO_URL]?.toString() ??
+        petData?['photo_url']?.toString() ??
+        petData?['imageUrl']?.toString() ??
+        _draft.service?['imageUrl']?.toString() ??
+        _draft.service?['photo_url']?.toString();
+
+    final serviceName = _draft.service?[db.COLUMN_SERVICE_NAME]?.toString() ?? _draft.service?['service_name']?.toString() ?? _draft.service?['name']?.toString() ?? 'Full Grooming';
+    final serviceDesc = _draft.service?[db.COLUMN_DESCRIPTION]?.toString() ?? _draft.service?['description']?.toString() ?? 'Bath, trim, nails, and ears — the complete pampering session.';
     final date = _draft.date ?? DateTime.now();
     final slot = _draft.timeSlot ?? '';
 
@@ -791,7 +885,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                                     children: [
                                       const TextSpan(text: "Breed: ", style: TextStyle(fontWeight: FontWeight.w400)),
                                       TextSpan(
-                                        text: petBreed.isNotEmpty ? petBreed : 'N/A',
+                                        text: petBreed,
                                         style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.black),
                                       ),
                                     ],
@@ -826,11 +920,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                                           children: [
                                             const TextSpan(text: "Weight: ", style: TextStyle(fontWeight: FontWeight.w400)),
                                             TextSpan(
-                                              text: (petWeight != null && petWeight.isNotEmpty)
-                                                  ? (petWeight.toLowerCase().endsWith('kg') || petWeight.toLowerCase().endsWith('lbs')
-                                                      ? petWeight
-                                                      : '${petWeight}kg')
-                                                  : 'N/A',
+                                              text: petWeight,
                                               style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.black),
                                             ),
                                           ],
@@ -864,7 +954,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                                           children: [
                                             const TextSpan(text: "Age: ", style: TextStyle(fontWeight: FontWeight.w400)),
                                             TextSpan(
-                                              text: _petAge(petBirth),
+                                              text: petAgeDisplay,
                                               style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.black),
                                             ),
                                           ],
@@ -1146,9 +1236,9 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
   }
 
   String _petAge(String? birthDate) {
-    if (birthDate == null || birthDate.isEmpty) return 'N/A';
+    if (birthDate == null || birthDate.isEmpty || birthDate == 'null') return 'All Ages';
     final parsed = DateTime.tryParse(birthDate);
-    if (parsed == null) return 'N/A';
+    if (parsed == null) return 'All Ages';
     final now = DateTime.now();
     var years = now.year - parsed.year;
     if (now.month < parsed.month || (now.month == parsed.month && now.day < parsed.day)) {
