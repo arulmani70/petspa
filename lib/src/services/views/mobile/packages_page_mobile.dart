@@ -265,7 +265,7 @@ class _PackageCard extends StatelessWidget {
                           GestureDetector(
                             onTap: () => context.goNamed(
                               RouteNames.bookingService,
-                              extra: {'service': package},
+                              extra: {'service': package, 'from_popular': true},
                             ),
                             child: Container(
                               width: double.infinity,

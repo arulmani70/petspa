@@ -365,7 +365,7 @@ class _ServiceDetailPageMobileState extends State<ServiceDetailPageMobile> {
           child: GestureDetector(
             onTap: () => context.goNamed(
               RouteNames.bookingService,
-              extra: {'service': service},
+              extra: {'service': service, 'from_popular': true},
             ),
             child: Container(
               width: double.infinity,

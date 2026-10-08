@@ -36,6 +36,7 @@ class BookingServicePageMobile extends StatefulWidget {
 
 class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
   late final BookingDraft _draft;
+  bool _isFromPopular = false;
 
   @override
   void initState() {
@@ -44,19 +45,27 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
 
     // Pre-select a service if passed via GoRouter extra
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final extra = GoRouterState.of(context).extra;
-      if (extra is Map && extra['service'] != null) {
-        final svc = extra['service'] as Map<String, dynamic>;
-        _draft.setService(svc);
-        if (_draft.pet == null) {
-          final svcName = svc['service_name']?.toString() ?? svc['name']?.toString() ?? '';
-          final breedName = svcName.contains(' — ') ? svcName.split(' — ').first.trim() : 'My Pet';
-          _draft.setPet({
-            'pet_name': breedName,
-            'breed': breedName != 'My Pet' ? breedName : 'All Breeds',
-            'weight': 'Standard',
-            'photo_url': svc['imageUrl'] ?? svc['photo_url'],
+      if (extra is Map) {
+        if (extra['from_popular'] == true || extra['service'] != null) {
+          setState(() {
+            _isFromPopular = true;
           });
+        }
+        if (extra['service'] != null) {
+          final svc = extra['service'] as Map<String, dynamic>;
+          _draft.setService(svc);
+          if (_draft.pet == null || _draft.pet?['id'] == null) {
+            final svcName = svc['service_name']?.toString() ?? svc['name']?.toString() ?? '';
+            final breedName = svcName.contains(' — ') ? svcName.split(' — ').first.trim() : 'My Pet';
+            _draft.setPet({
+              'pet_name': breedName,
+              'breed': breedName != 'My Pet' ? breedName : 'All Breeds',
+              'weight': 'Standard',
+              'photo_url': svc['imageUrl'] ?? svc['photo_url'],
+            });
+          }
         }
       }
     });
@@ -92,12 +101,15 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
           listenable: _draft,
           builder: (ctx, _) {
             final bs      = state.bookingServices;
-            final hasPet  = _draft.pet != null;
+            final extra   = GoRouterState.of(context).extra;
+            final isFromPopular = (extra is Map && (extra['from_popular'] == true || extra['service'] != null)) || _isFromPopular;
+            final hasRealPet = _draft.pet != null &&
+                (_draft.pet?['id'] != null && _draft.pet?['id'] != 0);
             final petName = _draft.pet?['pet_name']?.toString() ?? 'your pet';
 
             if (state.status == ServiceStatus.loading ||
                 state.status == ServiceStatus.initial) {
-              return _LoadingScaffold(petName: petName, hasPet: hasPet);
+              return _LoadingScaffold(petName: petName, hasPet: hasRealPet);
             }
 
             if (state.status == ServiceStatus.failure || bs == null) {
@@ -106,15 +118,17 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
                 onRetry: () =>
                     context.read<ServiceBloc>().add(const InitializeServices()),
                 petName: petName,
-                hasPet : hasPet,
+                hasPet : hasRealPet,
               );
             }
 
-            // Build tab list — Breed tab is always accessible so users can choose/change breed
+            // Show Breed tab ONLY when coming via Popular Services or when no real pet was selected in Step 1
+            final showBreedTab = isFromPopular || !hasRealPet;
+
             final tabs     = <_TabDef>[];
             final tabViews = <Widget>[];
 
-            if (bs.breeds.isNotEmpty) {
+            if (showBreedTab && bs.breeds.isNotEmpty) {
               tabs.add(const _TabDef(label: 'Breed', icon: Icons.pets));
               tabViews.add(_BreedTab(breeds: bs.breeds, draft: _draft));
             }
@@ -134,7 +148,7 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
             if (tabs.isEmpty) {
               return _EmptyScaffold(
                 petName: petName,
-                hasPet : hasPet,
+                hasPet : hasRealPet,
                 onRetry: () =>
                     context.read<ServiceBloc>().add(const InitializeServices()),
               );
@@ -142,7 +156,7 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
 
             final canContinue = _draft.service != null;
             return DefaultTabController(
-              key: ValueKey('tabs_${tabs.length}_$hasPet'),
+              key: ValueKey('tabs_${tabs.length}_${showBreedTab}_$hasRealPet'),
               length: tabs.length,
               child: Scaffold(
                 backgroundColor: _kPageBg,
@@ -154,13 +168,13 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
                       BookingHeader(
                         title   : 'Select Service',
                         step    : 2,
-                        subtitle: hasPet
+                        subtitle: hasRealPet
                             ? 'Step 2 of 4 — Booking for $petName'
                             : 'Step 2 of 4 — Choose a Service',
                       ),
 
-                      // Pet strip (shown only when pet pre-selected)
-                      if (hasPet) _PetStrip(draft: _draft),
+                      // Pet strip (shown only when pet pre-selected from Step 1)
+                      if (hasRealPet) _PetStrip(draft: _draft),
 
                       // Tab bar
                       _ServiceTabBar(tabs: tabs),
