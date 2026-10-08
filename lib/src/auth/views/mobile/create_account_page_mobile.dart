@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -26,8 +27,32 @@ class _CreateAccountPageMobileState extends State<CreateAccountPageMobile> {
   final _confirmPasswordController = TextEditingController();
   final _passwordFocusNode = FocusNode();
 
+  late final TapGestureRecognizer _termsRecognizer;
+  late final TapGestureRecognizer _privacyRecognizer;
+  late final TapGestureRecognizer _acceptableRecognizer;
+
+  @override
+  void initState() {
+    super.initState();
+    _termsRecognizer = TapGestureRecognizer()
+      ..onTap = () {
+        context.pushNamed(RouteNames.termsCondition);
+      };
+    _privacyRecognizer = TapGestureRecognizer()
+      ..onTap = () {
+        context.pushNamed(RouteNames.privacyPolicy);
+      };
+    _acceptableRecognizer = TapGestureRecognizer()
+      ..onTap = () {
+        context.pushNamed(RouteNames.termsCondition);
+      };
+  }
+
   @override
   void dispose() {
+    _termsRecognizer.dispose();
+    _privacyRecognizer.dispose();
+    _acceptableRecognizer.dispose();
     _nameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
@@ -280,6 +305,7 @@ class _CreateAccountPageMobileState extends State<CreateAccountPageMobile> {
                           ),
                           TextSpan(
                             text: 'Terms',
+                            recognizer: _termsRecognizer,
                             style: AppFonts.poppins(
                               size: 11.5,
                               weight: FontWeight.w700,
@@ -292,6 +318,7 @@ class _CreateAccountPageMobileState extends State<CreateAccountPageMobile> {
                           ),
                           TextSpan(
                             text: 'Privacy Policy',
+                            recognizer: _privacyRecognizer,
                             style: AppFonts.poppins(
                               size: 11.5,
                               weight: FontWeight.w700,
@@ -301,6 +328,7 @@ class _CreateAccountPageMobileState extends State<CreateAccountPageMobile> {
                           const TextSpan(text: ' and '),
                           TextSpan(
                             text: 'Acceptable Use Policy',
+                            recognizer: _acceptableRecognizer,
                             style: AppFonts.poppins(
                               size: 11.5,
                               weight: FontWeight.w700,
@@ -353,6 +381,7 @@ class _CreateAccountPageMobileState extends State<CreateAccountPageMobile> {
                       child: OutlinedButton(
                         onPressed: () => context.goNamed(RouteNames.home),
                         style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
                           side: const BorderSide(
                             color: Color(0xFF111827),
                             width: 1.5,
@@ -363,6 +392,7 @@ class _CreateAccountPageMobileState extends State<CreateAccountPageMobile> {
                           backgroundColor: Colors.transparent,
                         ),
                         child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             const Icon(
@@ -371,12 +401,15 @@ class _CreateAccountPageMobileState extends State<CreateAccountPageMobile> {
                               color: Color(0xFF111827),
                             ),
                             const SizedBox(width: 8),
-                            Text(
-                              'Continue as Guest',
-                              style: AppFonts.parkinsans(
-                                size: 16,
-                                weight: FontWeight.w600,
-                                color: const Color(0xFF111827),
+                            Flexible(
+                              child: Text(
+                                'Continue as Guest',
+                                overflow: TextOverflow.ellipsis,
+                                style: AppFonts.parkinsans(
+                                  size: 16,
+                                  weight: FontWeight.w600,
+                                  color: const Color(0xFF111827),
+                                ),
                               ),
                             ),
                           ],

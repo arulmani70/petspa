@@ -16,39 +16,7 @@ class SettingsPageMobile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isLoggedIn = ServicesLocator.sessionService.isLoggedIn;
 
-    return BlocListener<AuthBloc, AuthState>(
-      listener: (context, state) {
-        if (state.status == AuthStatus.loading) {
-          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Processing account deletion...'),
-              duration: Duration(seconds: 2),
-            ),
-          );
-        } else if (state.status == AuthStatus.unauthenticated &&
-            state.message == 'Account deleted successfully') {
-          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Your account has been deleted permanently.'),
-              backgroundColor: Colors.black87,
-            ),
-          );
-          context.goNamed(RouteNames.welcome);
-        } else if (state.status == AuthStatus.authenticated &&
-            state.message != null &&
-            state.message!.isNotEmpty) {
-          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(state.message!),
-              backgroundColor: const Color(0xFFDC2626),
-            ),
-          );
-        }
-      },
-      child: Scaffold(
+    final body = Scaffold(
         backgroundColor: const Color(0xFFF8F9FA),
         appBar: PreferredSize(
           preferredSize: const Size.fromHeight(60),
@@ -121,8 +89,47 @@ class SettingsPageMobile extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
+      );
+
+    try {
+      final authBloc = BlocProvider.of<AuthBloc>(context, listen: false);
+      return BlocListener<AuthBloc, AuthState>(
+        bloc: authBloc,
+        listener: (context, state) {
+          if (state.status == AuthStatus.loading) {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Processing account deletion...'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          } else if (state.status == AuthStatus.unauthenticated &&
+              state.message == 'Account deleted successfully') {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Your account has been deleted permanently.'),
+                backgroundColor: Colors.black87,
+              ),
+            );
+            context.goNamed(RouteNames.welcome);
+          } else if (state.status == AuthStatus.authenticated &&
+              state.message.isNotEmpty) {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.message),
+                backgroundColor: const Color(0xFFDC2626),
+              ),
+            );
+          }
+        },
+        child: body,
+      );
+    } catch (_) {
+      return body;
+    }
   }
 
   Widget _buildAuthButton(BuildContext context, bool isLoggedIn) {

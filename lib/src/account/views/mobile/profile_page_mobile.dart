@@ -434,39 +434,7 @@ class _ProfilePageMobileState extends State<ProfilePageMobile> {
   // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    return BlocListener<AuthBloc, AuthState>(
-      listener: (context, state) {
-        if (state.status == AuthStatus.loading) {
-          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Processing account deletion...'),
-              duration: Duration(seconds: 2),
-            ),
-          );
-        } else if (state.status == AuthStatus.unauthenticated &&
-            state.message == 'Account deleted successfully') {
-          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Your account has been deleted permanently.'),
-              backgroundColor: Colors.black87,
-            ),
-          );
-          context.goNamed(RouteNames.welcome);
-        } else if (state.status == AuthStatus.authenticated &&
-            state.message != null &&
-            state.message!.isNotEmpty) {
-          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(state.message!),
-              backgroundColor: const Color(0xFFDC2626),
-            ),
-          );
-        }
-      },
-      child: Scaffold(
+    final body = Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(
         backgroundColor      : Colors.white,
@@ -803,8 +771,47 @@ class _ProfilePageMobileState extends State<ProfilePageMobile> {
                 ),
               ),
             ),
-      ),
     );
+
+    try {
+      final authBloc = BlocProvider.of<AuthBloc>(context, listen: false);
+      return BlocListener<AuthBloc, AuthState>(
+        bloc: authBloc,
+        listener: (context, state) {
+          if (state.status == AuthStatus.loading) {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Processing account deletion...'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          } else if (state.status == AuthStatus.unauthenticated &&
+              state.message == 'Account deleted successfully') {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Your account has been deleted permanently.'),
+                backgroundColor: Colors.black87,
+              ),
+            );
+            context.goNamed(RouteNames.welcome);
+          } else if (state.status == AuthStatus.authenticated &&
+              state.message.isNotEmpty) {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.message),
+                backgroundColor: const Color(0xFFDC2626),
+              ),
+            );
+          }
+        },
+        child: body,
+      );
+    } catch (_) {
+      return body;
+    }
   }
 
   void _showDeleteAccountDialog() {
