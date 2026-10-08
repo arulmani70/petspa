@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -196,6 +197,12 @@ class SettingsPageMobile extends StatelessWidget {
         ? (user?[Constants.database.COLUMN_EMAIL]?.toString() ?? 'alexander@gmail.com')
         : 'Sign in to access your account & bookings';
 
+    final photo = user?['profilePictureUrl']?.toString() ??
+        user?['profilePicture']?.toString() ??
+        user?['avatar']?.toString() ??
+        user?['photoUrl']?.toString() ??
+        user?['image']?.toString();
+
     return Container(
       key: const Key('settings_profile_card'),
       decoration: BoxDecoration(
@@ -217,28 +224,7 @@ class SettingsPageMobile extends StatelessWidget {
             child: SizedBox(
               width: 58,
               height: 58,
-              child: isLoggedIn
-                  ? FigmaImage(
-                      asset: 'assets/images/common/avatar.png',
-                      fit: BoxFit.cover,
-                      fallback: Container(
-                        color: const Color(0xFFEEEEEE),
-                        alignment: Alignment.center,
-                        child: Text(
-                          name.isNotEmpty ? name[0].toUpperCase() : 'A',
-                          style: AppFonts.poppins(size: 24, weight: FontWeight.w600),
-                        ),
-                      ),
-                    )
-                  : Container(
-                      color: const Color(0xFFF3F4F6),
-                      alignment: Alignment.center,
-                      child: const Icon(
-                        Icons.person_outline,
-                        size: 30,
-                        color: Color(0xFF6B7280),
-                      ),
-                    ),
+              child: _buildAvatar(photo, name, isLoggedIn),
             ),
           ),
           const SizedBox(width: 14),
@@ -303,6 +289,77 @@ class SettingsPageMobile extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAvatar(String? photo, String name, bool isLoggedIn) {
+    if (!isLoggedIn) {
+      return Container(
+        color: const Color(0xFFF3F4F6),
+        alignment: Alignment.center,
+        child: const Icon(
+          Icons.person_outline,
+          size: 30,
+          color: Color(0xFF6B7280),
+        ),
+      );
+    }
+    if (photo != null && photo.trim().isNotEmpty && photo.trim() != 'null') {
+      final path = photo.trim();
+      if (path.startsWith('http://') || path.startsWith('https://')) {
+        return Image.network(
+          path,
+          width: 58,
+          height: 58,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => _buildFallback(name),
+        );
+      }
+      if (path.startsWith('assets/')) {
+        return Image.asset(
+          path,
+          width: 58,
+          height: 58,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => _buildFallback(name),
+        );
+      }
+      try {
+        final file = File(path);
+        if (file.existsSync()) {
+          return Image.file(
+            file,
+            width: 58,
+            height: 58,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => _buildFallback(name),
+          );
+        }
+      } catch (_) {}
+      final clean = path.startsWith('/') ? path.substring(1) : path;
+      return Image.network(
+        '${Constants.app.BASE_URL}/$clean',
+        width: 58,
+        height: 58,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _buildFallback(name),
+      );
+    }
+    return _buildFallback(name);
+  }
+
+  Widget _buildFallback(String name) {
+    return FigmaImage(
+      asset: 'assets/images/common/avatar.png',
+      fit: BoxFit.cover,
+      fallback: Container(
+        color: const Color(0xFFEEEEEE),
+        alignment: Alignment.center,
+        child: Text(
+          name.isNotEmpty ? name[0].toUpperCase() : 'A',
+          style: AppFonts.poppins(size: 24, weight: FontWeight.w600),
+        ),
       ),
     );
   }

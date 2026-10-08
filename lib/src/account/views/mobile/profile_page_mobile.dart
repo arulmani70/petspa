@@ -306,12 +306,18 @@ class _ProfilePageMobileState extends State<ProfilePageMobile> {
                             size: 15,
                             weight: FontWeight.w600,
                             color: const Color(0xFFEF4444))),
-                    onTap: () {
+                    onTap: () async {
                       Navigator.of(ctx).pop();
                       setState(() {
                         _pickedPhotoPath = null;
                         _photoUrl = null;
                       });
+                      final user = Map<String, dynamic>.from(
+                        ServicesLocator.sessionService.getSessionUser() ?? {},
+                      );
+                      user.remove('profilePictureUrl');
+                      user.remove('profilePicture');
+                      await ServicesLocator.sessionService.saveSession(user);
                     },
                   ),
                 ],

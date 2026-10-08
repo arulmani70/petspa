@@ -455,9 +455,16 @@ class AuthRepository {
         await _session.saveStoreId(storeId);
       }
 
-      // Also refresh session cache with latest user data
-      await _session.saveSession(data);
-      return data;
+      // Also refresh session cache with latest user data while preserving local profile photo
+      final existingUser = _session.getSessionUser() ?? {};
+      final mergedData = {...existingUser, ...data};
+      if ((data['profilePictureUrl'] == null || data['profilePictureUrl'].toString().isEmpty) &&
+          existingUser['profilePictureUrl'] != null) {
+        mergedData['profilePictureUrl'] = existingUser['profilePictureUrl'];
+        mergedData['profilePicture'] = existingUser['profilePicture'];
+      }
+      await _session.saveSession(mergedData);
+      return mergedData;
     } catch (error) {
       log.e('AuthRepository::getProfile::Error: $error');
       rethrow;
@@ -538,8 +545,12 @@ class AuthRepository {
       final merged = {..._session.getSessionUser() ?? {}, ...data};
       if (name != null && name.isNotEmpty) merged['name'] = name;
       if (mobile != null && mobile.isNotEmpty) merged['mobile'] = mobile;
+      if (photoPath != null && photoPath.isNotEmpty) {
+        merged['profilePictureUrl'] = photoPath;
+        merged['profilePicture'] = photoPath;
+      }
       await _session.saveSession(merged);
-      return data.isNotEmpty ? data : await getProfile();
+      return merged;
     } catch (error) {
       log.e('AuthRepository::updateProfilePut::Error: $error');
       rethrow;

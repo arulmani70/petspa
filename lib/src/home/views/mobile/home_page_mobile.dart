@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -29,6 +30,7 @@ class HomePageMobile extends StatefulWidget {
 
 class _HomePageMobileState extends State<HomePageMobile> {
   String _name = 'Guest';
+  String? _photoUrl;
   Timer? _popupTimer;
   StreamSubscription<AppNotification>? _realtimeNotificationSub;
 
@@ -86,12 +88,30 @@ class _HomePageMobileState extends State<HomePageMobile> {
   Future<void> _loadUser() async {
     final isLoggedIn = ServicesLocator.sessionService.isLoggedIn;
     final user = await ServicesLocator.authRepository.getCurrentUser();
+    final sessionUser = ServicesLocator.sessionService.getSessionUser();
     if (!mounted) return;
+
+    final photo = user?['profilePictureUrl']?.toString() ??
+        user?['profilePicture']?.toString() ??
+        user?['avatar']?.toString() ??
+        user?['photoUrl']?.toString() ??
+        user?['image']?.toString() ??
+        sessionUser?['profilePictureUrl']?.toString() ??
+        sessionUser?['profilePicture']?.toString() ??
+        sessionUser?['avatar']?.toString() ??
+        sessionUser?['photoUrl']?.toString() ??
+        sessionUser?['image']?.toString();
+
     setState(() {
       final name = isLoggedIn
-          ? (user?[Constants.database.COLUMN_NAME]?.toString() ?? 'Alexander')
+          ? (user?[Constants.database.COLUMN_NAME]?.toString() ??
+              sessionUser?['name']?.toString() ??
+              'Alexander')
           : 'Guest';
       _name = name;
+      _photoUrl = (photo != null && photo.trim().isNotEmpty && photo.trim() != 'null')
+          ? photo.trim()
+          : null;
     });
   }
 
@@ -228,6 +248,83 @@ class _HomePageMobileState extends State<HomePageMobile> {
     );
   }
 
+  Widget _buildAvatar() {
+    if (_photoUrl != null && _photoUrl!.isNotEmpty) {
+      final path = _photoUrl!;
+      if (path.startsWith('http://') || path.startsWith('https://')) {
+        return ClipOval(
+          child: Image.network(
+            path,
+            width: 58,
+            height: 58,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => _buildDefaultAvatar(),
+          ),
+        );
+      }
+      if (path.startsWith('assets/')) {
+        return ClipOval(
+          child: Image.asset(
+            path,
+            width: 58,
+            height: 58,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => _buildDefaultAvatar(),
+          ),
+        );
+      }
+      try {
+        final file = File(path);
+        if (file.existsSync()) {
+          return ClipOval(
+            child: Image.file(
+              file,
+              width: 58,
+              height: 58,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => _buildDefaultAvatar(),
+            ),
+          );
+        }
+      } catch (_) {}
+      final clean = path.startsWith('/') ? path.substring(1) : path;
+      return ClipOval(
+        child: Image.network(
+          '${Constants.app.BASE_URL}/$clean',
+          width: 58,
+          height: 58,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => _buildDefaultAvatar(),
+        ),
+      );
+    }
+    return _buildDefaultAvatar();
+  }
+
+  Widget _buildDefaultAvatar() {
+    return ClipOval(
+      child: SizedBox(
+        width: 58,
+        height: 58,
+        child: FigmaImage(
+          asset: 'assets/images/common/avatar.png',
+          fit: BoxFit.cover,
+          fallback: Container(
+            color: const Color(0xFFEEEEEE),
+            alignment: Alignment.center,
+            child: Text(
+              _name.isNotEmpty ? _name[0].toUpperCase() : 'A',
+              style: AppFonts.poppins(
+                size: 22,
+                weight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // Group 76018 @ (17,61) 356x80 - profile header card
   Widget _buildHeader() {
     return Container(
@@ -253,27 +350,7 @@ class _HomePageMobileState extends State<HomePageMobile> {
                 },
                 child: Row(
                   children: [
-                    ClipOval(
-                      child: SizedBox(
-                        width: 58,
-                        height: 58,
-                        child: FigmaImage(
-                          asset: 'assets/images/common/avatar.png',
-                          fit: BoxFit.cover,
-                          fallback: Container(
-                            color: const Color(0xFFEEEEEE),
-                            alignment: Alignment.center,
-                            child: Text(
-                              _name.isNotEmpty ? _name[0].toUpperCase() : 'A',
-                              style: AppFonts.poppins(
-                                size: 22,
-                                weight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+                    _buildAvatar(),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(
