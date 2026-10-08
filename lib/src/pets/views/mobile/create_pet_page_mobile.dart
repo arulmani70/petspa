@@ -66,31 +66,58 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
     if (_initialized) return;
     _initialized = true;
     final extra = GoRouterState.of(context).extra;
-    if (extra is Map && extra['pet'] != null) {
-      _editingPet = extra['pet'];
-      _isEdit = true;
-      _populateForm(_editingPet!);
+    if (extra is Map) {
+      if (extra['pet'] != null && extra['pet'] is Map) {
+        _editingPet = Map<String, dynamic>.from(extra['pet'] as Map);
+        _isEdit = true;
+        _populateForm(_editingPet!);
+      } else if (extra.containsKey(Constants.database.COLUMN_PET_NAME) ||
+          extra.containsKey('petName') ||
+          extra.containsKey(Constants.database.COLUMN_ID) ||
+          extra.containsKey('id')) {
+        _editingPet = Map<String, dynamic>.from(extra);
+        _isEdit = true;
+        _populateForm(_editingPet!);
+      }
     }
   }
 
-  
   void _populateForm(Map<String, dynamic> pet) {
     _nameController.text =
-        pet[Constants.database.COLUMN_PET_NAME]?.toString() ?? '';
-    _weight = pet[Constants.database.COLUMN_WEIGHT]?.toString();
+        pet[Constants.database.COLUMN_PET_NAME]?.toString() ??
+        pet['petName']?.toString() ??
+        pet['name']?.toString() ??
+        '';
+    _weight = pet[Constants.database.COLUMN_WEIGHT]?.toString() ??
+        pet['weight']?.toString();
     if (_weight != null && _weight!.isEmpty) _weight = null;
     _notesController.text =
-        pet[Constants.database.COLUMN_NOTES]?.toString() ?? '';
-    _breed = pet[Constants.database.COLUMN_BREED]?.toString();
+        pet[Constants.database.COLUMN_NOTES]?.toString() ??
+        pet['notesAllergies']?.toString() ??
+        pet['notes']?.toString() ??
+        '';
+    _breed = pet[Constants.database.COLUMN_BREED]?.toString() ??
+        pet['breed']?.toString();
     
     final birth = DateTime.tryParse(
-      pet[Constants.database.COLUMN_BIRTH_DATE]?.toString() ?? '',
+      pet[Constants.database.COLUMN_BIRTH_DATE]?.toString() ??
+      pet['dateOfBirth']?.toString() ??
+      '',
     );
     if (birth != null) {
       _birthDate = birth;
     }
 
-    _photoPath = pet[Constants.database.COLUMN_PHOTO_URL]?.toString();
+    final rawPhoto = pet[Constants.database.COLUMN_PHOTO_URL]?.toString() ??
+        pet['profilePictureUrl']?.toString() ??
+        pet['profilePicture']?.toString() ??
+        pet['photo_url']?.toString() ??
+        pet['photoUrl']?.toString() ??
+        pet['image']?.toString();
+    _photoPath = (rawPhoto != null && rawPhoto.trim().isNotEmpty && rawPhoto.trim() != 'null')
+        ? rawPhoto.trim()
+        : null;
+
     final ageStr = pet['age']?.toString() ?? '';
     if (ageStr.isNotEmpty) {
       if (_ageOptions.contains(ageStr)) {
@@ -129,7 +156,11 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
       _vaccinated = (vacc == true || vacc.toString() == 'true') ? 'Yes' : 'No';
     }
     
-    final lastVacc = DateTime.tryParse(pet['lastVaccinatedDate']?.toString() ?? '');
+    final lastVacc = DateTime.tryParse(
+      pet['lastVaccinatedDate']?.toString() ??
+      pet['lastVaccinated']?.toString() ??
+      '',
+    );
     if (lastVacc != null) {
       _lastVaccinatedDate = lastVacc;
     }
@@ -300,6 +331,9 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
           .split('T')
           .first,
       Constants.database.COLUMN_PHOTO_URL: _photoPath, // Maps to profilePicture
+      'profilePicture': _photoPath,
+      'profilePictureUrl': _photoPath,
+      'photo_url': _photoPath,
       Constants.database.COLUMN_USER_ID: userId,
       'age': _selectedAge ?? '',
       'gender': _gender.toLowerCase(),
@@ -312,7 +346,12 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
     };
 
     if (_isEdit && _editingPet != null) {
-      final petId = _editingPet![Constants.database.COLUMN_ID] as int;
+      final petIdRaw = _editingPet![Constants.database.COLUMN_ID] ??
+          _editingPet!['id'] ??
+          _editingPet!['_id'];
+      final petId = petIdRaw is int
+          ? petIdRaw
+          : (int.tryParse(petIdRaw?.toString() ?? '') ?? 1);
       bloc.add(UpdatePet(petId: petId, pet: petData));
     } else {
       bloc.add(CreatePet(pet: petData));
@@ -349,9 +388,9 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
                   }
                 },
               ),
-              title: const Text(
-                "Add a Pet",
-                style: TextStyle(
+              title: Text(
+                _isEdit ? "Edit Pet" : "Add a Pet",
+                style: const TextStyle(
                   fontFamily: 'Parkinsans',
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
