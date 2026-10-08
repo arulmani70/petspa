@@ -60,28 +60,26 @@ void main() {
     final blur = backdrop.filter.toString();
     expect(blur, contains('30'));
 
-    // Selected tab: 50x50 rounded square (radius 16) with the dark gradient,
+    // Selected tab: 54x54 circle with the dark gradient,
     // white icon. On /home it sits behind the home icon (center ~56).
     final blockFinder = find.byWidgetPredicate((w) =>
         w is Container &&
         w.decoration is BoxDecoration &&
-        (w.decoration as BoxDecoration).shape != BoxShape.circle &&
+        (w.decoration as BoxDecoration).shape == BoxShape.circle &&
         (w.decoration as BoxDecoration).gradient is LinearGradient &&
         ((w.decoration as BoxDecoration).gradient as LinearGradient).colors.length == 2 &&
         ((w.decoration as BoxDecoration).gradient as LinearGradient).colors[0] ==
             const Color(0xFF3A3A3A) &&
         ((w.decoration as BoxDecoration).gradient as LinearGradient).colors[1] ==
-            Colors.black &&
-        (w.decoration as BoxDecoration).borderRadius ==
-            const BorderRadius.all(Radius.circular(16)));
+            Colors.black);
     expect(blockFinder, findsOneWidget);
     final blockBox = blockFinder.evaluate().single.renderObject! as RenderBox;
     final blockTopLeft = blockBox.localToGlobal(Offset.zero);
     final blockRect =
         Rect.fromLTWH(blockTopLeft.dx, blockTopLeft.dy, blockBox.size.width, blockBox.size.height);
-    expect(blockRect.width, closeTo(50, 0.5));
-    expect(blockRect.height, closeTo(50, 0.5));
-    expect(blockRect.top, closeTo(746, 0.5));
+    expect(blockRect.width, closeTo(54, 0.5));
+    expect(blockRect.height, closeTo(54, 0.5));
+    expect(blockRect.top, closeTo(744, 1.0));
     expect(blockRect.center.dx, closeTo(56, 6));
 
     // No cyan border ring anywhere.

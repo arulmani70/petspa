@@ -627,38 +627,41 @@ class AuthRepository {
     }
   }
 
-  /// DELETE /api/auth/profile or /api/auth/delete-account
-  /// Initiates permanent account deletion for the authenticated user and clears all local session data.
-  Future<bool> deleteAccount() async {
+  /// DELETE /api/auth/account
+  ///
+  /// Permanently hard-deletes the authenticated customer account, pets, bookings,
+  /// notifications, chat, and sessions from the database.
+  /// Requires Bearer accessToken and body: { "password": "...", "confirm": "DELETE" }.
+  Future<bool> deleteAccount({
+    required String password,
+    String confirm = 'DELETE',
+  }) async {
     try {
-      log.d("AuthRepository::deleteAccount::Initiating account deletion");
+      log.d("AuthRepository::deleteAccount::Calling DELETE /api/auth/account (hard delete)");
       if (ServicesLocator.isCustomerSocketServiceRegistered) {
         try {
           ServicesLocator.customerSocketService.disconnect();
         } catch (_) {}
       }
 
-      bool apiDeleted = false;
-      try {
-        final res = await _api.delete('/api/auth/profile');
-        apiDeleted = res;
-      } catch (e) {
-        log.w("AuthRepository::deleteAccount::DELETE /api/auth/profile failed: $e");
-        try {
-          final resFallback = await _api.delete('/api/auth/delete-account');
-          apiDeleted = resFallback;
-        } catch (fallbackErr) {
-          log.w("AuthRepository::deleteAccount::DELETE /api/auth/delete-account fallback failed: $fallbackErr");
-        }
+      final payload = {
+        'password': password,
+        'confirm': confirm,
+      };
+
+      final response = await _api.deleteData('/api/auth/account', payload);
+
+      if (response == null || response['success'] == false) {
+        final errorMsg = response?['message'] ?? 'Failed to delete account. Please verify your password.';
+        throw Exception(errorMsg);
       }
 
       await _session.clearSession();
       log.d("AuthRepository::deleteAccount::Account deleted and session cleared successfully");
-      return apiDeleted;
+      return true;
     } catch (error) {
       log.e("AuthRepository::deleteAccount::Error during deletion: $error");
-      await _session.clearSession();
-      return true;
+      rethrow;
     }
   }
 

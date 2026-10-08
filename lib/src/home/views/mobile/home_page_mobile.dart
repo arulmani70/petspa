@@ -549,8 +549,15 @@ class _HomePageMobileState extends State<HomePageMobile> {
       width: double.infinity,
       height: 183,
       decoration: const BoxDecoration(
+        color: Color(0xFF8DC8E8),
         borderRadius: BorderRadius.all(Radius.circular(24)),
-        boxShadow: [BoxShadow(color: Color(0x1A000000), blurRadius: 20)],
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x1A000000),
+            blurRadius: 20,
+            offset: Offset(0, 4),
+          ),
+        ],
       ),
       child: ClipRRect(
         borderRadius: const BorderRadius.all(Radius.circular(24)),
@@ -558,24 +565,24 @@ class _HomePageMobileState extends State<HomePageMobile> {
           fit: StackFit.expand,
           children: [
             Image.asset(
-              'assets/images/home/rectangle_41.png',
+              'assets/images/common/welcome_bg.png',
               fit: BoxFit.cover,
+              alignment: Alignment.centerRight,
             ),
 
-            // Rectangle 41 GRADIENT_LINEAR overlay: white 1.0 -> 0.3 -> 0.0
-            // (stops 0 / 0.555 / 1), handles p0(0.535,0.390) -> p1(0.877,0.568)
-            // so the left/top text area is washed white and it fades out toward
-            // the bottom-right where the dog sits.
+            // Linear gradient overlay: soft white fade on the left for text legibility,
+            // fading smoothly to transparent on the right so the sky and dog are vibrant.
             Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    begin: Alignment(0.07, -0.22),
-                    end: Alignment(0.754, 0.136),
-                    stops: const [0.0, 0.555, 1.0],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    stops: const [0.0, 0.45, 0.70, 1.0],
                     colors: const [
                       Colors.white,
-                      Color(0x4DFFFFFF),
+                      Color(0xDDFFFFFF),
+                      Color(0x33FFFFFF),
                       Color(0x00FFFFFF),
                     ],
                   ),
@@ -583,14 +590,16 @@ class _HomePageMobileState extends State<HomePageMobile> {
               ),
             ),
 
-            Align(
-              alignment: Alignment.bottomRight,
+            Positioned(
+              right: -10,
+              bottom: 0,
               child: SizedBox(
-                width: 126,
-                height: 158,
+                width: 155,
+                height: 165,
                 child: FigmaImage(
                   asset: 'assets/images/home/promo_dog.png',
-                  fit: BoxFit.cover,
+                  fit: BoxFit.contain,
+                  alignment: Alignment.bottomRight,
                   fallback: Icon(
                     Icons.pets,
                     size: 160,
@@ -601,21 +610,22 @@ class _HomePageMobileState extends State<HomePageMobile> {
             ),
 
             Padding(
-              padding: const EdgeInsets.fromLTRB(21, 26, 20, 0),
+              padding: const EdgeInsets.fromLTRB(18, 16, 115, 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Where every\npet gets the royal\ntreatment',
+                    'Where Every\nPet Gets The Royal\nTreatment',
                     style: AppFonts.parkinsans(
-                      size: 20,
+                      size: 18,
                       weight: FontWeight.w700,
-                      height: 1.0,
+                      height: 1.15,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       SvgPicture.asset(
                         'assets/images/home/icon_star_gold.svg',
@@ -628,14 +638,14 @@ class _HomePageMobileState extends State<HomePageMobile> {
                               color: Color(0xFFF5B417),
                             ),
                       ),
-                      const SizedBox(width: 7),
+                      const SizedBox(width: 5),
                       Flexible(
                         child: Text(
                           'Trusted by 35k+ pet parents',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: AppFonts.poppins(
-                            size: 12,
+                            size: 11.5,
                             weight: FontWeight.w600,
                             height: 20 / 12,
                           ),
@@ -643,12 +653,12 @@ class _HomePageMobileState extends State<HomePageMobile> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   GestureDetector(
                     onTap: () => context.goNamed(RouteNames.petSelect),
                     child: Container(
-                      width: 188,
-                      height: 38,
+                      width: 170,
+                      height: 36,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: Colors.black,
@@ -658,10 +668,10 @@ class _HomePageMobileState extends State<HomePageMobile> {
                         'Book Appointment',
                         textAlign: TextAlign.center,
                         style: AppFonts.parkinsans(
-                          size: 14,
+                          size: 13,
                           weight: FontWeight.w600,
                           color: Colors.white,
-                          height: 22 / 14,
+                          height: 20 / 13,
                         ),
                       ),
                     ),

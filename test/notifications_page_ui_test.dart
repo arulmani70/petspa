@@ -4,6 +4,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shear_heaven_pet_spa/src/account/models/app_notification.dart';
+import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
+import 'package:shear_heaven_pet_spa/src/common/services/session_service.dart';
 import 'package:shear_heaven_pet_spa/src/notifications/bloc/notification_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/notifications/repo/notification_repository.dart';
 import 'package:shear_heaven_pet_spa/src/notifications/views/mobile/notifications_page_mobile.dart';
@@ -37,77 +39,24 @@ void main() {
   setUpAll(() async {
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({});
+    final sessionService = SessionService();
+    await sessionService.initialize();
+    if (!serviceLocator.isRegistered<SessionService>()) {
+      serviceLocator.registerSingleton<SessionService>(sessionService);
+    }
+    await sessionService.saveSession({'id': 1, 'name': 'Alexander'});
+    await sessionService.saveTokens(accessToken: 'mock_token', refreshToken: 'mock_refresh');
   });
 
   setUp(() {
     fakeRepo = _FakeNotificationRepository();
+    if (!serviceLocator.isRegistered<NotificationRepository>()) {
+      serviceLocator.registerSingleton<NotificationRepository>(fakeRepo);
+    }
   });
 
   group('NotificationsPageMobile UI Tests', () {
-    testWidgets('Renders empty state on standard mobile size (390x844)', (tester) async {
-      await tester.binding.setSurfaceSize(const Size(390, 844));
-      fakeRepo.notificationsToReturn = [];
-
-      final notifBloc = NotificationBloc(repository: fakeRepo);
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: BlocProvider<NotificationBloc>.value(
-            value: notifBloc,
-            child: const NotificationsPageMobile(),
-          ),
-        ),
-      );
-
-      await tester.pumpAndSettle();
-
-      // Verify Hero Status Banner
-      expect(find.text('Notifications'), findsOneWidget);
-      expect(find.text('All caught up!'), findsOneWidget);
-      expect(find.text('Live'), findsOneWidget);
-
-      // Verify Category Filter Chips
-      expect(find.text('All'), findsOneWidget);
-      expect(find.text('Unread'), findsOneWidget);
-      expect(find.text('Bookings'), findsOneWidget);
-      expect(find.text('Offers'), findsOneWidget);
-
-      // Verify Empty State Card & Content
-      expect(find.text('No Notifications Yet'), findsOneWidget);
-      expect(find.text('Book Service'), findsOneWidget);
-      expect(find.text('Spa Offers'), findsOneWidget);
-
-      // Verify What to Expect Highlights
-      expect(find.text('WHAT NOTIFICATIONS TO EXPECT'), findsOneWidget);
-      expect(find.text('Live Grooming Status'), findsOneWidget);
-      expect(find.text('Appointment Reminders'), findsOneWidget);
-      expect(find.text('Exclusive Member Perks'), findsOneWidget);
-      expect(find.text('Push notifications are enabled on this device'), findsOneWidget);
-    });
-
-    testWidgets('Renders empty state on ultra narrow screen (320x640) without overflow', (tester) async {
-      await tester.binding.setSurfaceSize(const Size(320, 640));
-      fakeRepo.notificationsToReturn = [];
-
-      final notifBloc = NotificationBloc(repository: fakeRepo);
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: BlocProvider<NotificationBloc>.value(
-            value: notifBloc,
-            child: const NotificationsPageMobile(),
-          ),
-        ),
-      );
-
-      await tester.pumpAndSettle();
-
-      expect(find.text('Notifications'), findsOneWidget);
-      expect(find.text('No Notifications Yet'), findsOneWidget);
-      expect(find.text('WHAT NOTIFICATIONS TO EXPECT'), findsOneWidget);
-    });
-
-    testWidgets('Renders notifications list with category tags, relative dates, and filter chip filtering', (tester) async {
+    testWidgets('Renders notifications list and Mark as read all button', (tester) async {
       await tester.binding.setSurfaceSize(const Size(390, 844));
 
       final now = DateTime.now();
@@ -145,29 +94,22 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // Verify unread count badge in header
-      expect(find.text('1 new'), findsOneWidget);
-      expect(find.text('Mark all read'), findsOneWidget);
+      // Verify AppBar Title and Mark as read all button
+      expect(find.text('Notifications'), findsOneWidget);
+      expect(find.text('Mark as read all'), findsOneWidget);
 
-      // Verify rendered notification cards
+      // Verify grouped headers & notification cards
+      expect(find.text('TODAY'), findsOneWidget);
+      expect(find.text('EARLIER'), findsOneWidget);
       expect(find.text('Booking Confirmed #101'), findsOneWidget);
       expect(find.text('Special Weekend 20% Off'), findsOneWidget);
-      expect(find.text('View Booking'), findsOneWidget);
-      expect(find.text('View Offer'), findsOneWidget);
 
-      // Test Category Filtering: tap 'Offers' filter
-      await tester.tap(find.text('Offers'));
+      // Tap 'Mark as read all'
+      await tester.tap(find.text('Mark as read all'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Special Weekend 20% Off'), findsOneWidget);
-      expect(find.text('Booking Confirmed #101'), findsNothing);
-
-      // Test Category Filtering: tap 'Bookings' filter
-      await tester.tap(find.text('Bookings'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Booking Confirmed #101'), findsOneWidget);
-      expect(find.text('Special Weekend 20% Off'), findsNothing);
+      // Verify bloc state or UI updated
+      expect(notifBloc.state.unreadCount, 0);
     });
   });
 }

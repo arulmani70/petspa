@@ -764,4 +764,40 @@ class ApiRepository {
       return false;
     }
   }
+
+  Future<Map<String, dynamic>?> deleteData(
+    String path,
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      log.d("ApiRepository::deleteData::Deleting with payload: $path");
+      final response = await _dio.delete(path, data: data);
+
+      if (response.statusCode == null ||
+          response.statusCode! < 200 ||
+          response.statusCode! >= 300) {
+        log.w(
+          "ApiRepository::deleteData::Unexpected status: ${response.statusCode} body: ${response.data}",
+        );
+        if (response.data is Map<String, dynamic>) {
+          return response.data as Map<String, dynamic>;
+        }
+        return null;
+      }
+
+      log.d("ApiRepository::deleteData::Deleted successfully");
+      if (response.data is Map<String, dynamic>) {
+        return response.data as Map<String, dynamic>;
+      }
+      return {'success': true};
+    } catch (error) {
+      if (error is DioException &&
+          error.response != null &&
+          error.response?.data is Map<String, dynamic>) {
+        return error.response?.data as Map<String, dynamic>;
+      }
+      log.w("ApiRepository::deleteData::Error: $error");
+      return null;
+    }
+  }
 }

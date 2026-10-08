@@ -434,9 +434,41 @@ class _ProfilePageMobileState extends State<ProfilePageMobile> {
   // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
+    return BlocListener<AuthBloc, AuthState>(
+      listener: (context, state) {
+        if (state.status == AuthStatus.loading) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Processing account deletion...'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        } else if (state.status == AuthStatus.unauthenticated &&
+            state.message == 'Account deleted successfully') {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Your account has been deleted permanently.'),
+              backgroundColor: Colors.black87,
+            ),
+          );
+          context.goNamed(RouteNames.welcome);
+        } else if (state.status == AuthStatus.authenticated &&
+            state.message != null &&
+            state.message!.isNotEmpty) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.message!),
+              backgroundColor: const Color(0xFFDC2626),
+            ),
+          );
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
         backgroundColor      : Colors.white,
         surfaceTintColor     : Colors.transparent,
         elevation            : 0,
@@ -771,64 +803,136 @@ class _ProfilePageMobileState extends State<ProfilePageMobile> {
                 ),
               ),
             ),
+      ),
     );
   }
 
   void _showDeleteAccountDialog() {
+    final passwordController = TextEditingController();
+    bool obscurePassword = true;
+    String? errorMessage;
+
     showDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Delete Account',
-          style: AppFonts.parkinsans(
-            size: 18,
-            weight: FontWeight.w700,
-            color: const Color(0xFF111827),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 24),
+              const SizedBox(width: 8),
+              Text(
+                'Delete Account',
+                style: AppFonts.parkinsans(
+                  size: 18,
+                  weight: FontWeight.w700,
+                  color: const Color(0xFF111827),
+                ),
+              ),
+            ],
           ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'This will permanently delete your account, saved pets, booking history, notifications, and chat records. This action is irreversible.',
+                style: AppFonts.poppins(
+                  size: 13,
+                  color: const Color(0xFF4B5563),
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Please enter your password to confirm:',
+                style: AppFonts.parkinsans(
+                  size: 13,
+                  weight: FontWeight.w600,
+                  color: const Color(0xFF111827),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: passwordController,
+                obscureText: obscurePassword,
+                decoration: InputDecoration(
+                  hintText: 'Current Password',
+                  hintStyle: AppFonts.poppins(size: 13, color: const Color(0xFF9CA3AF)),
+                  errorText: errorMessage,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Colors.black, width: 1.5),
+                  ),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                      color: const Color(0xFF6B7280),
+                      size: 20,
+                    ),
+                    onPressed: () {
+                      setDialogState(() {
+                        obscurePassword = !obscurePassword;
+                      });
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'Cancel',
+                style: AppFonts.parkinsans(
+                  size: 14,
+                  weight: FontWeight.w600,
+                  color: const Color(0xFF6B7280),
+                ),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFDC2626),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
+              onPressed: () {
+                final pwd = passwordController.text.trim();
+                if (pwd.isEmpty) {
+                  setDialogState(() {
+                    errorMessage = 'Password is required to delete account';
+                  });
+                  return;
+                }
+                Navigator.of(dialogContext).pop();
+                context.read<AuthBloc>().add(DeleteAccountSubmitted(password: pwd));
+              },
+              child: Text(
+                'Delete Forever',
+                style: AppFonts.parkinsans(
+                  size: 14,
+                  weight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
         ),
-        content: Text(
-          'Are you sure you want to permanently delete your account? All your personal profile data, pet records, and booking history will be permanently removed. This action cannot be undone.',
-          style: AppFonts.poppins(
-            size: 14,
-            color: const Color(0xFF374151),
-            height: 1.4,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text(
-              'Cancel',
-              style: AppFonts.poppins(
-                size: 14,
-                weight: FontWeight.w500,
-                color: const Color(0xFF6B7280),
-              ),
-            ),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            onPressed: () {
-              Navigator.of(dialogContext).pop();
-              context.read<AuthBloc>().add(const DeleteAccountSubmitted());
-              context.goNamed(RouteNames.welcome);
-            },
-            child: Text(
-              'Delete Account',
-              style: AppFonts.poppins(
-                size: 14,
-                weight: FontWeight.w600,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

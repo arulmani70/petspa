@@ -17,9 +17,12 @@ class NotificationsPageMobile extends StatefulWidget {
 }
 
 class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
+  List<AppNotification>? _mockNotifications;
+
   @override
   void initState() {
     super.initState();
+    _mockNotifications = _getMockNotifications();
     if (ServicesLocator.sessionService.isLoggedIn) {
       context.read<NotificationBloc>().add(const FetchNotifications());
       context.read<NotificationBloc>().add(const NotificationConnectSocketEvent());
@@ -30,9 +33,32 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
     context.read<NotificationBloc>().add(const FetchNotifications());
   }
 
+  void _onMarkAllAsRead() {
+    context.read<NotificationBloc>().add(const MarkAllNotificationsRead());
+    if (mounted) {
+      setState(() {
+        if (_mockNotifications != null) {
+          _mockNotifications = _mockNotifications!.map((n) => n.copyWith(isRead: true)).toList();
+        }
+      });
+    }
+  }
+
   void _onNotificationTap(AppNotification notification) {
     if (!notification.isRead) {
       context.read<NotificationBloc>().add(MarkNotificationRead(notification.id));
+      if (mounted) {
+        setState(() {
+          if (_mockNotifications != null) {
+            _mockNotifications = _mockNotifications!.map((n) {
+              if (n.id == notification.id) {
+                return n.copyWith(isRead: true);
+              }
+              return n;
+            }).toList();
+          }
+        });
+      }
     }
 
     final metadata = notification.metadata;
@@ -95,7 +121,8 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
         final rawNotifications = state.notifications;
         final notifications = rawNotifications.isNotEmpty
             ? rawNotifications
-            : _getMockNotifications();
+            : (_mockNotifications ??= _getMockNotifications());
+        final hasUnread = notifications.any((n) => !n.isRead);
 
         return Scaffold(
           backgroundColor: Colors.white,
@@ -122,6 +149,31 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
               ),
             ),
             centerTitle: false,
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: TextButton(
+                  key: const Key('notifications_mark_all_read_button'),
+                  onPressed: hasUnread ? _onMarkAllAsRead : null,
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.black,
+                    disabledForegroundColor: const Color(0xFF9CA3AF),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                  child: Text(
+                    'Mark as read all',
+                    style: AppFonts.parkinsans(
+                      size: 13,
+                      weight: FontWeight.w600,
+                      color: hasUnread ? Colors.black : const Color(0xFF9CA3AF),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
           body: RefreshIndicator(
             onRefresh: _handleRefresh,

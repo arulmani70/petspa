@@ -3476,10 +3476,10 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
     Widget content;
     if (selected) {
       content = Container(
-        width: 50,
-        height: 50,
+        width: 54,
+        height: 54,
         decoration: const BoxDecoration(
-          borderRadius: BorderRadius.all(Radius.circular(16)),
+          shape: BoxShape.circle,
           gradient: _darkGradient,
         ),
         child: Center(child: _solidIcon(child, Colors.white)),

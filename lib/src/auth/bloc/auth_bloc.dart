@@ -183,7 +183,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     _log.d("AuthBloc::_onDeleteAccountSubmitted::Deleting account");
     try {
       emit(state.copyWith(status: () => AuthStatus.loading));
-      await _repository.deleteAccount();
+      await _repository.deleteAccount(
+        password: event.password,
+        confirm: event.confirm,
+      );
       emit(state.copyWith(
         status: () => AuthStatus.unauthenticated,
         user: () => null,
@@ -192,9 +195,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     } catch (e) {
       _log.e("AuthBloc::_onDeleteAccountSubmitted::Error: $e");
       emit(state.copyWith(
-        status: () => AuthStatus.unauthenticated,
-        user: () => null,
-        message: () => e.toString(),
+        status: () => AuthStatus.authenticated,
+        message: () => e.toString().replaceAll('Exception: ', ''),
       ));
     }
   }

@@ -81,6 +81,15 @@ class LogoutSubmitted extends AuthEvent {
 }
 
 class DeleteAccountSubmitted extends AuthEvent {
-  const DeleteAccountSubmitted();
+  final String password;
+  final String confirm;
+
+  const DeleteAccountSubmitted({
+    required this.password,
+    this.confirm = 'DELETE',
+  });
+
+  @override
+  List<Object> get props => [password, confirm];
 }
 
