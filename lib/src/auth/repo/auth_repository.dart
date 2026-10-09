@@ -355,18 +355,33 @@ class AuthRepository {
 
   Future<Map<String, dynamic>> resetPassword({
     required String email,
+    String? otp,
     required String password,
     required String confirmPassword,
   }) async {
     try {
       log.d('AuthRepository::resetPassword::Resetting password for $email');
-      final response = await _api.post('/api/auth/reset-password', {
-        'email': email.toLowerCase(),
+      final payload = <String, dynamic>{
+        'email': email.toLowerCase().trim(),
+        if (otp != null && otp.isNotEmpty) 'otp': otp.trim(),
         'password': password,
         'confirmPassword': confirmPassword,
-      });
+      };
+      final response = await _api.post('/api/auth/reset-password', payload);
       if (response == null || response['success'] == false) {
-        throw Exception(response?['message'] ?? 'Failed to reset password');
+        String errorMessage =
+            response?['message'] ?? 'Failed to reset password';
+        if (response != null &&
+            response['errors'] != null &&
+            response['errors'] is List) {
+          final errors = (response['errors'] as List)
+              .whereType<String>()
+              .toList();
+          if (errors.isNotEmpty) {
+            errorMessage = errors.join('\n');
+          }
+        }
+        throw Exception(errorMessage);
       }
       log.d('AuthRepository::resetPassword::Success');
       return response;
@@ -385,12 +400,6 @@ class AuthRepository {
       );
       final payload = {
         'email': email.toLowerCase().trim(),
-        if (_session.clientId != null && _session.clientId!.isNotEmpty)
-          'clientId': _session.clientId,
-        if (_session.regionId != null && _session.regionId!.isNotEmpty)
-          'regionId': _session.regionId,
-        if (_session.storeId != null && _session.storeId!.isNotEmpty)
-          'storeId': _session.storeId,
       };
 
       final response = await _api.post('/api/auth/forgot-password', payload);

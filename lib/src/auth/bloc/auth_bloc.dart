@@ -154,6 +154,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       emit(state.copyWith(status: () => AuthStatus.loading));
       await _repository.resetPassword(
         email          : event.email,
+        otp            : event.code,
         password       : event.newPassword,
         confirmPassword: event.newPassword,
       );

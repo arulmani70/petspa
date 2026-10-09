@@ -168,18 +168,20 @@ class BlackPillButton extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
   final double? height;
+  final bool isLoading;
 
   const BlackPillButton({
     super.key,
     required this.label,
     required this.onTap,
     this.height = 49,
+    this.isLoading = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: isLoading ? null : onTap,
       child: Container(
         height: height,
         alignment: Alignment.center,
@@ -194,14 +196,23 @@ class BlackPillButton extends StatelessWidget {
             ),
           ],
         ),
-        child: Text(
-          label,
-          style: AppFonts.parkinsans(
-            size: 18,
-            weight: FontWeight.w700,
-            color: Colors.white,
-          ),
-        ),
+        child: isLoading
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2.5,
+                ),
+              )
+            : Text(
+                label,
+                style: AppFonts.parkinsans(
+                  size: 18,
+                  weight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
       ),
     );
   }

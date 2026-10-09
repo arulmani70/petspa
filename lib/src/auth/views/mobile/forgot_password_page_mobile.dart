@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logger/logger.dart';
@@ -11,9 +12,9 @@ import 'package:shear_heaven_pet_spa/src/common/widgets/password_requirements_vi
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Flow:
-//   Step 1 — Enter email → POST /api/auth/forgot-password
-//   Step 2 — Enter 6-digit OTP → POST /api/auth/verify-otp
-//   Step 3 — Enter new password → POST /api/auth/reset-password
+//   Step 1 — Enter email → POST /api/auth/forgot-password (sends 6-digit OTP)
+//   Step 2 — Enter 6-digit OTP received in email
+//   Step 3 — Enter new password & confirm → POST /api/auth/reset-password
 // ─────────────────────────────────────────────────────────────────────────────
 enum _FpStep { email, otp, newPassword }
 
@@ -32,12 +33,15 @@ class _ForgotPasswordPageMobileState extends State<ForgotPasswordPageMobile> {
   bool _loading = false;
   String? _errorMsg;
   String _email = '';
+  String _otp = '';
 
   // Step 1
   final _emailCtrl = TextEditingController();
 
   // Step 2
   static const int _otpLength = 6;
+  final TextEditingController _otpCtrl = TextEditingController();
+  final FocusNode _otpFocusNode = FocusNode();
   final List<String> _otpDigits = List.filled(_otpLength, '');
   int _otpIndex = 0;
 
@@ -47,12 +51,43 @@ class _ForgotPasswordPageMobileState extends State<ForgotPasswordPageMobile> {
   final _pwFocusNode = FocusNode();
 
   @override
+  void initState() {
+    super.initState();
+    _otpCtrl.addListener(_onOtpChanged);
+  }
+
+  @override
   void dispose() {
+    _otpCtrl.removeListener(_onOtpChanged);
+    _otpCtrl.dispose();
+    _otpFocusNode.dispose();
     _emailCtrl.dispose();
     _pwCtrl.dispose();
     _cpwCtrl.dispose();
     _pwFocusNode.dispose();
     super.dispose();
+  }
+
+  void _onOtpChanged() {
+    final raw = _otpCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (raw.length > _otpLength) {
+      _otpCtrl.value = TextEditingValue(
+        text: raw.substring(0, _otpLength),
+        selection: const TextSelection.collapsed(offset: _otpLength),
+      );
+      return;
+    }
+    setState(() {
+      for (int i = 0; i < _otpLength; i++) {
+        _otpDigits[i] = i < raw.length ? raw[i] : '';
+      }
+      _otpIndex = raw.length.clamp(0, _otpLength);
+      if (_errorMsg != null) _errorMsg = null;
+    });
+
+    if (raw.length == _otpLength) {
+      _submitOtp();
+    }
   }
 
   // ── Step 1: Call POST /api/auth/forgot-password ───────────────────────────
@@ -85,6 +120,20 @@ class _ForgotPasswordPageMobileState extends State<ForgotPasswordPageMobile> {
         _email = email;
         _step = _FpStep.otp;
         _loading = false;
+        _errorMsg = null;
+        _otpCtrl.clear();
+        for (int i = 0; i < _otpLength; i++) {
+          _otpDigits[i] = '';
+        }
+        _otpIndex = 0;
+      });
+
+      ToastUtil.showSuccessToast(context, 'OTP sent to your email.');
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _otpFocusNode.requestFocus();
+        }
       });
     } catch (e) {
       _log.e('ForgotPassword::_submitEmail::Error: $e');
@@ -96,54 +145,38 @@ class _ForgotPasswordPageMobileState extends State<ForgotPasswordPageMobile> {
     }
   }
 
-  // ── Step 2: Verify OTP via POST /api/auth/verify-otp ──────────────────────
-  Future<void> _submitOtp() async {
-    final code = _otpDigits.join();
+  // ── Step 2: Move to New Password step with collected OTP ─────────────────
+  void _submitOtp() {
+    final code = _otpCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
     if (code.length < _otpLength) {
       setState(() => _errorMsg = 'Please enter the complete 6-digit OTP code.');
       return;
     }
+
     setState(() {
-      _loading = true;
+      _otp = code;
+      _step = _FpStep.newPassword;
       _errorMsg = null;
     });
-
-    try {
-      _log.d('ForgotPassword::_submitOtp::Verifying OTP for $_email');
-      final valid = await ServicesLocator.authRepository.verifyOtp(code);
-
-      if (!mounted) return;
-      if (!valid) {
-        setState(() {
-          _loading = false;
-          _errorMsg = 'Invalid or expired OTP. Please try again.';
-        });
-        return;
-      }
-
-      setState(() {
-        _step = _FpStep.newPassword;
-        _loading = false;
-      });
-    } catch (e) {
-      _log.e('ForgotPassword::_submitOtp::Error: $e');
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _errorMsg = _extractMessage(e);
-      });
-    }
   }
 
   Future<void> _resendOtp() async {
+    if (_loading) return;
     setState(() {
       _loading = true;
       _errorMsg = null;
     });
     try {
-      await ServicesLocator.authRepository.sendOtp(_email);
+      await ServicesLocator.authRepository.forgotPasswordCheck(_email);
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _otpCtrl.clear();
+        for (int i = 0; i < _otpLength; i++) {
+          _otpDigits[i] = '';
+        }
+        _otpIndex = 0;
+      });
       ToastUtil.showSuccessToast(context, 'OTP resent to your email.');
     } catch (e) {
       if (!mounted) return;
@@ -175,9 +208,10 @@ class _ForgotPasswordPageMobileState extends State<ForgotPasswordPageMobile> {
     });
 
     try {
-      _log.d('ForgotPassword::_submitNewPassword::Resetting for $_email');
+      _log.d('ForgotPassword::_submitNewPassword::Resetting for $_email with OTP');
       await ServicesLocator.authRepository.resetPassword(
         email: _email,
+        otp: _otp,
         password: pw,
         confirmPassword: cpw,
       );
@@ -346,8 +380,9 @@ class _ForgotPasswordPageMobileState extends State<ForgotPasswordPageMobile> {
         const SizedBox(height: 24),
 
         BlackPillButton(
-          label: _loading ? '' : 'Send OTP',
-          onTap: _loading ? () {} : _submitEmail,
+          label: 'Send OTP',
+          isLoading: _loading,
+          onTap: _submitEmail,
         ),
         const SizedBox(height: 18),
 
@@ -427,56 +462,102 @@ class _ForgotPasswordPageMobileState extends State<ForgotPasswordPageMobile> {
         ),
         const SizedBox(height: 28),
 
-        // 6 Circular OTP Input Bubbles
+        // 🔒 Enter OTP label
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: List.generate(_otpLength, (index) {
-            final isFocused = index == _otpIndex;
-            return Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white,
-                border: Border.all(
-                  color: const Color(0xFF111827),
-                  width: isFocused ? 2.0 : 1.2,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.lock,
+              size: 14,
+              color: Color(0xFF111827),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Enter OTP',
+              style: AppFonts.poppins(
+                size: 13,
+                weight: FontWeight.w500,
+                color: const Color(0xFF111827),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+
+        // 6 Circular OTP Input Bubbles + Transparent Overlay TextField
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => _otpFocusNode.requestFocus(),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: List.generate(_otpLength, (index) {
+                  final digit = _otpDigits[index];
+                  final isFocused = _otpFocusNode.hasFocus &&
+                      (index == _otpIndex ||
+                          (index == _otpLength - 1 &&
+                              _otpIndex == _otpLength));
+                  return Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white,
+                      border: Border.all(
+                        color: const Color(0xFF111827),
+                        width: isFocused ? 2.0 : 1.2,
+                      ),
+                      boxShadow: isFocused
+                          ? [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.12),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      digit,
+                      style: AppFonts.poppins(
+                        size: 20,
+                        weight: FontWeight.w700,
+                        color: const Color(0xFF111827),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+
+              Positioned.fill(
+                child: Opacity(
+                  opacity: 0.0,
+                  child: TextField(
+                    controller: _otpCtrl,
+                    focusNode: _otpFocusNode,
+                    keyboardType: TextInputType.number,
+                    autofocus: true,
+                    autofillHints: const [
+                      AutofillHints.oneTimeCode,
+                    ],
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(_otpLength),
+                    ],
+                    showCursor: false,
+                    enableSuggestions: false,
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
                 ),
               ),
-              alignment: Alignment.center,
-              child: TextField(
-                autofocus: index == 0,
-                textAlign: TextAlign.center,
-                keyboardType: TextInputType.number,
-                maxLength: 1,
-                style: AppFonts.poppins(
-                  size: 20,
-                  weight: FontWeight.w700,
-                  color: const Color(0xFF111827),
-                ),
-                decoration: const InputDecoration(
-                  counterText: '',
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.zero,
-                ),
-                onChanged: (val) {
-                  setState(() {
-                    _otpDigits[index] = val;
-                    if (val.isNotEmpty && index < _otpLength - 1) {
-                      _otpIndex = index + 1;
-                      FocusScope.of(context).nextFocus();
-                    } else if (val.isEmpty && index > 0) {
-                      _otpIndex = index - 1;
-                      FocusScope.of(context).previousFocus();
-                    }
-                  });
-                  if (_otpDigits.every((d) => d.isNotEmpty)) {
-                    _submitOtp();
-                  }
-                },
-              ),
-            );
-          }),
+            ],
+          ),
         ),
 
         if (_errorMsg != null) ...[
@@ -486,8 +567,9 @@ class _ForgotPasswordPageMobileState extends State<ForgotPasswordPageMobile> {
         const SizedBox(height: 24),
 
         BlackPillButton(
-          label: _loading ? '' : 'Verify OTP',
-          onTap: _loading ? () {} : _submitOtp,
+          label: 'Continue',
+          isLoading: _loading,
+          onTap: _submitOtp,
         ),
         const SizedBox(height: 16),
 
@@ -579,8 +661,25 @@ class _ForgotPasswordPageMobileState extends State<ForgotPasswordPageMobile> {
         const SizedBox(height: 24),
 
         BlackPillButton(
-          label: _loading ? '' : 'Update Password',
-          onTap: _loading ? () {} : _submitNewPassword,
+          label: 'Update Password',
+          isLoading: _loading,
+          onTap: _submitNewPassword,
+        ),
+        const SizedBox(height: 16),
+
+        GestureDetector(
+          onTap: () => setState(() {
+            _step = _FpStep.otp;
+            _errorMsg = null;
+          }),
+          child: Text(
+            '← Back to OTP',
+            style: AppFonts.poppins(
+              size: 13,
+              weight: FontWeight.w500,
+              color: const Color(0xFF6B7280),
+            ),
+          ),
         ),
         const SizedBox(height: 24),
       ],
