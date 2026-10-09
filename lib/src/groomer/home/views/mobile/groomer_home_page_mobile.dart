@@ -821,47 +821,84 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
   Future<void> _handleLogout() async {
     final shouldLogout = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Staff Logout',
-          style: AppFonts.parkinsans(size: 18, weight: FontWeight.w600),
-        ),
-        content: Text(
-          'Are you sure you want to log out of the Groomer Portal?',
-          style: AppFonts.poppins(size: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(
-              'Cancel',
-              style: AppFonts.poppins(
-                size: 14,
-                weight: FontWeight.w500,
-                color: const Color(0xFF6B7280),
+      builder: (context) => Dialog(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Staff Logout',
+                style: AppFonts.parkinsans(size: 18, weight: FontWeight.w600),
               ),
-            ),
+              const SizedBox(height: 8),
+              Text(
+                'Are you sure you want to log out of the Groomer Portal?',
+                style: AppFonts.poppins(size: 14, color: const Color(0xFF4B5563)),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 46,
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.black,
+                          padding: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                            side: const BorderSide(color: Color(0xFFE5E7EB), width: 1.2),
+                          ),
+                        ),
+                        child: Text(
+                          'Cancel',
+                          style: AppFonts.poppins(
+                            size: 14,
+                            weight: FontWeight.w500,
+                            color: const Color(0xFF6B7280),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 46,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF111827),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                        ),
+                        onPressed: () => Navigator.pop(context, true),
+                        child: Text(
+                          'Logout',
+                          style: AppFonts.parkinsans(
+                            size: 14,
+                            weight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF111827),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(
-              'Logout',
-              style: AppFonts.parkinsans(
-                size: 14,
-                weight: FontWeight.w600,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
 

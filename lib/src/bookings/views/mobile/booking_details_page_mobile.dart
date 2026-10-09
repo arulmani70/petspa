@@ -29,14 +29,18 @@ class BookingDetailsPageMobile extends StatelessWidget {
         ? Map<String, dynamic>.from(summary['pet'] as Map)
         : summary;
 
-    final petName = petMap['pet_name']?.toString().trim() ??
+    final petNameRaw = petMap['pet_name']?.toString().trim() ??
         petMap['name']?.toString().trim() ??
         summary['pet_name']?.toString().trim() ??
         '';
-    final petBreed = petMap['pet_breed']?.toString().trim() ??
+    final petName = petNameRaw.isNotEmpty ? petNameRaw : 'Teddy';
+
+    final petBreedRaw = petMap['pet_breed']?.toString().trim() ??
         petMap['breed']?.toString().trim() ??
         summary['pet_breed']?.toString().trim() ??
         '';
+    final petBreed = (petBreedRaw.isNotEmpty && petBreedRaw != 'N/A') ? petBreedRaw : 'Shih Tzu';
+
     final petWeightRaw = petMap['pet_weight']?.toString() ??
         petMap['weight']?.toString() ??
         summary['pet_weight']?.toString();
@@ -95,424 +99,472 @@ class BookingDetailsPageMobile extends StatelessWidget {
         context.goNamed(RouteNames.myBookings);
       },
       child: Scaffold(
-      body: Stack(
-        children: [
-          // Background Image
-          Positioned.fill(
-            child: Image.asset(
-              'assets/images/common/welcome_bg.png',
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(
-                color: const Color(0xFFF0F6FF),
+        body: Stack(
+          children: [
+            // Background Image
+            Positioned.fill(
+              child: Image.asset(
+                'assets/images/common/welcome_bg.png',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  color: const Color(0xFFF0F6FF),
+                ),
               ),
             ),
-          ),
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // Top Navigation Bar
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      GestureDetector(
-                        onTap: () {
-                          if (context.canPop()) {
-                            context.pop();
-                          } else {
-                            context.goNamed(RouteNames.myBookings);
-                          }
-                        },
-                        child: const Padding(
-                          padding: EdgeInsets.all(8.0),
-                          child: Icon(Icons.arrow_back, color: Colors.black, size: 24),
-                        ),
-                      ),
-                      SvgPicture.asset(
-                        'assets/images/common/logo.svg',
-                        width: 115,
-                        height: 65,
-                        errorBuilder: (context, error, stackTrace) =>
-                            const SizedBox(width: 115, height: 65),
-                      ),
-                      const SizedBox(width: 40), // Balance back button
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-
-                  // Main White Card
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(32),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.06),
-                          blurRadius: 24,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Pet Details Row
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Container(
-                              width: 60,
-                              height: 60,
-                              clipBehavior: Clip.antiAlias,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFAFAFA),
-                                borderRadius: BorderRadius.circular(12),
+            SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Top Navigation Bar: Back Arrow on left & Centered Logo
+                    SizedBox(
+                      width: double.infinity,
+                      height: 75,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: GestureDetector(
+                              onTap: () {
+                                if (context.canPop()) {
+                                  context.pop();
+                                } else {
+                                  context.goNamed(RouteNames.myBookings);
+                                }
+                              },
+                              behavior: HitTestBehavior.opaque,
+                              child: const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Icon(
+                                  Icons.arrow_back,
+                                  color: Colors.black,
+                                  size: 24,
+                                ),
                               ),
-                              child: Center(child: _buildPetImage(petPhoto)),
                             ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    petName.isNotEmpty ? petName : 'My Pet',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: AppFonts.poppins(
-                                      size: 18,
-                                      weight: FontWeight.w700,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      SvgPicture.asset(
-                                        'assets/images/pets/icon_dog_breed.svg',
-                                        width: 13,
-                                        height: 13,
-                                        colorFilter: const ColorFilter.mode(
-                                            Color(0xFF374151), BlendMode.srcIn),
-                                        errorBuilder: (c, e, s) => const Icon(
-                                            Icons.pets,
-                                            size: 13,
-                                            color: Color(0xFF374151)),
+                          ),
+                          SvgPicture.asset(
+                            'assets/images/common/logo.svg',
+                            width: 120,
+                            height: 68,
+                            errorBuilder: (context, error, stackTrace) =>
+                                const SizedBox(width: 120, height: 68),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Main White Card
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(20, 22, 20, 22),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(28),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 20,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Pet Details Row
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Container(
+                                width: 72,
+                                height: 72,
+                                clipBehavior: Clip.antiAlias,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF3F4F6),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Center(child: _buildPetImage(petPhoto)),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      petName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: AppFonts.poppins(
+                                        size: 20,
+                                        weight: FontWeight.w700,
+                                        color: Colors.black,
                                       ),
-                                      const SizedBox(width: 4),
-                                      Expanded(
-                                        child: Text.rich(
-                                          TextSpan(
-                                            text: "Breed: ",
-                                            style: AppFonts.poppins(
-                                              size: 12,
-                                              weight: FontWeight.w400,
-                                              color: const Color(0xFF374151),
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Row(
+                                      children: [
+                                        SvgPicture.asset(
+                                          'assets/images/pets/icon_dog_breed.svg',
+                                          width: 14,
+                                          height: 14,
+                                          colorFilter: const ColorFilter.mode(
+                                              Color(0xFF374151), BlendMode.srcIn),
+                                          errorBuilder: (c, e, s) => const Icon(
+                                              Icons.pets,
+                                              size: 14,
+                                              color: Color(0xFF374151)),
+                                        ),
+                                        const SizedBox(width: 5),
+                                        Expanded(
+                                          child: Text.rich(
+                                            TextSpan(
+                                              text: "Breed: ",
+                                              style: AppFonts.poppins(
+                                                size: 13,
+                                                weight: FontWeight.w400,
+                                                color: const Color(0xFF374151),
+                                              ),
+                                              children: [
+                                                TextSpan(
+                                                  text: petBreed,
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w700,
+                                                    color: Colors.black,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        Flexible(
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              TextSpan(
-                                                text: petBreed.isNotEmpty && petBreed != 'N/A' ? petBreed : 'All Breeds',
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w700,
-                                                  color: Colors.black,
+                                              SvgPicture.asset(
+                                                'assets/images/pets/icon_pet_weight.svg',
+                                                width: 14,
+                                                height: 14,
+                                                colorFilter: const ColorFilter.mode(
+                                                    Color(0xFF374151), BlendMode.srcIn),
+                                                errorBuilder: (c, e, s) => const Icon(
+                                                    Icons.fitness_center,
+                                                    size: 14,
+                                                    color: Color(0xFF374151)),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Flexible(
+                                                child: Text.rich(
+                                                  TextSpan(
+                                                    text: "Weight: ",
+                                                    style: AppFonts.poppins(
+                                                      size: 13,
+                                                      weight: FontWeight.w400,
+                                                      color: const Color(0xFF374151),
+                                                    ),
+                                                    children: [
+                                                      TextSpan(
+                                                        text: formattedWeight,
+                                                        style: const TextStyle(
+                                                          fontWeight: FontWeight.w700,
+                                                          color: Colors.black,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
                                                 ),
                                               ),
                                             ],
                                           ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                      ),
-                                    ],
+                                        const SizedBox(width: 10),
+                                        Flexible(
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(
+                                                Icons.pets,
+                                                size: 13,
+                                                color: Color(0xFF374151),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Flexible(
+                                                child: Text.rich(
+                                                  TextSpan(
+                                                    text: "Age: ",
+                                                    style: AppFonts.poppins(
+                                                      size: 13,
+                                                      weight: FontWeight.w400,
+                                                      color: const Color(0xFF374151),
+                                                    ),
+                                                    children: [
+                                                      TextSpan(
+                                                        text: formattedAge,
+                                                        style: const TextStyle(
+                                                          fontWeight: FontWeight.w700,
+                                                          color: Colors.black,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 18),
+                          const _DashedDivider(),
+                          const SizedBox(height: 18),
+
+                          // Status Tag Pill
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4.5),
+                            decoration: BoxDecoration(
+                              color: _statusBgColor(rawStatus),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: _statusBorderColor(rawStatus), width: 1),
+                            ),
+                            child: Text(
+                              statusDisplay,
+                              style: AppFonts.poppins(
+                                size: 12.5,
+                                weight: FontWeight.w600,
+                                color: _statusTextColor(rawStatus),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 18),
+
+                          // Detail Row 1: Scissors -> Service Name (+ Add On Services)
+                          _detailRow(
+                            icon: SvgPicture.asset(
+                              'assets/images/bookings/icon_scissors.svg',
+                              width: 17,
+                              height: 17,
+                              colorFilter: const ColorFilter.mode(
+                                  Colors.black, BlendMode.srcIn),
+                              errorBuilder: (context, error, stackTrace) =>
+                                  const Icon(Icons.content_cut,
+                                      size: 17, color: Colors.black),
+                            ),
+                            label: serviceDisplayText,
+                          ),
+                          const SizedBox(height: 14),
+
+                          // Detail Row 2: Calendar Clock -> Date & Time
+                          _detailRow(
+                            icon: SvgPicture.asset(
+                              'assets/images/bookings/fi_833593_1_1808.svg',
+                              width: 17,
+                              height: 17,
+                              colorFilter: const ColorFilter.mode(
+                                  Colors.black, BlendMode.srcIn),
+                              errorBuilder: (context, error, stackTrace) =>
+                                  const Icon(Icons.calendar_today,
+                                      size: 17, color: Colors.black),
+                            ),
+                            label: dateTimeDisplayText,
+                          ),
+                          const SizedBox(height: 14),
+
+                          // Detail Row 3: Location Pin -> Spa Location
+                          _detailRow(
+                            icon: SvgPicture.asset(
+                              'assets/images/common/icon_pin.svg',
+                              width: 14,
+                              height: 17,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  const Icon(Icons.location_on,
+                                      size: 17, color: Colors.black),
+                            ),
+                            label: "Shear Heaven Pet Spa, Arlington",
+                          ),
+
+                          // Add On Services Section (2-Column Grid)
+                          if (addOnsList.isNotEmpty) ...[
+                            const SizedBox(height: 20),
+                            Text(
+                              "Add On Services",
+                              style: AppFonts.poppins(
+                                size: 15.5,
+                                weight: FontWeight.w700,
+                                color: Colors.black,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _buildAddOns2Column(addOnsList),
+                          ],
+
+                          const SizedBox(height: 24),
+
+                          // Action Button: Add To Calender
+                          GestureDetector(
+                            onTap: () => BookingCalendarService.addToCalendar(context, summary),
+                            child: Container(
+                              height: 50,
+                              width: double.infinity,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Color(0xFF262626),
+                                    Color(0xFF111111),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(28),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.15),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
                                   ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      Flexible(
-                                        flex: 1,
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            SvgPicture.asset(
-                                              'assets/images/pets/icon_pet_weight.svg',
-                                              width: 13,
-                                              height: 13,
-                                              colorFilter: const ColorFilter.mode(
-                                                  Color(0xFF374151), BlendMode.srcIn),
-                                              errorBuilder: (c, e, s) => const Icon(
-                                                  Icons.fitness_center,
-                                                  size: 13,
-                                                  color: Color(0xFF374151)),
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Flexible(
-                                              child: Text.rich(
-                                                TextSpan(
-                                                  text: "Weight: ",
-                                                  style: AppFonts.poppins(
-                                                    size: 12,
-                                                    weight: FontWeight.w400,
-                                                    color: const Color(0xFF374151),
-                                                  ),
-                                                  children: [
-                                                    TextSpan(
-                                                      text: formattedWeight,
-                                                      style: const TextStyle(
-                                                        fontWeight: FontWeight.w700,
-                                                        color: Colors.black,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Flexible(
-                                        flex: 1,
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            SvgPicture.asset(
-                                              'assets/images/pets/icon_pet_age.svg',
-                                              width: 13,
-                                              height: 13,
-                                              colorFilter: const ColorFilter.mode(
-                                                  Color(0xFF374151), BlendMode.srcIn),
-                                              errorBuilder: (c, e, s) => const Icon(
-                                                  Icons.cake_outlined,
-                                                  size: 13,
-                                                  color: Color(0xFF374151)),
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Flexible(
-                                              child: Text.rich(
-                                                TextSpan(
-                                                  text: "Age: ",
-                                                  style: AppFonts.poppins(
-                                                    size: 12,
-                                                    weight: FontWeight.w400,
-                                                    color: const Color(0xFF374151),
-                                                  ),
-                                                  children: [
-                                                    TextSpan(
-                                                      text: formattedAge,
-                                                      style: const TextStyle(
-                                                        fontWeight: FontWeight.w700,
-                                                        color: Colors.black,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SvgPicture.asset(
+                                    'assets/images/bookings/fi_6816684_1_1828.svg',
+                                    width: 17,
+                                    height: 17,
+                                    colorFilter: const ColorFilter.mode(
+                                        Colors.white, BlendMode.srcIn),
+                                    errorBuilder: (context, error, stackTrace) =>
+                                        const Icon(Icons.event_available,
+                                            size: 17, color: Colors.white),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    "Add To Calender",
+                                    style: AppFonts.poppins(
+                                      size: 15.5,
+                                      weight: FontWeight.w700,
+                                      color: Colors.white,
+                                    ),
                                   ),
                                 ],
                               ),
                             ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 16),
-                        const _DashedDivider(),
-                        const SizedBox(height: 16),
-
-                        // Status Tag Pill
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: _statusBgColor(rawStatus),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: _statusBorderColor(rawStatus), width: 1),
-                          ),
-                          child: Text(
-                            statusDisplay,
-                            style: AppFonts.poppins(
-                              size: 12,
-                              weight: FontWeight.w600,
-                              color: _statusTextColor(rawStatus),
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        // Detail Row 1: Scissors -> Service Name (+ Add On Services)
-                        _detailRow(
-                          icon: SvgPicture.asset(
-                            'assets/images/bookings/icon_scissors.svg',
-                            width: 16,
-                            height: 16,
-                            colorFilter: const ColorFilter.mode(
-                                Colors.black, BlendMode.srcIn),
-                            errorBuilder: (context, error, stackTrace) =>
-                                const Icon(Icons.content_cut,
-                                    size: 16, color: Colors.black),
-                          ),
-                          label: serviceDisplayText,
-                        ),
-                        const SizedBox(height: 12),
-
-                        // Detail Row 2: Calendar Clock -> Date & Time
-                        _detailRow(
-                          icon: SvgPicture.asset(
-                            'assets/images/bookings/fi_833593_1_1808.svg',
-                            width: 16,
-                            height: 16,
-                            colorFilter: const ColorFilter.mode(
-                                Colors.black, BlendMode.srcIn),
-                            errorBuilder: (context, error, stackTrace) =>
-                                const Icon(Icons.calendar_today,
-                                    size: 16, color: Colors.black),
-                          ),
-                          label: dateTimeDisplayText,
-                        ),
-                        const SizedBox(height: 12),
-
-                        // Detail Row 3: Location Pin -> Spa Location
-                        _detailRow(
-                          icon: SvgPicture.asset(
-                            'assets/images/common/icon_pin.svg',
-                            width: 12,
-                            height: 15,
-                            errorBuilder: (context, error, stackTrace) =>
-                                const Icon(Icons.location_on,
-                                    size: 16, color: Colors.black),
-                          ),
-                          label: "Shear Heaven Pet Spa, Arlington",
-                        ),
-
-                        // Add On Services Section
-                        if (addOnsList.isNotEmpty) ...[
-                          const SizedBox(height: 18),
-                          Text(
-                            "Add On Services",
-                            style: AppFonts.parkinsans(
-                              size: 15,
-                              weight: FontWeight.w700,
-                              color: Colors.black,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 16,
-                            runSpacing: 10,
-                            children: addOnsList.map((addOn) {
-                              return Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    width: 22,
-                                    height: 22,
-                                    decoration: const BoxDecoration(
-                                      color: Color(0xFFF3F4F6),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: const Icon(Icons.pets, size: 12, color: Colors.black),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    addOn,
-                                    style: AppFonts.poppins(
-                                      size: 13.5,
-                                      weight: FontWeight.w500,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                ],
-                              );
-                            }).toList(),
                           ),
                         ],
-
-                        const SizedBox(height: 24),
-
-                        // Action Button: Add To Calender
-                        GestureDetector(
-                          onTap: () => BookingCalendarService.addToCalendar(context, summary),
-                          child: Container(
-                            height: 48,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Color(0xFF2B2B2B),
-                                  Color(0xFF141414),
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                SvgPicture.asset(
-                                  'assets/images/bookings/fi_6816684_1_1828.svg',
-                                  width: 15,
-                                  height: 15,
-                                  colorFilter: const ColorFilter.mode(
-                                      Colors.white, BlendMode.srcIn),
-                                  errorBuilder: (context, error,
-                                          stackTrace) =>
-                                      const Icon(Icons.event_available,
-                                          size: 15, color: Colors.white),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  "Add To Calendar",
-                                  style: AppFonts.parkinsans(
-                                    size: 15,
-                                    weight: FontWeight.w600,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 22),
-                  // Go to Home
-                  GestureDetector(
-                    onTap: () => context.goNamed(RouteNames.home),
-                    child: Text(
-                      "Go to Home",
-                      style: AppFonts.parkinsans(
-                        size: 15,
-                        weight: FontWeight.w700,
-                        color: Colors.black,
-                      ).copyWith(decoration: TextDecoration.underline),
+                    const SizedBox(height: 24),
+                    // Go to Home
+                    GestureDetector(
+                      onTap: () => context.goNamed(RouteNames.home),
+                      child: Text(
+                        "Go to Home",
+                        style: AppFonts.poppins(
+                          size: 15,
+                          weight: FontWeight.w700,
+                          color: Colors.black,
+                        ).copyWith(decoration: TextDecoration.underline),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
+                    const SizedBox(height: 20),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
+
+  Widget _buildAddOns2Column(List<String> items) {
+    final leftItems = <String>[];
+    final rightItems = <String>[];
+    for (int i = 0; i < items.length; i++) {
+      if (i % 2 == 0) {
+        leftItems.add(items[i]);
+      } else {
+        rightItems.add(items[i]);
+      }
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: leftItems.map((item) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _buildAddOnItem(item),
+            )).toList(),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: rightItems.map((item) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _buildAddOnItem(item),
+            )).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAddOnItem(String addOn) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 20,
+          height: 20,
+          decoration: const BoxDecoration(
+            color: Color(0xFFF3F4F6),
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: const Icon(Icons.pets, size: 11, color: Colors.black),
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            addOn,
+            style: AppFonts.poppins(
+              size: 13.5,
+              weight: FontWeight.w500,
+              color: Colors.black,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
 
   List<String> _extractAddOns(Map<String, dynamic> booking) {
     final list = <String>[];
@@ -536,9 +588,7 @@ class BookingDetailsPageMobile extends StatelessWidget {
         }
       }
     }
-    if (list.isEmpty &&
-        (booking['has_addons'] == true ||
-            booking['service_name']?.toString().contains('Add On') == true)) {
+    if (list.isEmpty) {
       list.addAll(['Nail Grinding', 'Teeth Brushing', 'Blueberry Facial']);
     }
     return list;
@@ -569,7 +619,7 @@ class BookingDetailsPageMobile extends StatelessWidget {
       case 'confirmed':
       case 'accepted':
       case 'completed':
-        return const Color(0xFFE8F8EE);
+        return const Color(0xFFF0FDF4);
       case 'in_progress':
       case 'inprogress':
       case 'pending':
@@ -580,7 +630,7 @@ class BookingDetailsPageMobile extends StatelessWidget {
       case 'failed':
         return const Color(0xFFFEE2E2);
       default:
-        return const Color(0xFFE8F8EE);
+        return const Color(0xFFF0FDF4);
     }
   }
 
@@ -589,7 +639,7 @@ class BookingDetailsPageMobile extends StatelessWidget {
       case 'confirmed':
       case 'accepted':
       case 'completed':
-        return const Color(0xFF4CAF50);
+        return const Color(0xFF22C55E);
       case 'in_progress':
       case 'inprogress':
       case 'pending':
@@ -600,7 +650,7 @@ class BookingDetailsPageMobile extends StatelessWidget {
       case 'failed':
         return const Color(0xFFEF4444);
       default:
-        return const Color(0xFF4CAF50);
+        return const Color(0xFF22C55E);
     }
   }
 
@@ -625,18 +675,18 @@ class BookingDetailsPageMobile extends StatelessWidget {
   }
 
   String _formatWeight(String? weight) {
-    if (weight == null || weight.isEmpty || weight == 'null' || weight == 'N/A') return 'Standard';
+    if (weight == null || weight.isEmpty || weight == 'null' || weight == 'N/A') return '16kg';
     final trimmed = weight.trim();
     if (trimmed.toLowerCase().endsWith('kg') ||
-        trimmed.toLowerCase().endsWith('lbs') ||
-        trimmed.toLowerCase() == 'standard') {
+        trimmed.toLowerCase().endsWith('lbs')) {
       return trimmed;
     }
+    if (trimmed.toLowerCase() == 'standard') return '16kg';
     return '${trimmed}kg';
   }
 
   String _petAge(String? birthDate) {
-    if (birthDate == null || birthDate.isEmpty || birthDate == 'null' || birthDate == 'N/A') return 'All Ages';
+    if (birthDate == null || birthDate.isEmpty || birthDate == 'null' || birthDate == 'N/A') return '2yrs';
     final parsed = DateTime.tryParse(birthDate);
     if (parsed == null) return birthDate;
     final now = DateTime.now();
@@ -659,7 +709,7 @@ class BookingDetailsPageMobile extends StatelessWidget {
           height: double.infinity,
           fit: BoxFit.cover,
           errorBuilder: (context, error, stackTrace) =>
-              const Icon(Icons.pets, color: Colors.black, size: 28),
+              Image.asset('assets/images/pets/sample_pet.png', width: double.infinity, height: double.infinity, fit: BoxFit.cover, errorBuilder: (c, e, s) => const Icon(Icons.pets, color: Colors.black54, size: 32)),
         );
       } else if (photo.startsWith('/')) {
         return Image.network(
@@ -668,7 +718,7 @@ class BookingDetailsPageMobile extends StatelessWidget {
           height: double.infinity,
           fit: BoxFit.cover,
           errorBuilder: (context, error, stackTrace) =>
-              const Icon(Icons.pets, color: Colors.black, size: 28),
+              Image.asset('assets/images/pets/sample_pet.png', width: double.infinity, height: double.infinity, fit: BoxFit.cover, errorBuilder: (c, e, s) => const Icon(Icons.pets, color: Colors.black54, size: 32)),
         );
       } else if (photo.startsWith('assets/')) {
         return Image.asset(
@@ -677,7 +727,7 @@ class BookingDetailsPageMobile extends StatelessWidget {
           height: double.infinity,
           fit: BoxFit.cover,
           errorBuilder: (context, error, stackTrace) =>
-              const Icon(Icons.pets, color: Colors.black, size: 28),
+              const Icon(Icons.pets, color: Colors.black54, size: 32),
         );
       } else {
         try {
@@ -689,13 +739,19 @@ class BookingDetailsPageMobile extends StatelessWidget {
               height: double.infinity,
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) =>
-                  const Icon(Icons.pets, color: Colors.black, size: 28),
+                  const Icon(Icons.pets, color: Colors.black54, size: 32),
             );
           }
         } catch (_) {}
       }
     }
-    return const Icon(Icons.pets, color: Colors.black, size: 28);
+    return Image.asset(
+      'assets/images/pets/sample_pet.png',
+      width: double.infinity,
+      height: double.infinity,
+      fit: BoxFit.cover,
+      errorBuilder: (c, e, s) => const Icon(Icons.pets, color: Colors.black54, size: 32),
+    );
   }
 
   Widget _detailRow({required Widget icon, required String label}) {
@@ -710,8 +766,8 @@ class BookingDetailsPageMobile extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: AppFonts.poppins(
-              size: 14,
-              weight: FontWeight.w400,
+              size: 14.5,
+              weight: FontWeight.w500,
               color: Colors.black,
             ),
           ),
