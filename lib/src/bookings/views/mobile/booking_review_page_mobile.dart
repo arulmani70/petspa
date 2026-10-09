@@ -1007,8 +1007,8 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                       ..._draft.addOns.map((addOn) {
                         final addOnName = addOn['name'] ?? addOn['service_name'] ?? addOn['title'] ?? 'Add-on';
                         final addOnDesc = addOn['description'] ?? addOn['short_description'] ?? '';
-                        final addOnPrice = addOn['price'] != null ? '\$${(addOn['price'] as num).toStringAsFixed(0)}' : '';
-                        final addOnDur = addOn['duration'] ?? addOn['duration_minutes'];
+                        final addOnPrice = _formatPrice(addOn['priceDisplay'] ?? addOn['price'] ?? addOn[Constants.database.COLUMN_PRICE]);
+                        final addOnDur = addOn['durationMinutes'] ?? addOn['duration'] ?? addOn['duration_minutes'];
 
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 12),
@@ -1226,6 +1226,17 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
     final h = (totalMinutes ~/ 60) % 24;
     final m = totalMinutes % 60;
     return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+  }
+
+  String _formatPrice(dynamic price) {
+    if (price == null) return '';
+    if (price is num) return '\$${price.toStringAsFixed(0)}';
+    final str = price.toString().trim();
+    if (str.isEmpty || str.toLowerCase() == 'null' || str.toLowerCase() == 'n/a') return '';
+    if (str.startsWith('\$')) return str;
+    final numVal = double.tryParse(str.replaceAll(RegExp(r'[^0-9.]'), ''));
+    if (numVal != null) return '\$${numVal.toStringAsFixed(0)}';
+    return str;
   }
 
   String _formatSlotTime(String slot) {

@@ -33,9 +33,19 @@ class BookingDraft extends ChangeNotifier {
 
   double get estimatedTotal {
     double total = 0;
-    final servicePrice = service?['price'];
+    final servicePrice = service?['price'] ?? service?[Constants.database.COLUMN_PRICE];
     if (servicePrice is num) {
       total += servicePrice.toDouble();
+    } else if (servicePrice != null) {
+      total += double.tryParse(servicePrice.toString().replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
+    }
+    for (final addOn in addOns) {
+      final p = addOn['price'] ?? addOn[Constants.database.COLUMN_PRICE];
+      if (p is num) {
+        total += p.toDouble();
+      } else if (p != null) {
+        total += double.tryParse(p.toString().replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
+      }
     }
     return total;
   }
