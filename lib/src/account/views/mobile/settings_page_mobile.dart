@@ -80,8 +80,7 @@ class SettingsPageMobile extends StatelessWidget {
               ),
               _buildSupportCard(context),
               const SizedBox(height: 24),
-              _buildSocialMediaSection(),
-              const SizedBox(height: 28),
+              
               _buildAuthButton(context, isLoggedIn),
               const SizedBox(height: 28),
 
@@ -91,7 +90,7 @@ class SettingsPageMobile extends StatelessWidget {
                   style: AppFonts.poppins(
                     size: 12,
                     weight: FontWeight.w400,
-                    color: const Color(0xFF888888),
+                    color: const Color.fromARGB(255, 103, 36, 36),
                   ),
                 ),
               ),
