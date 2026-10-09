@@ -1281,7 +1281,7 @@ Widget _buildSpecialOffers(BuildContext context) {
       ),
       const SizedBox(height: 16),
       SizedBox(
-        height: 256,
+        height: 260,
         child: ListView(
           scrollDirection: Axis.horizontal,
           clipBehavior: Clip.none,
@@ -1293,6 +1293,9 @@ Widget _buildSpecialOffers(BuildContext context) {
               expiry: 'Ends in 2 days',
               code: 'PAWSOME50',
               imagePath: 'assets/images/common/offer_1.png',
+              description:
+                  "Get 50% off your pet's first Full Grooming session with us. A perfect way to try the royal treatment your pet deserves.",
+              eligibleServices: 'Full Grooming, Spa Package',
             ),
             const SizedBox(width: 14),
             _buildSpecialOfferCard(
@@ -1300,8 +1303,11 @@ Widget _buildSpecialOffers(BuildContext context) {
               badgeText: 'FREE ADD-ON',
               title: 'Summer Splash: Free Nail Trimming',
               expiry: 'Ends Aug 20',
-              code: 'PAWSOME50',
+              code: 'SUMMERTRIM',
               imagePath: 'assets/images/common/offer_2.png',
+              description:
+                  'Complimentary nail trimming and paw pad moisturizing with any full grooming or bath service.',
+              eligibleServices: 'Bath & Brush, Full Grooming',
             ),
             const SizedBox(width: 14),
             _buildSpecialOfferCard(
@@ -1309,8 +1315,11 @@ Widget _buildSpecialOffers(BuildContext context) {
               badgeText: 'REFER & EARN',
               title: 'Refer a Friend, Get 20% Off',
               expiry: 'No expiry',
-              code: 'PAWSOME50',
+              code: 'FRIEND20',
               imagePath: 'assets/images/common/offer_3.png',
+              description:
+                  'Refer a fellow pet parent and both of you enjoy 20% off on your next pet spa visit!',
+              eligibleServices: 'All Services & Packages',
             ),
           ],
         ),
@@ -1326,149 +1335,197 @@ Widget _buildSpecialOfferCard({
   required String expiry,
   required String code,
   required String imagePath,
+  String? description,
+  String? eligibleServices,
+  String? termsConditions,
 }) {
+  final isRedTimer = !expiry.toLowerCase().contains('no expiry');
+
+  void openDetails() {
+    OfferDetailsDialog.show(
+      context,
+      imagePath: imagePath,
+      badgeText: badgeText,
+      title: title,
+      timerText: expiry,
+      promoCode: code,
+      description: description ??
+          "Get special discounts on our premium pet grooming packages.",
+      eligibleServices: eligibleServices ?? 'All Services & Packages',
+      termsConditions: termsConditions ??
+          'Valid for first-time customers only · Cannot be combined with other offers · Limit one redemption per pet.',
+    );
+  }
+
   return GestureDetector(
-    onTap: () => _showOffersPopup(context),
+    onTap: openDetails,
     child: Container(
       width: 259,
-      height: 256,
+      height: 260,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: Stack(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Image placeholder
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 143,
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-              child: Image.asset(
-                imagePath,
-                fit: BoxFit.cover,
-                errorBuilder: (ctx, err, st) => Container(color: Colors.grey),
-              ),
-            ),
-          ),
-          // Badge
-          Positioned(
-            top: 11,
-            left: 7,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(40),
-              ),
-              child: Text(
-                badgeText,
-                style: AppFonts.poppins(
-                  size: 12,
-                  weight: FontWeight.w700,
-                  height: 1.83,
-                  color: Colors.black,
+          // Image + Badge
+          Stack(
+            children: [
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                child: Image.asset(
+                  imagePath,
+                  height: 140,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (ctx, err, st) => Container(
+                    height: 140,
+                    color: Colors.grey.shade200,
+                    child: const Icon(Icons.image, color: Colors.grey),
+                  ),
                 ),
               ),
-            ),
-          ),
-          // Content
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: 113,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 11.0,
-                vertical: 5.0,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: AppFonts.parkinsans(
-                        size: 14,
-                        weight: FontWeight.w600,
-                        height: 1.25,
-                        color: Colors.black,
+              Positioned(
+                top: 10,
+                left: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 4,
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                    ],
+                  ),
+                  child: Text(
+                    badgeText,
+                    style: AppFonts.poppins(
+                      size: 11,
+                      weight: FontWeight.w700,
+                      color: Colors.black,
                     ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.timer_outlined,
-                          size: 12,
-                          color: Color(0xFFA30000),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          expiry,
-                          style: AppFonts.poppins(
-                            size: 12,
-                            weight: FontWeight.w500,
-                            color: const Color(0xFFA30000),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 5),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF2F2F2),
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                            child: Text(
-                              code,
-                              style: AppFonts.parkinsans(
-                                size: 12,
-                                weight: FontWeight.w500,
-                                color: Colors.black,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 5),
-                        InkWell(
-                          onTap: () => _showOffersPopup(context),
-                          child: Container(
-                            width: 82,
-                            height: 29,
-                            decoration: BoxDecoration(
-                              color: Colors.black,
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                            child: Center(
-                              child: Text(
-                                'Claim',
-                                style: AppFonts.parkinsans(
-                                  size: 14,
-                                  weight: FontWeight.w700,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                  ),
                 ),
+              ),
+            ],
+          ),
+          // Content Area (Strictly aligned for all cards)
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Reserved 2-line height for title so all cards align perfectly
+                      SizedBox(
+                        height: 36,
+                        child: Align(
+                          alignment: Alignment.topLeft,
+                          child: Text(
+                            title,
+                            style: AppFonts.parkinsans(
+                              size: 13.5,
+                              weight: FontWeight.w600,
+                              height: 1.25,
+                              color: Colors.black,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.access_time_rounded,
+                            size: 13,
+                            color: isRedTimer
+                                ? const Color(0xFFA30000)
+                                : const Color(0xFF757575),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            expiry,
+                            style: AppFonts.poppins(
+                              size: 11.5,
+                              weight: FontWeight.w500,
+                              color: isRedTimer
+                                  ? const Color(0xFFA30000)
+                                  : const Color(0xFF757575),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  // Bottom Row: Coupon code + Claim Button aligned identically
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          height: 30,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF3F4F6),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            code,
+                            textAlign: TextAlign.center,
+                            style: AppFonts.parkinsans(
+                              size: 12,
+                              weight: FontWeight.w600,
+                              color: Colors.black,
+                              letterSpacing: 0.5,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      InkWell(
+                        onTap: openDetails,
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          width: 80,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: Colors.black,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'Claim',
+                            style: AppFonts.parkinsans(
+                              size: 13,
+                              weight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),
