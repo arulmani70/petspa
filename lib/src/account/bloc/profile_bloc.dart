@@ -100,6 +100,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
           '';
       final resp = await _repository.resetPassword(
         email: email,
+        otp: event.otp,
         password: event.newPassword,
         confirmPassword: event.newPassword,
       );

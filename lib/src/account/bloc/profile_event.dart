@@ -28,9 +28,13 @@ class SaveProfileEvent extends ProfileEvent {
 
 class ChangePasswordEvent extends ProfileEvent {
   final String newPassword;
+  final String otp;
 
-  const ChangePasswordEvent(this.newPassword);
+  const ChangePasswordEvent({
+    required this.newPassword,
+    required this.otp,
+  });
 
   @override
-  List<Object?> get props => [newPassword];
+  List<Object?> get props => [newPassword, otp];
 }

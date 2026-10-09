@@ -762,107 +762,97 @@ class _HomePageMobileState extends State<HomePageMobile> {
     );
   }
 
-  // Group 76017 @ (17,363) - 4 white 80x80 rounded tiles (radius 20) with their
-  // Figma icon SVGs centered, and Poppins Medium 12 labels below (10px gap).
+  // Group 76017 - 4 white 78x78 rounded tiles (radius 20) with exact HD Figma icons
+  // and Poppins Medium 13 labels below.
   Widget _buildCategories(BuildContext context) {
-    const items =
-        <({String icon, double iconWidth, double iconHeight, String label})>[
-          (
-            icon: 'assets/images/home/cat_icon_0.png',
-            iconWidth: 97,
-            iconHeight: 122,
-            label: 'Book Now',
-          ),
-          (
-            icon: 'assets/images/home/cat_icon_1.png',
-            iconWidth: 97,
-            iconHeight: 122,
-            label: 'Pets',
-          ),
-          (
-            icon: 'assets/images/home/cat_icon_2.png',
-            iconWidth: 97,
-            iconHeight: 122,
-            label: 'Bookings',
-          ),
-          (
-            icon: 'assets/images/home/cat_icon_3.png',
-            iconWidth: 97,
-            iconHeight: 122,
-            label: 'Gallery',
-          ),
-        ];
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildQuickActionTile(
-          items[0].icon,
-          items[0].iconWidth,
-          items[0].iconHeight,
-          items[0].label,
-          () => context.goNamed(RouteNames.petSelect),
+          icon: 'assets/images/home/ic_cat_0.png',
+          iconWidth: 38,
+          iconHeight: 38,
+          label: 'Book Now',
+          onTap: () => context.goNamed(RouteNames.petSelect),
         ),
         _buildQuickActionTile(
-          items[1].icon,
-          items[1].iconWidth,
-          items[1].iconHeight,
-          items[1].label,
-          () => context.pushNamed(RouteNames.myPets),
+          icon: 'assets/images/home/ic_cat_1.png',
+          iconWidth: 36,
+          iconHeight: 46,
+          label: 'Pets',
+          onTap: () => context.pushNamed(RouteNames.myPets),
         ),
         _buildQuickActionTile(
-          items[2].icon,
-          items[2].iconWidth,
-          items[2].iconHeight,
-          items[2].label,
-          () => context.goNamed(RouteNames.myBookings),
+          icon: 'assets/images/home/ic_cat_2.png',
+          iconWidth: 42,
+          iconHeight: 34,
+          label: 'Bookings',
+          onTap: () => context.goNamed(RouteNames.myBookings),
         ),
         _buildQuickActionTile(
-          items[3].icon,
-          items[3].iconWidth,
-          items[3].iconHeight,
-          items[3].label,
-          () => GalleryView.show(context),
+          icon: 'assets/images/home/ic_cat_3.png',
+          iconWidth: 38,
+          iconHeight: 34,
+          label: 'Gallery',
+          onTap: () => GalleryView.show(context),
         ),
       ],
     );
   }
 
-  Widget _buildQuickActionTile(
-    String icon,
-    double iconWidth,
-    double iconHeight,
-    String label,
-    VoidCallback onTap,
-  ) {
+  Widget _buildQuickActionTile({
+    required String icon,
+    required double iconWidth,
+    required double iconHeight,
+    required String label,
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: Image.asset(
-        icon,
-        width: 80,
-        height: 104,
-        fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) => Column(
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 78,
+            height: 78,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: const Color(0xFFE5E7EB),
+                width: 1.2,
               ),
-              alignment: Alignment.center,
-              child: Icon(
-                Icons.image_not_supported,
-                size: 30,
-                color: Colors.black.withValues(alpha: 0.1),
-              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
-            Text(label, style: AppFonts.poppins(size: 14)),
-          ],
-        ),
+            alignment: Alignment.center,
+            child: Image.asset(
+              icon,
+              width: iconWidth,
+              height: iconHeight,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: AppFonts.poppins(
+              size: 13,
+              weight: FontWeight.w500,
+              color: const Color(0xFF111827),
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
@@ -1514,7 +1504,7 @@ Widget _buildMyPets(BuildContext context) {
               child: Row(
                 children: const [
                   Text(
-                    'View Offers',
+                    'View All',
                     style: TextStyle(
                       fontFamily: 'Poppins',
                       fontWeight: FontWeight.w500,
@@ -1568,21 +1558,26 @@ Widget _buildMyPets(BuildContext context) {
                         width: 74,
                         height: 74,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF2F2F2),
+                          color: const Color(0xFFF3F4F6),
                           borderRadius: BorderRadius.circular(21),
                         ),
-                        child: Center(
-                          child: Container(
-                            width: 32,
-                            height: 32,
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.add,
-                              size: 20,
-                              color: Colors.black,
+                        child: CustomPaint(
+                          painter: DashedRectPainter(
+                            color: const Color(0xFF111827),
+                            strokeWidth: 1.2,
+                            gap: 3.5,
+                            dash: 4.5,
+                            radius: 21,
+                          ),
+                          child: Center(
+                            child: SvgPicture.asset(
+                              'assets/images/home/ic_add_pet_paw.svg',
+                              width: 34,
+                              height: 34,
+                              colorFilter: const ColorFilter.mode(
+                                Color(0xFF111827),
+                                BlendMode.srcIn,
+                              ),
                             ),
                           ),
                         ),

@@ -11,6 +11,7 @@ import 'package:shear_heaven_pet_spa/src/common/constants/constansts.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_formatters.dart';
+import 'package:shear_heaven_pet_spa/src/common/utils/toast_util.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/password_requirements_view.dart';
 
 class ProfilePageMobile extends StatefulWidget {
@@ -32,11 +33,15 @@ class _ProfilePageMobileState extends State<ProfilePageMobile> {
   String? _photoUrl;
   String? _pickedPhotoPath;
 
-  // Change-password fields (inline, post-login)
+  // Change-password fields (inline with OTP verification)
   final _pwCtrl        = TextEditingController();
   final _cpwCtrl       = TextEditingController();
+  final _otpCtrl       = TextEditingController();
   final _pwFocusNode   = FocusNode();
+  final _otpFocusNode  = FocusNode();
   bool _showPwSection  = false;
+  bool _otpSent        = false;
+  bool _sendingOtp     = false;
   bool _showPw         = false;
   bool _showCpw        = false;
   bool _changingPw     = false;
@@ -64,7 +69,9 @@ class _ProfilePageMobileState extends State<ProfilePageMobile> {
     _addressCtrl.dispose();
     _pwCtrl.dispose();
     _cpwCtrl.dispose();
+    _otpCtrl.dispose();
     _pwFocusNode.dispose();
+    _otpFocusNode.dispose();
     super.dispose();
   }
 
@@ -330,11 +337,55 @@ class _ProfilePageMobileState extends State<ProfilePageMobile> {
     );
   }
 
-  // ── POST /api/auth/reset-password (inline, no OTP needed post-login) ──────
+  // ── Send OTP for password reset ──────────────────────────────────────────
+  Future<void> _sendPasswordOtp() async {
+    final email = _emailCtrl.text.trim().toLowerCase();
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _pwError = 'A valid email address is required to receive OTP.');
+      return;
+    }
+
+    setState(() {
+      _sendingOtp = true;
+      _pwError    = null;
+      _pwSuccess  = null;
+    });
+
+    try {
+      _log.d('ProfilePage::_sendPasswordOtp::Sending OTP to $email');
+      await ServicesLocator.authRepository.forgotPasswordCheck(email);
+      if (!mounted) return;
+      setState(() {
+        _sendingOtp = false;
+        _otpSent    = true;
+        _otpCtrl.clear();
+        _pwSuccess  = 'Verification code sent to $email';
+      });
+      ToastUtil.showSuccessToast(context, 'Verification code sent to your email.');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _otpFocusNode.requestFocus();
+      });
+    } catch (e) {
+      _log.e('ProfilePage::_sendPasswordOtp::Error: $e');
+      if (!mounted) return;
+      setState(() {
+        _sendingOtp = false;
+        _pwError    = _msg(e);
+      });
+    }
+  }
+
+  // ── POST /api/auth/reset-password with OTP ───────────────────────────────
   Future<void> _changePassword() async {
+    final email = _emailCtrl.text.trim().toLowerCase();
+    final otp   = _otpCtrl.text.trim();
     final pw    = _pwCtrl.text;
     final cpw   = _cpwCtrl.text;
-    final email = _emailCtrl.text.trim().toLowerCase();
+
+    if (otp.isEmpty || otp.length < 6) {
+      setState(() => _pwError = 'Please enter the 6-digit OTP sent to your email.');
+      return;
+    }
 
     final missingMsg = PasswordValidator.getFirstMissingMessage(pw);
     if (missingMsg != null) {
@@ -353,20 +404,24 @@ class _ProfilePageMobileState extends State<ProfilePageMobile> {
     });
 
     try {
-      _log.d('ProfilePage::_changePassword::email=$email');
+      _log.d('ProfilePage::_changePassword::email=$email with OTP');
       await ServicesLocator.authRepository.resetPassword(
         email          : email,
+        otp            : otp,
         password       : pw,
         confirmPassword: cpw,
       );
       if (!mounted) return;
+      _otpCtrl.clear();
       _pwCtrl.clear();
       _cpwCtrl.clear();
       setState(() {
         _changingPw    = false;
         _showPwSection = false;
-        _pwSuccess     = 'Password changed successfully.';
+        _otpSent       = false;
+        _pwSuccess     = 'Password updated successfully.';
       });
+      ToastUtil.showSuccessToast(context, 'Password updated successfully.');
     } catch (e) {
       _log.e('ProfilePage::_changePassword::Error: $e');
       if (!mounted) return;
@@ -1020,6 +1075,10 @@ class _ProfilePageMobileState extends State<ProfilePageMobile> {
 
   // ── Change-password inline section ───────────────────────────────────────
   Widget _buildChangePasswordSection() {
+    final email = _emailCtrl.text.trim().isNotEmpty
+        ? _emailCtrl.text.trim()
+        : (ServicesLocator.sessionService.getSessionUser()?['email']?.toString() ?? 'your email');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1080,76 +1139,195 @@ class _ProfilePageMobileState extends State<ProfilePageMobile> {
                         const SizedBox(height: 12),
                       ],
 
-                      _Field(
-                        label     : 'New Password',
-                        controller: _pwCtrl,
-                        focusNode : _pwFocusNode,
-                        hint      : '••••••••••••••••••••',
-                        type      : TextInputType.visiblePassword,
-                        obscure   : !_showPw,
-                        trailing  : IconButton(
-                          icon: Icon(
-                            _showPw
-                                ? Icons.visibility_off_outlined
-                                : Icons.visibility_outlined,
-                            size : 20,
-                            color: const Color(0xFF6B7280),
-                          ),
-                          onPressed: () =>
-                              setState(() => _showPw = !_showPw),
-                        ),
-                      ),
-
-                      PasswordRequirementsView(
-                        controller: _pwCtrl,
-                        focusNode : _pwFocusNode,
-                      ),
-                      const SizedBox(height: 14),
-
-                      _Field(
-                        label     : 'Confirm New Password',
-                        controller: _cpwCtrl,
-                        hint      : '••••••••••••••••••••',
-                        type      : TextInputType.visiblePassword,
-                        obscure   : !_showCpw,
-                        trailing  : IconButton(
-                          icon: Icon(
-                            _showCpw
-                                ? Icons.visibility_off_outlined
-                                : Icons.visibility_outlined,
-                            size : 20,
-                            color: const Color(0xFF6B7280),
-                          ),
-                          onPressed: () =>
-                              setState(() => _showCpw = !_showCpw),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      GestureDetector(
-                        onTap: _changingPw ? null : _changePassword,
-                        child: Container(
-                          height    : 50,
-                          alignment : Alignment.center,
+                      if (!_otpSent) ...[
+                        Container(
+                          padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color       : _changingPw
-                                ? const Color(0xFF6B7280)
-                                : const Color(0xFF111827),
-                            borderRadius: BorderRadius.circular(60),
+                            color: const Color(0xFFF3F4F6),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFE5E7EB)),
                           ),
-                          child: _changingPw
-                              ? const SizedBox(
-                                  width: 20, height: 20,
-                                  child: CircularProgressIndicator(
-                                      color      : Colors.white,
-                                      strokeWidth: 2.5))
-                              : Text('Update Password',
-                                  style: AppFonts.parkinsans(
-                                      size  : 15,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.shield_outlined,
+                                      size: 18, color: Color(0xFF111827)),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Security Verification',
+                                    style: AppFonts.parkinsans(
+                                      size: 14,
                                       weight: FontWeight.w700,
-                                      color : Colors.white)),
+                                      color: const Color(0xFF111827),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              RichText(
+                                text: TextSpan(
+                                  style: AppFonts.poppins(
+                                    size: 13,
+                                    color: const Color(0xFF4B5563),
+                                    height: 1.4,
+                                  ),
+                                  children: [
+                                    const TextSpan(
+                                      text:
+                                          'To change your password, we will send a 6-digit verification code to:\n',
+                                    ),
+                                    TextSpan(
+                                      text: email,
+                                      style: AppFonts.poppins(
+                                        size: 13,
+                                        weight: FontWeight.w700,
+                                        color: const Color(0xFF111827),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 16),
+
+                        GestureDetector(
+                          onTap: _sendingOtp ? null : _sendPasswordOtp,
+                          child: Container(
+                            height    : 50,
+                            alignment : Alignment.center,
+                            decoration: BoxDecoration(
+                              color       : _sendingOtp
+                                  ? const Color(0xFF6B7280)
+                                  : const Color(0xFF111827),
+                              borderRadius: BorderRadius.circular(60),
+                            ),
+                            child: _sendingOtp
+                                ? const SizedBox(
+                                    width: 20, height: 20,
+                                    child: CircularProgressIndicator(
+                                        color      : Colors.white,
+                                        strokeWidth: 2.5))
+                                : Text('Send Verification Code',
+                                    style: AppFonts.parkinsans(
+                                        size  : 15,
+                                        weight: FontWeight.w700,
+                                        color : Colors.white)),
+                          ),
+                        ),
+                      ] else ...[
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Enter Verification Code',
+                              style: AppFonts.poppins(
+                                size: 13,
+                                weight: FontWeight.w500,
+                                color: const Color(0xFF111827),
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: _sendingOtp ? null : _sendPasswordOtp,
+                              child: Text(
+                                _sendingOtp ? 'Sending...' : 'Resend Code',
+                                style: AppFonts.poppins(
+                                  size: 13,
+                                  weight: FontWeight.w600,
+                                  color: const Color(0xFF111827),
+                                ).copyWith(decoration: TextDecoration.underline),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        _Field(
+                          label     : '',
+                          controller: _otpCtrl,
+                          focusNode : _otpFocusNode,
+                          hint      : 'Enter 6-digit OTP',
+                          type      : TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(6),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+
+                        _Field(
+                          label     : 'New Password',
+                          controller: _pwCtrl,
+                          focusNode : _pwFocusNode,
+                          hint      : '••••••••••••••••••••',
+                          type      : TextInputType.visiblePassword,
+                          obscure   : !_showPw,
+                          trailing  : IconButton(
+                            icon: Icon(
+                              _showPw
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
+                              size : 20,
+                              color: const Color(0xFF6B7280),
+                            ),
+                            onPressed: () =>
+                                setState(() => _showPw = !_showPw),
+                          ),
+                        ),
+
+                        PasswordRequirementsView(
+                          controller: _pwCtrl,
+                          focusNode : _pwFocusNode,
+                        ),
+                        const SizedBox(height: 14),
+
+                        _Field(
+                          label     : 'Confirm New Password',
+                          controller: _cpwCtrl,
+                          hint      : '••••••••••••••••••••',
+                          type      : TextInputType.visiblePassword,
+                          obscure   : !_showCpw,
+                          trailing  : IconButton(
+                            icon: Icon(
+                              _showCpw
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
+                              size : 20,
+                              color: const Color(0xFF6B7280),
+                            ),
+                            onPressed: () =>
+                                setState(() => _showCpw = !_showCpw),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        GestureDetector(
+                          onTap: _changingPw ? null : _changePassword,
+                          child: Container(
+                            height    : 50,
+                            alignment : Alignment.center,
+                            decoration: BoxDecoration(
+                              color       : _changingPw
+                                  ? const Color(0xFF6B7280)
+                                  : const Color(0xFF111827),
+                              borderRadius: BorderRadius.circular(60),
+                            ),
+                            child: _changingPw
+                                ? const SizedBox(
+                                    width: 20, height: 20,
+                                    child: CircularProgressIndicator(
+                                        color      : Colors.white,
+                                        strokeWidth: 2.5))
+                                : Text('Update Password',
+                                    style: AppFonts.parkinsans(
+                                        size  : 15,
+                                        weight: FontWeight.w700,
+                                        color : Colors.white)),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 )
@@ -1191,12 +1369,14 @@ class _Field extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: AppFonts.poppins(
-                size  : 14,
-                weight: FontWeight.w500,
-                color : const Color(0xFF111827))),
-        const SizedBox(height: 6),
+        if (label.isNotEmpty) ...[
+          Text(label,
+              style: AppFonts.poppins(
+                  size  : 14,
+                  weight: FontWeight.w500,
+                  color : const Color(0xFF111827))),
+          const SizedBox(height: 6),
+        ],
         Container(
           height    : 52,
           padding   : const EdgeInsets.symmetric(horizontal: 20),
