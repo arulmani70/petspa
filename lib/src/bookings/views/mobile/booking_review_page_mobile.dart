@@ -830,8 +830,14 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
     final date = _draft.date ?? DateTime.now();
     final slot = _draft.timeSlot ?? '';
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
+    return PopScope(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        context.goNamed(RouteNames.bookingDateTime);
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFFAFAFA),
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -1207,8 +1213,9 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   /// Adds [minutes] to a "HH:mm" time string and returns the result as "HH:mm".
   String _addMinutes(String hhmm, int minutes) {

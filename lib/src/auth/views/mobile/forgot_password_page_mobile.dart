@@ -240,68 +240,97 @@ class _ForgotPasswordPageMobileState extends State<ForgotPasswordPageMobile> {
     return 'Something went wrong. Please try again.';
   }
 
+  void _handleBack() {
+    if (_step == _FpStep.newPassword) {
+      setState(() => _step = _FpStep.otp);
+    } else if (_step == _FpStep.otp) {
+      setState(() => _step = _FpStep.email);
+    } else {
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.goNamed(RouteNames.login);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF0F8FD),
-      body: Stack(
-        children: [
-          // ── Background: sky & clouds ──
-          Positioned.fill(
-            child: Image.asset(
-              'assets/images/common/welcome_bg.png',
-              fit: BoxFit.cover,
-              errorBuilder: (ctx, err, st) =>
-                  const ColoredBox(color: Color(0xFFF0F8FD)),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _handleBack();
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF0F8FD),
+        body: Stack(
+          children: [
+            // ── Background: sky & clouds ──
+            Positioned.fill(
+              child: Image.asset(
+                'assets/images/common/welcome_bg.png',
+                fit: BoxFit.cover,
+                errorBuilder: (ctx, err, st) =>
+                    const ColoredBox(color: Color(0xFFF0F8FD)),
+              ),
             ),
-          ),
-          // ── Gradient overlay ──
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.white.withValues(alpha: 0.70),
-                    Colors.white.withValues(alpha: 0.55),
-                    Colors.white.withValues(alpha: 0.75),
-                    Colors.white.withValues(alpha: 0.88),
-                  ],
-                  stops: const [0.0, 0.35, 0.70, 1.0],
+            // ── Gradient overlay ──
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white.withValues(alpha: 0.70),
+                      Colors.white.withValues(alpha: 0.55),
+                      Colors.white.withValues(alpha: 0.75),
+                      Colors.white.withValues(alpha: 0.88),
+                    ],
+                    stops: const [0.0, 0.35, 0.70, 1.0],
+                  ),
                 ),
               ),
             ),
-          ),
 
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 28),
-              child: Column(
-                children: [
-                  const SizedBox(height: 24),
-                  // Logo
-                  SvgPicture.asset(
-                    'assets/images/common/logo.svg',
-                    width: 146,
-                    height: 82,
-                  ),
-                  const SizedBox(height: 32),
+            SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Color(0xFF111827), size: 24),
+                        onPressed: _handleBack,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Logo
+                    SvgPicture.asset(
+                      'assets/images/common/logo.svg',
+                      width: 146,
+                      height: 82,
+                    ),
+                    const SizedBox(height: 32),
 
-                  // Step indicator dots
-                  _buildStepIndicator(),
-                  const SizedBox(height: 28),
+                    // Step indicator dots
+                    _buildStepIndicator(),
+                    const SizedBox(height: 28),
 
-                  // Animated step content
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    child: _buildStepContent(),
-                  ),
-                ],
+                    // Animated step content
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: _buildStepContent(),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

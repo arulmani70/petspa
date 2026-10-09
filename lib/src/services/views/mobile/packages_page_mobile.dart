@@ -20,66 +20,73 @@ class PackagesPageMobile extends StatelessWidget {
       create: (context) =>
           ServiceBloc(repository: ServicesLocator.serviceRepository)
             ..add(const GetAllPackages()),
-      child: Scaffold(
-        backgroundColor: const Color(0xFFFAFAFA),
-        appBar: AppBar(
-          backgroundColor: Colors.white,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          leading: IconButton(
-            icon: const Icon(
-              Icons.arrow_back_ios_new,
-              color: Colors.black,
-              size: 20,
+      child: PopScope(
+        canPop: context.canPop(),
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return;
+          context.goNamed(RouteNames.home);
+        },
+        child: Scaffold(
+          backgroundColor: const Color(0xFFFAFAFA),
+          appBar: AppBar(
+            backgroundColor: Colors.white,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            leading: IconButton(
+              icon: const Icon(
+                Icons.arrow_back_ios_new,
+                color: Colors.black,
+                size: 20,
+              ),
+              onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.goNamed(RouteNames.home);
+                }
+              },
             ),
-            onPressed: () {
-              if (context.canPop()) {
-                context.pop();
-              } else {
-                context.goNamed(RouteNames.home);
+            title: const Text(
+              "All Packages",
+              style: TextStyle(
+                fontFamily: 'Parkinsans',
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: Colors.black,
+              ),
+            ),
+          ),
+          body: BlocBuilder<ServiceBloc, ServiceState>(
+            builder: (context, state) {
+              if (state.status == ServiceStatus.loading &&
+                  state.packages.isEmpty) {
+                // ── Skeleton loading ────────────────────────────────────────
+                return ListView(
+                  padding: const EdgeInsets.fromLTRB(17, 22, 17, 24),
+                  children: const [
+                    PackageCardSkeleton(), SizedBox(height: 20),
+                    PackageCardSkeleton(), SizedBox(height: 20),
+                    PackageCardSkeleton(),
+                  ],
+                );
               }
+
+              final packages = state.packages;
+              
+              if (state.status == ServiceStatus.success && packages.isEmpty) {
+                return const Center(child: Text("No packages available"));
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.fromLTRB(17, 22, 17, 24),
+                itemCount: packages.length,
+                itemBuilder: (context, index) {
+                  final package = packages[index];
+                  return _PackageCard(package: package);
+                },
+              );
             },
           ),
-          title: const Text(
-            "All Packages",
-            style: TextStyle(
-              fontFamily: 'Parkinsans',
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              color: Colors.black,
-            ),
-          ),
-        ),
-        body: BlocBuilder<ServiceBloc, ServiceState>(
-          builder: (context, state) {
-            if (state.status == ServiceStatus.loading &&
-                state.packages.isEmpty) {
-              // ── Skeleton loading ────────────────────────────────────────
-              return ListView(
-                padding: const EdgeInsets.fromLTRB(17, 22, 17, 24),
-                children: const [
-                  PackageCardSkeleton(), SizedBox(height: 20),
-                  PackageCardSkeleton(), SizedBox(height: 20),
-                  PackageCardSkeleton(),
-                ],
-              );
-            }
-
-            final packages = state.packages;
-            
-            if (state.status == ServiceStatus.success && packages.isEmpty) {
-              return const Center(child: Text("No packages available"));
-            }
-
-            return ListView.builder(
-              padding: const EdgeInsets.fromLTRB(17, 22, 17, 24),
-              itemCount: packages.length,
-              itemBuilder: (context, index) {
-                final package = packages[index];
-                return _PackageCard(package: package);
-              },
-            );
-          },
         ),
       ),
     );

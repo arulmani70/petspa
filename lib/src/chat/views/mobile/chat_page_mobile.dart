@@ -75,14 +75,59 @@ class _ChatPageMobileState extends State<ChatPageMobile> {
   @override
   Widget build(BuildContext context) {
     if (!ServicesLocator.sessionService.isLoggedIn) {
-      return Scaffold(
+      return PopScope(
+        canPop: context.canPop(),
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return;
+          context.goNamed(RouteNames.home);
+        },
+        child: Scaffold(
+          backgroundColor: Colors.white,
+          appBar: AppBar(
+            backgroundColor: Colors.white,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.black, size: 22),
+              onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.goNamed(RouteNames.home);
+                }
+              },
+            ),
+            title: Text(
+              'Chat Support',
+              style: AppFonts.parkinsans(
+                size: 20,
+                weight: FontWeight.w700,
+                color: Colors.black,
+              ),
+            ),
+            centerTitle: false,
+          ),
+          body: _buildGuestState(),
+        ),
+      );
+    }
+    return PopScope(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        context.goNamed(RouteNames.home);
+      },
+      child: Scaffold(
         backgroundColor: Colors.white,
+        resizeToAvoidBottomInset: true,
         appBar: AppBar(
           backgroundColor: Colors.white,
           elevation: 0,
           scrolledUnderElevation: 0,
+          automaticallyImplyLeading: false,
+          titleSpacing: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.black, size: 22),
+            icon: const Icon(Icons.arrow_back, color: Colors.black, size: 24),
             onPressed: () {
               if (context.canPop()) {
                 context.pop();
@@ -91,42 +136,9 @@ class _ChatPageMobileState extends State<ChatPageMobile> {
               }
             },
           ),
-          title: Text(
-            'Chat Support',
-            style: AppFonts.parkinsans(
-              size: 20,
-              weight: FontWeight.w700,
-              color: Colors.black,
-            ),
-          ),
-          centerTitle: false,
-        ),
-        body: _buildGuestState(),
-      );
-    }
-    return Scaffold(
-      backgroundColor: Colors.white,
-      resizeToAvoidBottomInset: true,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        automaticallyImplyLeading: false,
-        titleSpacing: 16,
-        title: Row(
-          children: [
-            GestureDetector(
-              onTap: () {
-                if (Navigator.of(context).canPop()) {
-                  Navigator.of(context).pop();
-                } else {
-                  context.goNamed(RouteNames.home);
-                }
-              },
-              child: const Icon(Icons.arrow_back, color: Colors.black, size: 24),
-            ),
-            const SizedBox(width: 12),
-            Container(
+          title: Row(
+            children: [
+              Container(
               width: 40,
               height: 40,
               decoration: BoxDecoration(
@@ -199,6 +211,7 @@ class _ChatPageMobileState extends State<ChatPageMobile> {
           );
         },
       ),
+    ),
     );
   }
 

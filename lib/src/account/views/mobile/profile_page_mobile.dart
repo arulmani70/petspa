@@ -495,7 +495,13 @@ class _ProfilePageMobileState extends State<ProfilePageMobile> {
   // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final body = Scaffold(
+    final body = PopScope(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        context.goNamed(RouteNames.settings);
+      },
+      child: Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(
         backgroundColor      : Colors.white,
@@ -832,6 +838,7 @@ class _ProfilePageMobileState extends State<ProfilePageMobile> {
                 ),
               ),
             ),
+    ),
     );
 
     try {

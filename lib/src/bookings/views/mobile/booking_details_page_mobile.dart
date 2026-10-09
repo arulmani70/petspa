@@ -88,7 +88,13 @@ class BookingDetailsPageMobile extends StatelessWidget {
             ? dateLabel
             : (timeLabel.isNotEmpty ? timeLabel : 'Aug 4, 2026 · 10:30 AM'));
 
-    return Scaffold(
+    return PopScope(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        context.goNamed(RouteNames.myBookings);
+      },
+      child: Scaffold(
       body: Stack(
         children: [
           // Background Image
@@ -504,8 +510,9 @@ class BookingDetailsPageMobile extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   List<String> _extractAddOns(Map<String, dynamic> booking) {
     final list = <String>[];

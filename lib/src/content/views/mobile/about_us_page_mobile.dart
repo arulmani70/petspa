@@ -49,29 +49,36 @@ class _AboutUsPageMobileState extends State<AboutUsPageMobile> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        titleSpacing: 0,
-        title: Text(
-          _content?.title.isNotEmpty == true ? _content!.title : 'About Us',
-          style: AppFonts.parkinsans(size: 20, weight: FontWeight.w600, height: 26.949 / 20),
+    return PopScope(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        context.goNamed(RouteNames.settings);
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFFAFAFA),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          titleSpacing: 0,
+          title: Text(
+            _content?.title.isNotEmpty == true ? _content!.title : 'About Us',
+            style: AppFonts.parkinsans(size: 20, weight: FontWeight.w600, height: 26.949 / 20),
+          ),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black, size: 21),
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.goNamed(RouteNames.settings);
+              }
+            },
+          ),
         ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black, size: 21),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.goNamed(RouteNames.settings);
-            }
-          },
+        body: SafeArea(
+          child: _buildBody(),
         ),
-      ),
-      body: SafeArea(
-        child: _buildBody(),
       ),
     );
   }

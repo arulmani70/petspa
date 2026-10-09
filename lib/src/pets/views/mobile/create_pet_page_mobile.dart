@@ -368,8 +368,14 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
         },
         builder: (context, state) {
           final bloc = context.read<PetBloc>();
-          return Scaffold(
-            backgroundColor: const Color(0xFFFAFAFA),
+          return PopScope(
+            canPop: context.canPop(),
+            onPopInvokedWithResult: (didPop, result) {
+              if (didPop) return;
+              context.goNamed(RouteNames.myPets);
+            },
+            child: Scaffold(
+              backgroundColor: const Color(0xFFFAFAFA),
             appBar: AppBar(
               backgroundColor: Colors.white,
               elevation: 0,
@@ -634,8 +640,9 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
                 ],
               ),
             ),
-          );
-        },
+          ),
+        );
+      },
     );
   }
 

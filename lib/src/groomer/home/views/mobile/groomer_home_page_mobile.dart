@@ -885,60 +885,67 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
-      extendBody: true,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            if (_isLoading)
-              const LinearProgressIndicator(
-                minHeight: 2.5,
-                color: Color(0xFF111827),
-                backgroundColor: Colors.transparent,
-              ),
-            if (_errorMessage != null)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
+    return PopScope(
+      canPop: _currentTabIndex == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        setState(() => _currentTabIndex = 0);
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF9FAFB),
+        extendBody: true,
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              if (_isLoading)
+                const LinearProgressIndicator(
+                  minHeight: 2.5,
+                  color: Color(0xFF111827),
+                  backgroundColor: Colors.transparent,
                 ),
-                color: const Color(0xFFFEF2F2),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.info_outline,
-                      color: Color(0xFFDC2626),
-                      size: 16,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _errorMessage!,
-                        style: AppFonts.poppins(
-                          size: 12,
-                          color: const Color(0xFFDC2626),
+              if (_errorMessage != null)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  color: const Color(0xFFFEF2F2),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.info_outline,
+                        color: Color(0xFFDC2626),
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style: AppFonts.poppins(
+                            size: 12,
+                            color: const Color(0xFFDC2626),
+                          ),
                         ),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.refresh,
-                        size: 16,
-                        color: Color(0xFFDC2626),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.refresh,
+                          size: 16,
+                          color: Color(0xFFDC2626),
+                        ),
+                        onPressed: _loadAllData,
                       ),
-                      onPressed: _loadAllData,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            Expanded(child: _buildCurrentTabBody()),
-          ],
+              Expanded(child: _buildCurrentTabBody()),
+            ],
+          ),
         ),
+        bottomNavigationBar: _buildFloatingDock(),
       ),
-      bottomNavigationBar: _buildFloatingDock(),
     );
   }
 

@@ -99,7 +99,13 @@ class _GroomerLoginPageMobileState extends State<GroomerLoginPageMobile> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        context.goNamed(RouteNames.login);
+      },
+      child: Scaffold(
       backgroundColor: const Color(0xFFF0F8FD),
       body: Stack(
         children: [
@@ -357,6 +363,7 @@ class _GroomerLoginPageMobileState extends State<GroomerLoginPageMobile> {
           ),
         ],
       ),
+    ),
     );
   }
 

@@ -28,7 +28,13 @@ class MainShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
-    return Scaffold(
+    return PopScope(
+      canPop: navigationShell.currentIndex == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        navigationShell.goBranch(0);
+      },
+      child: Scaffold(
       backgroundColor: Colors.transparent,
       resizeToAvoidBottomInset: false,
       body: NetworkStatusWidget(child: navigationShell),
@@ -93,6 +99,7 @@ class MainShell extends StatelessWidget {
           ),
         ),
       ),
+    ),
     );
   }
 

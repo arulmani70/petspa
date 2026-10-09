@@ -81,33 +81,40 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
   @override
   Widget build(BuildContext context) {
     if (!ServicesLocator.sessionService.isLoggedIn) {
-      return Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(
+      return PopScope(
+        canPop: context.canPop(),
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return;
+          context.goNamed(RouteNames.home);
+        },
+        child: Scaffold(
           backgroundColor: Colors.white,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.black, size: 22),
-            onPressed: () {
-              if (context.canPop()) {
-                context.pop();
-              } else {
-                context.goNamed(RouteNames.home);
-              }
-            },
-          ),
-          title: Text(
-            'Notifications',
-            style: AppFonts.parkinsans(
-              size: 20,
-              weight: FontWeight.w700,
-              color: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.white,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.black, size: 22),
+              onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.goNamed(RouteNames.home);
+                }
+              },
             ),
+            title: Text(
+              'Notifications',
+              style: AppFonts.parkinsans(
+                size: 20,
+                weight: FontWeight.w700,
+                color: Colors.black,
+              ),
+            ),
+            centerTitle: false,
           ),
-          centerTitle: false,
+          body: _buildGuestState(),
         ),
-        body: _buildGuestState(),
       );
     }
 
@@ -124,7 +131,13 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
             : (_mockNotifications ??= _getMockNotifications());
         final hasUnread = notifications.any((n) => !n.isRead);
 
-        return Scaffold(
+        return PopScope(
+          canPop: context.canPop(),
+          onPopInvokedWithResult: (didPop, result) {
+            if (didPop) return;
+            context.goNamed(RouteNames.home);
+          },
+          child: Scaffold(
           backgroundColor: Colors.white,
           appBar: AppBar(
             backgroundColor: Colors.white,
@@ -187,6 +200,7 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
               ),
             ),
           ),
+        ),
         );
       },
     );

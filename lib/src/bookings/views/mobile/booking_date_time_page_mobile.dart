@@ -1060,8 +1060,14 @@ class _BookingDateTimePageMobileState
             _draft.endTime != null &&
             _draft.endTime!.isNotEmpty;
 
-        return Scaffold(
-          backgroundColor: _kPageBg,
+        return PopScope(
+          canPop: context.canPop(),
+          onPopInvokedWithResult: (didPop, result) {
+            if (didPop) return;
+            context.goNamed(RouteNames.bookingService);
+          },
+          child: Scaffold(
+            backgroundColor: _kPageBg,
           body: SafeArea(
             bottom: false,
             child: Column(
@@ -1173,10 +1179,11 @@ class _BookingDateTimePageMobileState
               ],
             ),
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 
   // ── sub-builders ──────────────────────────────────────────────────────────
 

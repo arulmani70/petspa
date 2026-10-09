@@ -17,7 +17,13 @@ class MyPetsPageMobile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isLoggedIn = ServicesLocator.sessionService.isLoggedIn;
 
-    return Scaffold(
+    return PopScope(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        context.goNamed(RouteNames.home);
+      },
+      child: Scaffold(
       backgroundColor: const Color(0xFFFAFAFA),
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -165,8 +171,9 @@ class MyPetsPageMobile extends StatelessWidget {
           );
         },
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildAddPetBlock(BuildContext context) {
     return Padding(

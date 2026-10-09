@@ -190,52 +190,71 @@ class _GroomerRegisterPageMobileState extends State<GroomerRegisterPageMobile> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF0F8FD),
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Image.asset(
-              'assets/images/common/welcome_bg.png',
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) =>
-                  const ColoredBox(color: Color(0xFFF0F8FD)),
+    return PopScope(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        context.goNamed(RouteNames.groomerLogin);
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF0F8FD),
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: Image.asset(
+                'assets/images/common/welcome_bg.png',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) =>
+                    const ColoredBox(color: Color(0xFFF0F8FD)),
+              ),
             ),
-          ),
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.white.withValues(alpha: 0.70),
-                    Colors.white.withValues(alpha: 0.55),
-                    Colors.white.withValues(alpha: 0.75),
-                    Colors.white.withValues(alpha: 0.88),
-                  ],
-                  stops: const [0.0, 0.35, 0.70, 1.0],
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white.withValues(alpha: 0.70),
+                      Colors.white.withValues(alpha: 0.55),
+                      Colors.white.withValues(alpha: 0.75),
+                      Colors.white.withValues(alpha: 0.88),
+                    ],
+                    stops: const [0.0, 0.35, 0.70, 1.0],
+                  ),
                 ),
               ),
             ),
-          ),
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: 12),
-
-                  // Logo
-                  Center(
-                    child: SvgPicture.asset(
-                      'assets/images/common/logo.svg',
-                      width: 146,
-                      height: 82,
+            SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Color(0xFF111827), size: 24),
+                        onPressed: () {
+                          if (context.canPop()) {
+                            context.pop();
+                          } else {
+                            context.goNamed(RouteNames.groomerLogin);
+                          }
+                        },
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
+                    const SizedBox(height: 4),
+
+                    // Logo
+                    Center(
+                      child: SvgPicture.asset(
+                        'assets/images/common/logo.svg',
+                        width: 146,
+                        height: 82,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
 
                   // Title
                   Text(
@@ -382,6 +401,7 @@ class _GroomerRegisterPageMobileState extends State<GroomerRegisterPageMobile> {
           ),
         ],
       ),
+    ),
     );
   }
 

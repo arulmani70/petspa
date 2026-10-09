@@ -28,74 +28,94 @@ class _LoginPageMobileState extends State<LoginPageMobile> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF0F8FD),
-      body: Stack(
-        children: [
-          // ── Background image: sky & clouds ──
-          Positioned.fill(
-            child: Image.asset(
-              'assets/images/common/welcome_bg.png',
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) =>
-                  const ColoredBox(color: Color(0xFFF0F8FD)),
+    return PopScope(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        context.goNamed(RouteNames.home);
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF0F8FD),
+        body: Stack(
+          children: [
+            // ── Background image: sky & clouds ──
+            Positioned.fill(
+              child: Image.asset(
+                'assets/images/common/welcome_bg.png',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) =>
+                    const ColoredBox(color: Color(0xFFF0F8FD)),
+              ),
             ),
-          ),
-          // ── Subtle gradient overlay to match reference image ──
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.white.withValues(alpha: 0.70),
-                    Colors.white.withValues(alpha: 0.55),
-                    Colors.white.withValues(alpha: 0.75),
-                    Colors.white.withValues(alpha: 0.88),
-                  ],
-                  stops: const [0.0, 0.35, 0.70, 1.0],
+            // ── Subtle gradient overlay to match reference image ──
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white.withValues(alpha: 0.70),
+                      Colors.white.withValues(alpha: 0.55),
+                      Colors.white.withValues(alpha: 0.75),
+                      Colors.white.withValues(alpha: 0.88),
+                    ],
+                    stops: const [0.0, 0.35, 0.70, 1.0],
+                  ),
                 ),
               ),
             ),
-          ),
 
-          SafeArea(
-            child: BlocListener<AuthBloc, AuthState>(
-              listener: (context, state) {
-                if (state.status == AuthStatus.authenticated) {
-                  final userType = state.userType ??
-                      state.user?['userType']?.toString().toLowerCase();
-                  if (userType == 'groomer') {
-                    final mustChange = state.mustChangePassword ||
-                        state.user?['mustChangePassword'] == true;
-                    if (mustChange) {
-                      context.goNamed(RouteNames.groomerRegister);
+            SafeArea(
+              child: BlocListener<AuthBloc, AuthState>(
+                listener: (context, state) {
+                  if (state.status == AuthStatus.authenticated) {
+                    final userType = state.userType ??
+                        state.user?['userType']?.toString().toLowerCase();
+                    if (userType == 'groomer') {
+                      final mustChange = state.mustChangePassword ||
+                          state.user?['mustChangePassword'] == true;
+                      if (mustChange) {
+                        context.goNamed(RouteNames.groomerRegister);
+                      } else {
+                        context.goNamed(RouteNames.groomerHome);
+                      }
                     } else {
-                      context.goNamed(RouteNames.groomerHome);
+                      context.goNamed(RouteNames.home);
                     }
-                  } else {
-                    context.goNamed(RouteNames.home);
+                  } else if (state.status == AuthStatus.unauthenticated &&
+                      state.message.isNotEmpty &&
+                      state.message != 'Logged out') {
+                    ToastUtil.showErrorToast(context, state.message);
                   }
-                } else if (state.status == AuthStatus.unauthenticated &&
-                    state.message.isNotEmpty &&
-                    state.message != 'Logged out') {
-                  ToastUtil.showErrorToast(context, state.message);
-                }
-              },
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 28),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 24),
+                },
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 28),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: IconButton(
+                          icon: const Icon(Icons.arrow_back, color: Color(0xFF111827), size: 24),
+                          onPressed: () {
+                            if (context.canPop()) {
+                              context.pop();
+                            } else {
+                              context.goNamed(RouteNames.home);
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 8),
 
-                    // ── Logo ──
-                    SvgPicture.asset(
-                      'assets/images/common/logo.svg',
-                      width: 146,
-                      height: 82,
-                    ),
-                    const SizedBox(height: 28),
+                      // ── Logo ──
+                      SvgPicture.asset(
+                        'assets/images/common/logo.svg',
+                        width: 146,
+                        height: 82,
+                      ),
+                      const SizedBox(height: 28),
 
                     // ── Customer Login Title ──
                     Text(
@@ -314,8 +334,9 @@ class _LoginPageMobileState extends State<LoginPageMobile> {
 
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   // ── Pill toggle with active white pill on the left ──
   Widget _buildToggle() {

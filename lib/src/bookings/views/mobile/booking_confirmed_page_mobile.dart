@@ -65,7 +65,13 @@ class BookingConfirmedPageMobile extends StatelessWidget {
             ? dateLabel
             : (timeLabel.isNotEmpty ? timeLabel : 'Aug 4, 2026 · 10:30 AM'));
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        context.goNamed(RouteNames.home);
+      },
+      child: Scaffold(
       body: Stack(
         children: [
           // Background Image
@@ -608,8 +614,9 @@ class BookingConfirmedPageMobile extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   String _formatWeight(String? weight) {
     if (weight == null || weight.isEmpty || weight == 'null' || weight == 'N/A') return 'Standard';

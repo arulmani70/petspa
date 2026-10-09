@@ -45,63 +45,122 @@ class _ServiceDetailPageMobileState extends State<ServiceDetailPageMobile> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        top: false,
-        child: _loading
-            ? SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(
-                  parent: BouncingScrollPhysics(),
-                ),
-                padding: const EdgeInsets.only(bottom: 40),
-                child: Column(children: [
-                  // Hero image skeleton
-                  const ShimmerBox(
-                    width: double.infinity,
-                    height: 286,
-                    radius: 0,
-                  ),
-                  const SizedBox(height: 24),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 17),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        ShimmerBox(width: 80, height: 12, radius: 6),
-                        SizedBox(height: 8),
-                        ShimmerBox(width: 220, height: 20, radius: 8),
-                        SizedBox(height: 20),
-                        ShimmerBox(width: double.infinity, height: 13, radius: 6),
-                        SizedBox(height: 6),
-                        ShimmerBox(width: double.infinity, height: 13, radius: 6),
-                        SizedBox(height: 6),
-                        ShimmerBox(width: 200, height: 13, radius: 6),
-                        SizedBox(height: 28),
-                        ShimmerBox(width: 140, height: 16, radius: 6),
-                        SizedBox(height: 14),
-                        ShimmerBox(width: double.infinity, height: 13, radius: 6),
-                        SizedBox(height: 8),
-                        ShimmerBox(width: double.infinity, height: 13, radius: 6),
-                        SizedBox(height: 8),
-                        ShimmerBox(width: double.infinity, height: 13, radius: 6),
-                        SizedBox(height: 28),
-                        ShimmerBox(width: 110, height: 16, radius: 6),
-                        SizedBox(height: 14),
-                        ShimmerBox(width: double.infinity, height: 39, radius: 10),
-                      ],
+    return PopScope(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        context.goNamed(RouteNames.services);
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          top: false,
+          child: _loading
+              ? Stack(
+                  children: [
+                    SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(
+                        parent: BouncingScrollPhysics(),
+                      ),
+                      padding: const EdgeInsets.only(bottom: 40),
+                      child: Column(children: [
+                        // Hero image skeleton
+                        const ShimmerBox(
+                          width: double.infinity,
+                          height: 286,
+                          radius: 0,
+                        ),
+                        const SizedBox(height: 24),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 17),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: const [
+                              ShimmerBox(width: 80, height: 12, radius: 6),
+                              SizedBox(height: 8),
+                              ShimmerBox(width: 220, height: 20, radius: 8),
+                              SizedBox(height: 20),
+                              ShimmerBox(width: double.infinity, height: 13, radius: 6),
+                              SizedBox(height: 6),
+                              ShimmerBox(width: double.infinity, height: 13, radius: 6),
+                              SizedBox(height: 6),
+                              ShimmerBox(width: 200, height: 13, radius: 6),
+                              SizedBox(height: 28),
+                              ShimmerBox(width: 140, height: 16, radius: 6),
+                              SizedBox(height: 14),
+                              ShimmerBox(width: double.infinity, height: 13, radius: 6),
+                              SizedBox(height: 8),
+                              ShimmerBox(width: double.infinity, height: 13, radius: 6),
+                              SizedBox(height: 8),
+                              ShimmerBox(width: double.infinity, height: 13, radius: 6),
+                              SizedBox(height: 28),
+                              ShimmerBox(width: 110, height: 16, radius: 6),
+                              SizedBox(height: 14),
+                              ShimmerBox(width: double.infinity, height: 39, radius: 10),
+                            ],
+                          ),
+                        ),
+                      ]),
                     ),
-                  ),
-                ]),
-              )
-            : _service == null
-            ? const Center(
-                child: Text(
-                  "Service not found",
-                  style: TextStyle(color: Color(0xFF7B8794)),
-                ),
-              )
-            : _buildDetail(context),
+                    Positioned(
+                      top: MediaQuery.of(context).padding.top + 10,
+                      left: 17,
+                      child: _buildBackButton(context),
+                    ),
+                  ],
+                )
+              : _service == null
+              ? Stack(
+                  children: [
+                    const Center(
+                      child: Text(
+                        "Service not found",
+                        style: TextStyle(color: Color(0xFF7B8794)),
+                      ),
+                    ),
+                    Positioned(
+                      top: MediaQuery.of(context).padding.top + 10,
+                      left: 17,
+                      child: _buildBackButton(context),
+                    ),
+                  ],
+                )
+              : _buildDetail(context),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBackButton(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.goNamed(RouteNames.services);
+        }
+      },
+      child: Container(
+        width: 48,
+        height: 48,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.10),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: const Icon(
+          Icons.arrow_back,
+          size: 22,
+          color: Color(0xFF111827),
+        ),
       ),
     );
   }
@@ -154,36 +213,7 @@ class _ServiceDetailPageMobileState extends State<ServiceDetailPageMobile> {
                     Positioned(
                       top: MediaQuery.of(context).padding.top + 10,
                       left: 17,
-                      child: GestureDetector(
-                        onTap: () {
-                          if (context.canPop()) {
-                            context.pop();
-                          } else {
-                            context.goNamed(RouteNames.services);
-                          }
-                        },
-                        child: Container(
-                          width: 48,
-                          height: 48,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.10),
-                                blurRadius: 10,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.arrow_back,
-                            size: 22,
-                            color: Color(0xFF111827),
-                          ),
-                        ),
-                      ),
+                      child: _buildBackButton(context),
                     ),
                   ],
                 ),

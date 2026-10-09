@@ -17,7 +17,13 @@ class SettingsPageMobile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isLoggedIn = ServicesLocator.sessionService.isLoggedIn;
 
-    final body = Scaffold(
+    final body = PopScope(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        context.goNamed(RouteNames.home);
+      },
+      child: Scaffold(
         backgroundColor: const Color(0xFFF8F9FA),
         appBar: PreferredSize(
           preferredSize: const Size.fromHeight(60),
@@ -90,7 +96,8 @@ class SettingsPageMobile extends StatelessWidget {
             ],
           ),
         ),
-      );
+      ),
+    );
 
     try {
       final authBloc = BlocProvider.of<AuthBloc>(context, listen: false);

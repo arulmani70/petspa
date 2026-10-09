@@ -50,54 +50,61 @@ class _PetSelectPageMobileState extends State<PetSelectPageMobile> {
   Widget build(BuildContext context) {
     final draft = widget.initialBookingData ?? {};
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        titleSpacing: 0,
-        title: Text(
-          'Select Your Pet',
-          style: AppFonts.parkinsans(
-            size: 20,
-            weight: FontWeight.w700,
-            color: const Color(0xFF111827),
+    return PopScope(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        context.goNamed(RouteNames.home);
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFFAFAFA),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          titleSpacing: 0,
+          title: Text(
+            'Select Your Pet',
+            style: AppFonts.parkinsans(
+              size: 20,
+              weight: FontWeight.w700,
+              color: const Color(0xFF111827),
+            ),
+          ),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Color(0xFF111827), size: 22),
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.goNamed(RouteNames.home);
+              }
+            },
           ),
         ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF111827), size: 22),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.goNamed(RouteNames.home);
-            }
-          },
-        ),
-      ),
-      body: SafeArea(
-        bottom: false,
-        child: BlocBuilder<PetBloc, PetState>(
-          builder: (context, state) {
-            if (state.status == PetStatus.loading && state.pets.isEmpty) {
-              return ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 17),
-                children: const [
-                  SizedBox(height: 16),
-                  PetCardSkeleton(), SizedBox(height: 16),
-                  PetCardSkeleton(), SizedBox(height: 16),
-                  PetCardSkeleton(),
-                ],
-              );
-            }
+        body: SafeArea(
+          bottom: false,
+          child: BlocBuilder<PetBloc, PetState>(
+            builder: (context, state) {
+              if (state.status == PetStatus.loading && state.pets.isEmpty) {
+                return ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 17),
+                  children: const [
+                    SizedBox(height: 16),
+                    PetCardSkeleton(), SizedBox(height: 16),
+                    PetCardSkeleton(), SizedBox(height: 16),
+                    PetCardSkeleton(),
+                  ],
+                );
+              }
 
-            if (state.pets.isEmpty) {
-              return _buildEmptyState(context);
-            }
+              if (state.pets.isEmpty) {
+                return _buildEmptyState(context);
+              }
 
-            return _buildPetList(context, state, draft);
-          },
+              return _buildPetList(context, state, draft);
+            },
+          ),
         ),
       ),
     );

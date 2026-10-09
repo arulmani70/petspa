@@ -90,65 +90,85 @@ class _OtpPageMobileState extends State<OtpPageMobile> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF0F8FD),
-      body: BlocListener<AuthBloc, AuthState>(
-        listener: (context, state) {
-          if (state.status == AuthStatus.otpVerified) {
-            context.goNamed(RouteNames.accountCreated);
-          } else if (state.status == AuthStatus.otpSent &&
-              state.message.isNotEmpty) {
-            ToastUtil.showSuccessToast(context, state.message);
-          } else if (state.message.isNotEmpty &&
-              state.status != AuthStatus.loading) {
-            ToastUtil.showErrorToast(context, state.message);
-          }
-        },
-        child: Stack(
-          children: [
-            // ── Background image: sky & clouds ──
-            Positioned.fill(
-              child: Image.asset(
-                'assets/images/common/welcome_bg.png',
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) =>
-                    const ColoredBox(color: Color(0xFFF0F8FD)),
+    return PopScope(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        context.goNamed(RouteNames.signup);
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF0F8FD),
+        body: BlocListener<AuthBloc, AuthState>(
+          listener: (context, state) {
+            if (state.status == AuthStatus.otpVerified) {
+              context.goNamed(RouteNames.accountCreated);
+            } else if (state.status == AuthStatus.otpSent &&
+                state.message.isNotEmpty) {
+              ToastUtil.showSuccessToast(context, state.message);
+            } else if (state.message.isNotEmpty &&
+                state.status != AuthStatus.loading) {
+              ToastUtil.showErrorToast(context, state.message);
+            }
+          },
+          child: Stack(
+            children: [
+              // ── Background image: sky & clouds ──
+              Positioned.fill(
+                child: Image.asset(
+                  'assets/images/common/welcome_bg.png',
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) =>
+                      const ColoredBox(color: Color(0xFFF0F8FD)),
+                ),
               ),
-            ),
-            // ── Subtle gradient overlay to match reference design ──
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.white.withValues(alpha: 0.70),
-                      Colors.white.withValues(alpha: 0.55),
-                      Colors.white.withValues(alpha: 0.75),
-                      Colors.white.withValues(alpha: 0.88),
-                    ],
-                    stops: const [0.0, 0.35, 0.70, 1.0],
+              // ── Subtle gradient overlay to match reference design ──
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.white.withValues(alpha: 0.70),
+                        Colors.white.withValues(alpha: 0.55),
+                        Colors.white.withValues(alpha: 0.75),
+                        Colors.white.withValues(alpha: 0.88),
+                      ],
+                      stops: const [0.0, 0.35, 0.70, 1.0],
+                    ),
                   ),
                 ),
               ),
-            ),
 
-            SafeArea(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 28),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    const SizedBox(height: 24),
+              SafeArea(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: IconButton(
+                          icon: const Icon(Icons.arrow_back, color: Color(0xFF111827), size: 24),
+                          onPressed: () {
+                            if (context.canPop()) {
+                              context.pop();
+                            } else {
+                              context.goNamed(RouteNames.signup);
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 8),
 
-                    // Logo
-                    SvgPicture.asset(
-                      'assets/images/common/logo.svg',
-                      width: 146,
-                      height: 82,
-                    ),
-                    const SizedBox(height: 24),
+                      // Logo
+                      SvgPicture.asset(
+                        'assets/images/common/logo.svg',
+                        width: 146,
+                        height: 82,
+                      ),
+                      const SizedBox(height: 24),
 
                     // Title
                     Text(
@@ -351,6 +371,7 @@ class _OtpPageMobileState extends State<OtpPageMobile> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

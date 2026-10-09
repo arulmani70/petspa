@@ -158,45 +158,52 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
             return DefaultTabController(
               key: ValueKey('tabs_${tabs.length}_${showBreedTab}_$hasRealPet'),
               length: tabs.length,
-              child: Scaffold(
-                backgroundColor: _kPageBg,
-                body: SafeArea(
-                  bottom: false,
-                  child: Column(
-                    children: [
-                      // Header
-                      BookingHeader(
-                        title   : 'Select Service',
-                        step    : 2,
-                        subtitle: hasRealPet
-                            ? 'Step 2 of 4 — Booking for $petName'
-                            : 'Step 2 of 4 — Choose a Service',
-                      ),
-
-                      // Pet strip (shown only when pet pre-selected from Step 1)
-                      if (hasRealPet) _PetStrip(draft: _draft),
-
-                      // Tab bar
-                      _ServiceTabBar(tabs: tabs),
-
-                      // Selected-service black banner
-                      if (canContinue) _SelectedBanner(draft: _draft),
-
-                      // Tab content
-                      Expanded(
-                        child: TabBarView(
-                          physics: const ClampingScrollPhysics(),
-                          children: tabViews,
+              child: PopScope(
+                canPop: context.canPop(),
+                onPopInvokedWithResult: (didPop, result) {
+                  if (didPop) return;
+                  context.goNamed(RouteNames.petSelect);
+                },
+                child: Scaffold(
+                  backgroundColor: _kPageBg,
+                  body: SafeArea(
+                    bottom: false,
+                    child: Column(
+                      children: [
+                        // Header
+                        BookingHeader(
+                          title   : 'Select Service',
+                          step    : 2,
+                          subtitle: hasRealPet
+                              ? 'Step 2 of 4 — Booking for $petName'
+                              : 'Step 2 of 4 — Choose a Service',
                         ),
-                      ),
 
-                      // Bottom action bar
-                      _BottomBar(
-                        summary    : _buildSummary(),
-                        canContinue: canContinue,
-                        onContinue : _onContinue,
-                      ),
-                    ],
+                        // Pet strip (shown only when pet pre-selected from Step 1)
+                        if (hasRealPet) _PetStrip(draft: _draft),
+
+                        // Tab bar
+                        _ServiceTabBar(tabs: tabs),
+
+                        // Selected-service black banner
+                        if (canContinue) _SelectedBanner(draft: _draft),
+
+                        // Tab content
+                        Expanded(
+                          child: TabBarView(
+                            physics: const ClampingScrollPhysics(),
+                            children: tabViews,
+                          ),
+                        ),
+
+                        // Bottom action bar
+                        _BottomBar(
+                          summary    : _buildSummary(),
+                          canContinue: canContinue,
+                          onContinue : _onContinue,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
