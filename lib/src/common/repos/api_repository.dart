@@ -598,6 +598,7 @@ class ApiRepository {
       final response = await _dio.post(
         path,
         data: data,
+        options: Options(contentType: 'multipart/form-data'),
       );
 
       if (response.statusCode == null ||
@@ -685,6 +686,7 @@ class ApiRepository {
       final response = await _dio.put(
         path,
         data: data,
+        options: Options(contentType: 'multipart/form-data'),
       );
 
       if (response.statusCode == null ||
@@ -692,6 +694,13 @@ class ApiRepository {
           response.statusCode! >= 300) {
         log.w(
           "ApiRepository::putMultipart::Unexpected status: ${response.statusCode} body: ${response.data}",
+        );
+        return false;
+      }
+
+      if (response.data is Map && response.data['success'] == false) {
+        log.w(
+          "ApiRepository::putMultipart::Response indicates failure: ${response.data}",
         );
         return false;
       }
@@ -713,6 +722,7 @@ class ApiRepository {
       final response = await _dio.put(
         path,
         data: data,
+        options: Options(contentType: 'multipart/form-data'),
       );
 
       if (response.statusCode == null ||

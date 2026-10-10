@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:toastification/toastification.dart';
 
 class ToastUtil {
+  static String? _lastMessage;
+  static DateTime? _lastTime;
+
   static void showSuccessToast(BuildContext context, String message) {
     _showToast(
       context: context,
@@ -53,11 +56,20 @@ class ToastUtil {
     required Color backgroundColor,
     required IconData icon,
   }) {
+    final now = DateTime.now();
+    if (_lastMessage == message &&
+        _lastTime != null &&
+        now.difference(_lastTime!).inMilliseconds < 1500) {
+      return;
+    }
+    _lastMessage = message;
+    _lastTime = now;
+
     toastification.show(
       context: context,
       type: type,
       style: ToastificationStyle.flat,
-      autoCloseDuration: const Duration(seconds: 5),
+      autoCloseDuration: const Duration(seconds: 4),
       title: Text(
         type == ToastificationType.success
             ? 'Success'

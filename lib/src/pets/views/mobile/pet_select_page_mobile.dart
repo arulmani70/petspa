@@ -5,6 +5,7 @@ import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/views/mobile/widgets/booking_progress.dart';
 import 'package:shear_heaven_pet_spa/src/common/common.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
+import 'package:shear_heaven_pet_spa/src/common/utils/utils.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/shimmer_loading.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/pets/bloc/pet_bloc.dart';
@@ -200,19 +201,7 @@ class _PetSelectPageMobileState extends State<PetSelectPageMobile> {
                   pet[Constants.database.COLUMN_BREED]?.toString() ?? '';
               final weight =
                   pet[Constants.database.COLUMN_WEIGHT]?.toString() ?? '0';
-              String age = pet['age']?.toString() ?? '';
-              if (age.isEmpty) {
-                final ageStr =
-                    pet[Constants.database.COLUMN_BIRTH_DATE]?.toString() ?? '';
-                if (ageStr.isNotEmpty) {
-                  final birthDate = DateTime.tryParse(ageStr);
-                  if (birthDate != null) {
-                    age = '${DateTime.now().year - birthDate.year} yrs';
-                  }
-                } else {
-                  age = '0 yrs';
-                }
-              }
+              final age = PetAgeFormatter.formatPetCardAge(pet);
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),

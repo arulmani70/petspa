@@ -29,23 +29,45 @@ class PetRepository {
 
     final photoUrl = map['profilePictureUrl'] ??
         map['profilePicture'] ??
+        map['profile_picture'] ??
+        map['profile_picture_url'] ??
         map['photo_url'] ??
         map['photoUrl'] ??
-        map['image'];
+        map['image'] ??
+        map['avatar'] ??
+        map['petImage'] ??
+        map['pet_image'];
+
+    final id = map['id'] ?? map['_id'];
+    final name = map['petName'] ?? map['name'];
 
     return {
-      Constants.database.COLUMN_ID: map['id'] ?? map['_id'],
-      Constants.database.COLUMN_PET_NAME: map['petName'] ?? map['name'],
+      Constants.database.COLUMN_ID: id,
+      'id': id,
+      '_id': id,
+      Constants.database.COLUMN_PET_NAME: name,
+      'petName': name,
+      'name': name,
       Constants.database.COLUMN_BREED: map['breed'],
+      'breed': map['breed'],
       Constants.database.COLUMN_WEIGHT: map['weight'],
+      'weight': map['weight'],
       Constants.database.COLUMN_NOTES: map['notesAllergies'] ?? map['notes'],
+      'notesAllergies': map['notesAllergies'] ?? map['notes'],
+      'notes': map['notesAllergies'] ?? map['notes'],
       Constants.database.COLUMN_BIRTH_DATE: map['dateOfBirth'] ?? map['birthDate'],
+      'dateOfBirth': map['dateOfBirth'] ?? map['birthDate'],
       Constants.database.COLUMN_PHOTO_URL: photoUrl,
       'profilePictureUrl': photoUrl,
       'profilePicture': photoUrl,
+      'profile_picture': photoUrl,
+      'profile_picture_url': photoUrl,
       'photo_url': photoUrl,
       'photoUrl': photoUrl,
       'image': photoUrl,
+      'avatar': photoUrl,
+      'petImage': photoUrl,
+      'pet_image': photoUrl,
       'age': map['age'],
       'gender': map['gender'],
       'allVaccinatedCurrent': map['allVaccinatedCurrent'],
@@ -126,10 +148,16 @@ class PetRepository {
     }
 
     // 2. Relative server upload URL (e.g. /uploads/pets/xyz.jpg)
-    if (trimmed.startsWith('/uploads/') || trimmed.startsWith('uploads/')) {
+    if (trimmed.startsWith('/uploads/') ||
+        trimmed.startsWith('uploads/') ||
+        trimmed.contains('/uploads/') ||
+        trimmed.endsWith('.jpg') ||
+        trimmed.endsWith('.jpeg') ||
+        trimmed.endsWith('.png') ||
+        trimmed.endsWith('.webp')) {
       try {
         final clean = trimmed.startsWith('/') ? trimmed.substring(1) : trimmed;
-        final fullUrl = '${Constants.app.BASE_URL}/$clean';
+        final fullUrl = clean.startsWith('http') ? clean : '${Constants.app.BASE_URL}/$clean';
         final dio = Dio(BaseOptions(
           connectTimeout: const Duration(seconds: 10),
           receiveTimeout: const Duration(seconds: 10),

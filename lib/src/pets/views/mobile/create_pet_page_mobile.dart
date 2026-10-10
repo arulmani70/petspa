@@ -26,7 +26,9 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
   List<String> _weightOptions = [];
   String? _selectedAge;
   final List<String> _ageOptions = [
-    '3 Months', '6 Months', '9 Months',
+    '3 Months',
+    '6 Months',
+    '9 Months',
     ...List.generate(20, (index) {
       final y = index + 1;
       return '$y Year${y == 1 ? '' : 's'}';
@@ -55,7 +57,21 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
     final weights = await ServicesLocator.storeRepository.getPetWeights();
     if (mounted) {
       setState(() {
-        _weightOptions = weights.map((w) => w['label']?.toString() ?? '').where((s) => s.isNotEmpty).toList();
+        _weightOptions = weights
+            .map((w) => w['label']?.toString() ?? '')
+            .where((s) => s.isNotEmpty)
+            .toList();
+        if (_weight != null && _weight!.isNotEmpty && _weightOptions.isNotEmpty) {
+          final trimmed = _weight!.trim();
+          final match = _weightOptions.firstWhere(
+            (opt) =>
+                opt.toLowerCase() == trimmed.toLowerCase() ||
+                opt.toLowerCase().startsWith(trimmed.toLowerCase()) ||
+                trimmed.toLowerCase().startsWith(opt.toLowerCase()),
+            orElse: () => trimmed,
+          );
+          _weight = match;
+        }
       });
     }
   }
@@ -73,8 +89,10 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
         _populateForm(_editingPet!);
       } else if (extra.containsKey(Constants.database.COLUMN_PET_NAME) ||
           extra.containsKey('petName') ||
+          extra.containsKey('name') ||
           extra.containsKey(Constants.database.COLUMN_ID) ||
-          extra.containsKey('id')) {
+          extra.containsKey('id') ||
+          extra.containsKey('_id')) {
         _editingPet = Map<String, dynamic>.from(extra);
         _isEdit = true;
         _populateForm(_editingPet!);
@@ -88,72 +106,129 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
         pet['petName']?.toString() ??
         pet['name']?.toString() ??
         '';
-    _weight = pet[Constants.database.COLUMN_WEIGHT]?.toString() ??
+
+    final rawWeight = pet[Constants.database.COLUMN_WEIGHT]?.toString() ??
         pet['weight']?.toString();
-    if (_weight != null && _weight!.isEmpty) _weight = null;
+    if (rawWeight != null && rawWeight.trim().isNotEmpty && rawWeight.trim() != 'null') {
+      _weight = rawWeight.trim();
+      if (_weightOptions.isNotEmpty) {
+        final match = _weightOptions.firstWhere(
+          (opt) =>
+              opt.toLowerCase() == _weight!.toLowerCase() ||
+              opt.toLowerCase().startsWith(_weight!.toLowerCase()) ||
+              _weight!.toLowerCase().startsWith(opt.toLowerCase()),
+          orElse: () => _weight!,
+        );
+        _weight = match;
+      }
+    } else {
+      _weight = null;
+    }
+
     _notesController.text =
         pet[Constants.database.COLUMN_NOTES]?.toString() ??
         pet['notesAllergies']?.toString() ??
+        pet['notes_allergies']?.toString() ??
         pet['notes']?.toString() ??
         '';
-    _breed = pet[Constants.database.COLUMN_BREED]?.toString() ??
-        pet['breed']?.toString();
-    
-    final birth = DateTime.tryParse(
-      pet[Constants.database.COLUMN_BIRTH_DATE]?.toString() ??
-      pet['dateOfBirth']?.toString() ??
-      '',
-    );
-    if (birth != null) {
-      _birthDate = birth;
-    }
 
+    final rawBreed = pet[Constants.database.COLUMN_BREED]?.toString() ??
+        pet['breed']?.toString();
+    if (rawBreed != null && rawBreed.trim().isNotEmpty && rawBreed.trim() != 'null') {
+      final trimmed = rawBreed.trim();
+      final match = Constants.petBreeds.firstWhere(
+        (b) => b.toLowerCase() == trimmed.toLowerCase(),
+        orElse: () => trimmed,
+      );
+      _breed = match;
+    } else {
+      _breed = null;
+    }
+    
     final rawPhoto = pet[Constants.database.COLUMN_PHOTO_URL]?.toString() ??
         pet['profilePictureUrl']?.toString() ??
         pet['profilePicture']?.toString() ??
+        pet['profile_picture']?.toString() ??
+        pet['profile_picture_url']?.toString() ??
         pet['photo_url']?.toString() ??
         pet['photoUrl']?.toString() ??
-        pet['image']?.toString();
+        pet['image']?.toString() ??
+        pet['avatar']?.toString() ??
+        pet['petImage']?.toString() ??
+        pet['pet_image']?.toString();
     _photoPath = (rawPhoto != null && rawPhoto.trim().isNotEmpty && rawPhoto.trim() != 'null')
         ? rawPhoto.trim()
         : null;
 
-    final ageStr = pet['age']?.toString() ?? '';
-    if (ageStr.isNotEmpty) {
-      if (_ageOptions.contains(ageStr)) {
-        _selectedAge = ageStr;
-      } else {
-        final match = RegExp(r'(\d+)\s*(Month|Year)', caseSensitive: false).firstMatch(ageStr);
-        if (match != null) {
-          int num = int.tryParse(match.group(1)!) ?? 0;
-          String unit = match.group(2)!.toLowerCase();
-          if (unit == 'month') {
-            if (num >= 9) { _selectedAge = '9 Months'; }
-            else if (num >= 6) { _selectedAge = '6 Months'; }
-            else { _selectedAge = '3 Months'; }
-          } else {
-            if (num > 20) num = 20;
-            _selectedAge = '$num Year${num == 1 ? '' : 's'}';
-          }
+    final birth = DateTime.tryParse(
+      pet[Constants.database.COLUMN_BIRTH_DATE]?.toString() ??
+      pet['dateOfBirth']?.toString() ??
+      pet['birthDate']?.toString() ??
+      '',
+    );
+    if (birth != null) {
+      _birthDate = birth;
+      final now = DateTime.now();
+      final totalMonths = _calculateTotalMonths(_birthDate!, now);
+      _selectedAge = _formatAgeFromMonths(totalMonths);
+    } else {
+      final ageStr = pet['age']?.toString().trim() ?? '';
+      String? resolvedAge;
+      if (ageStr.isNotEmpty && ageStr != 'null') {
+        if (_ageOptions.contains(ageStr)) {
+          resolvedAge = ageStr;
         } else {
-          final numMatch = RegExp(r'(\d+)').firstMatch(ageStr);
-          if (numMatch != null) {
-            int num = int.tryParse(numMatch.group(1)!) ?? 0;
-            if (num > 20) num = 20;
-            _selectedAge = '$num Year${num == 1 ? '' : 's'}';
+          final match = RegExp(r'(\d+)\s*(month|mon|mos|mo|m|year|yr|yrs|y)?', caseSensitive: false).firstMatch(ageStr);
+          if (match != null) {
+            int num = int.tryParse(match.group(1)!) ?? 0;
+            String? unit = match.group(2)?.toLowerCase();
+            if (unit != null && unit.startsWith('m')) {
+              resolvedAge = _formatAgeFromMonths(num);
+            } else if (unit != null && (unit.startsWith('y') || unit.startsWith('yr'))) {
+              if (num < 1) num = 1;
+              if (num > 20) num = 20;
+              resolvedAge = '$num Year${num == 1 ? '' : 's'}';
+            } else {
+              if (num <= 9 && (num == 3 || num == 6 || num == 9)) {
+                resolvedAge = '$num Months';
+              } else if (num > 20) {
+                resolvedAge = _formatAgeFromMonths(num);
+              } else if (num >= 1) {
+                resolvedAge = '$num Year${num == 1 ? '' : 's'}';
+              }
+            }
           }
         }
       }
+
+      _selectedAge = resolvedAge;
+
+      if (_selectedAge != null) {
+        final now = DateTime.now();
+        int monthsToSubtract = 0;
+        if (_selectedAge!.contains('Month')) {
+          monthsToSubtract = int.tryParse(_selectedAge!.split(' ')[0]) ?? 1;
+        } else if (_selectedAge!.contains('Year')) {
+          final years = int.tryParse(_selectedAge!.split(' ')[0]) ?? 1;
+          monthsToSubtract = years * 12;
+        }
+        _birthDate = _subtractMonthsSafely(now, monthsToSubtract);
+      }
     }
     
-    final gen = pet['gender']?.toString();
-    if (gen != null && gen.isNotEmpty) {
-      _gender = gen[0].toUpperCase() + gen.substring(1).toLowerCase();
+    final gen = pet['gender']?.toString().trim().toLowerCase();
+    if (gen == 'female') {
+      _gender = 'Female';
+    } else {
+      _gender = 'Male';
     }
     
     final vacc = pet['allVaccinatedCurrent'];
     if (vacc != null) {
-      _vaccinated = (vacc == true || vacc.toString() == 'true') ? 'Yes' : 'No';
+      final vStr = vacc.toString().trim().toLowerCase();
+      _vaccinated = (vacc == true || vStr == 'true' || vStr == '1' || vStr == 'yes') ? 'Yes' : 'No';
+    } else {
+      _vaccinated = 'Yes';
     }
     
     final lastVacc = DateTime.tryParse(
@@ -165,7 +240,90 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
       _lastVaccinatedDate = lastVacc;
     }
     
-    _behaviorNotesController.text = pet['behaviorNotes']?.toString() ?? '';
+    _behaviorNotesController.text =
+        pet['behaviorNotes']?.toString() ??
+        pet['behavior_notes']?.toString() ??
+        '';
+  }
+
+  int _daysInMonth(int year, int month) {
+    return DateTime(year, month + 1, 0).day;
+  }
+
+  DateTime _subtractMonthsSafely(DateTime date, int monthsToSubtract) {
+    int totalMonths = date.year * 12 + (date.month - 1) - monthsToSubtract;
+    int newYear = totalMonths ~/ 12;
+    int newMonth = (totalMonths % 12) + 1;
+    int maxDays = _daysInMonth(newYear, newMonth);
+    int newDay = date.day > maxDays ? maxDays : date.day;
+    return DateTime(newYear, newMonth, newDay);
+  }
+
+  int _calculateTotalMonths(DateTime birthDate, DateTime now) {
+    if (birthDate.isAfter(now)) return 0;
+    int months = (now.year - birthDate.year) * 12 + (now.month - birthDate.month);
+    final isNowLastDayOfMonth = now.day == _daysInMonth(now.year, now.month);
+    if (now.day < birthDate.day && !(isNowLastDayOfMonth && birthDate.day >= now.day)) {
+      months--;
+    }
+    return months < 0 ? 0 : months;
+  }
+
+  String _formatAgeFromMonths(int totalMonths) {
+    if (totalMonths < 5) {
+      return '3 Months';
+    }
+    if (totalMonths <= 7) {
+      return '6 Months';
+    }
+    if (totalMonths < 12) {
+      return '9 Months';
+    }
+    int years = totalMonths ~/ 12;
+    if (years < 1) years = 1;
+    if (years > 20) years = 20;
+    return '$years Year${years == 1 ? '' : 's'}';
+  }
+
+  void _onAgeSelected(String? val) {
+    if (val == null) {
+      setState(() {
+        _selectedAge = null;
+        _birthDate = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _selectedAge = val;
+      final now = DateTime.now();
+      int monthsToSubtract = 0;
+      if (val.contains('Month')) {
+        monthsToSubtract = int.tryParse(val.split(' ')[0]) ?? 1;
+      } else if (val.contains('Year')) {
+        final years = int.tryParse(val.split(' ')[0]) ?? 1;
+        monthsToSubtract = years * 12;
+      }
+      _birthDate = _subtractMonthsSafely(now, monthsToSubtract);
+      if (_lastVaccinatedDate != null && _birthDate != null && _lastVaccinatedDate!.isBefore(_birthDate!)) {
+        _lastVaccinatedDate = null;
+      }
+    });
+  }
+
+  void _onBirthDateSelected(DateTime date) {
+    setState(() {
+      _birthDate = date;
+      final now = DateTime.now();
+      final totalMonths = _calculateTotalMonths(date, now);
+      final calculatedAge = _formatAgeFromMonths(totalMonths);
+      
+      _selectedAge = calculatedAge;
+
+      if (_lastVaccinatedDate != null && _lastVaccinatedDate!.isBefore(date)) {
+        _lastVaccinatedDate = null;
+      }
+    });
   }
 
   @override
@@ -193,42 +351,16 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
   }
 
   void _showCalendarModal(bool isBirthDate) {
-    if (isBirthDate && _selectedAge == null) return;
-    
     final now = DateTime.now();
     DateTime? minDate;
     DateTime? maxDate;
     
     if (isBirthDate) {
-      // Calculate valid DOB range based on selected age
-      int minMonthsAgo = 0;
-      int maxMonthsAgo = 0;
-      if (_selectedAge!.contains('Month')) {
-        int m = int.tryParse(_selectedAge!.split(' ')[0]) ?? 3;
-        minMonthsAgo = m;
-        maxMonthsAgo = m + 3;
-      } else {
-        int y = int.tryParse(_selectedAge!.split(' ')[0]) ?? 1;
-        minMonthsAgo = y * 12;
-        maxMonthsAgo = (y + 1) * 12;
-      }
-      
-      // Max date represents the youngest they can be in this age bucket
-      maxDate = DateTime(now.year, now.month - minMonthsAgo, now.day);
-      // Min date represents the oldest they can be in this age bucket
-      minDate = DateTime(now.year, now.month - maxMonthsAgo, now.day).add(const Duration(days: 1));
-      
-      if (maxDate.isAfter(now)) {
-        maxDate = now;
-      }
-      if (minDate.isAfter(now)) {
-        minDate = now;
-      }
+      maxDate = now;
+      minDate = DateTime(now.year - 25, 1, 1);
     } else {
       maxDate = now;
-      if (_birthDate != null) {
-        minDate = _birthDate;
-      }
+      minDate = _birthDate ?? DateTime(now.year - 25, 1, 1);
     }
 
     showModalBottomSheet(
@@ -267,22 +399,18 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
               ),
               SharedCalendar(
                 initialDate: isBirthDate
-                    ? (_birthDate ?? maxDate)
-                    : (_lastVaccinatedDate ?? maxDate),
+                    ? (_birthDate ?? now)
+                    : (_lastVaccinatedDate ?? now),
                 minDate: minDate,
                 maxDate: maxDate,
                 onDateSelected: (date) {
-                  setState(() {
-                    if (isBirthDate) {
-                      _birthDate = date;
-                      // validate vaccinated date
-                      if (_lastVaccinatedDate != null && _lastVaccinatedDate!.isBefore(date)) {
-                        _lastVaccinatedDate = null;
-                      }
-                    } else {
+                  if (isBirthDate) {
+                    _onBirthDateSelected(date);
+                  } else {
+                    setState(() {
                       _lastVaccinatedDate = date;
-                    }
-                  });
+                    });
+                  }
                   Navigator.pop(context);
                 },
               ),
@@ -322,15 +450,14 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
 
     final petData = <String, dynamic>{
       Constants.database.COLUMN_PET_NAME: _nameController.text.trim(),
-      Constants.database.COLUMN_BREED: _breed,
-      Constants.database.COLUMN_WEIGHT: _weight,
-      Constants.database.COLUMN_NOTES: _notesController.text
-          .trim(), // Maps to notesAllergies
+      Constants.database.COLUMN_BREED: _breed ?? '',
+      Constants.database.COLUMN_WEIGHT: _weight ?? '',
+      Constants.database.COLUMN_NOTES: _notesController.text.trim(),
       Constants.database.COLUMN_BIRTH_DATE: _birthDate
           ?.toIso8601String()
           .split('T')
           .first,
-      Constants.database.COLUMN_PHOTO_URL: _photoPath, // Maps to profilePicture
+      Constants.database.COLUMN_PHOTO_URL: _photoPath,
       'profilePicture': _photoPath,
       'profilePictureUrl': _photoPath,
       'photo_url': _photoPath,
@@ -338,10 +465,9 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
       'age': _selectedAge ?? '',
       'gender': _gender.toLowerCase(),
       'allVaccinatedCurrent': _vaccinated == 'Yes' ? 'true' : 'false',
-      'lastVaccinatedDate': _lastVaccinatedDate
-          ?.toIso8601String()
-          .split('T')
-          .first,
+      'lastVaccinatedDate': _vaccinated == 'Yes' && _lastVaccinatedDate != null
+          ? _lastVaccinatedDate!.toIso8601String().split('T').first
+          : null,
       'behaviorNotes': _behaviorNotesController.text.trim(),
     };
 
@@ -363,7 +489,16 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
     return BlocConsumer<PetBloc, PetState>(
         listener: (context, state) {
           if (state.status == PetStatus.success) {
-            context.goNamed(RouteNames.petSelect);
+            ToastUtil.showSuccessToast(context, state.message);
+            if (context.canPop()) {
+              context.pop();
+            } else if (_isEdit) {
+              context.goNamed(RouteNames.myPets);
+            } else {
+              context.goNamed(RouteNames.petSelect);
+            }
+          } else if (state.status == PetStatus.failure) {
+            ToastUtil.showErrorToast(context, state.message);
           }
         },
         builder: (context, state) {
@@ -459,13 +594,7 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
                                         hint: "Select Age",
                                         value: _selectedAge,
                                         items: _ageOptions,
-                                        onChanged: (val) {
-                                          setState(() {
-                                            _selectedAge = val;
-                                            _birthDate = null;
-                                            _lastVaccinatedDate = null;
-                                          });
-                                        },
+                                        onChanged: _onAgeSelected,
                                       ),
                                     ],
                                   ),
@@ -504,10 +633,8 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
                                 ],
                               ),
                             ),
-                            if (_selectedAge != null) ...[
-                              _buildSectionTitle("Date of Birth"),
-                              _buildDateField(isBirthDate: true),
-                            ],
+                            _buildSectionTitle("Date of Birth"),
+                            _buildDateField(isBirthDate: true),
                             _buildSectionTitle("Gender"),
                             Row(
                               children: [
@@ -770,7 +897,7 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
   }
 
   Widget _buildPhotoWidget() {
-    if (_photoPath == null || _photoPath!.trim().isEmpty) {
+    if (_photoPath == null || _photoPath!.trim().isEmpty || _photoPath == 'null') {
       return Center(
         child: SvgPicture.asset(
           'assets/images/pets/fi_2956744_1_1903.svg',
@@ -784,6 +911,8 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
       return ClipOval(
         child: Image.network(
           path,
+          width: 126,
+          height: 126,
           fit: BoxFit.cover,
           errorBuilder: (ctx, err, st) =>
               const Icon(Icons.pets, color: Colors.grey, size: 40),
@@ -794,6 +923,8 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
       return ClipOval(
         child: Image.asset(
           path,
+          width: 126,
+          height: 126,
           fit: BoxFit.cover,
           errorBuilder: (ctx, err, st) =>
               const Icon(Icons.pets, color: Colors.grey, size: 40),
@@ -806,6 +937,8 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
         return ClipOval(
           child: Image.file(
             file,
+            width: 126,
+            height: 126,
             fit: BoxFit.cover,
             errorBuilder: (ctx, err, st) =>
                 const Icon(Icons.pets, color: Colors.grey, size: 40),
@@ -817,6 +950,8 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
     return ClipOval(
       child: Image.network(
         '${Constants.app.BASE_URL}/$clean',
+        width: 126,
+        height: 126,
         fit: BoxFit.cover,
         errorBuilder: (ctx, err, st) =>
             const Icon(Icons.pets, color: Colors.grey, size: 40),
@@ -885,7 +1020,10 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
     required ValueChanged<T?> onChanged,
     DropdownMenuItem<T> Function(T)? itemBuilder,
   }) {
-    final safeValue = items.contains(value) ? value : null;
+    final List<T> effectiveItems = (value != null && !items.contains(value))
+        ? [value, ...items]
+        : items;
+    final safeValue = effectiveItems.contains(value) ? value : null;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -913,7 +1051,7 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
             ),
           ),
           icon: const Icon(Icons.arrow_drop_down, color: Colors.black),
-          items: items
+          items: effectiveItems
               .map(
                 (item) => itemBuilder != null
                     ? itemBuilder(item)

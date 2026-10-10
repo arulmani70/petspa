@@ -54,7 +54,11 @@ class MyPetsPageMobile extends StatelessWidget {
           : BlocConsumer<PetBloc, PetState>(
         listener: (context, state) {
           if (state.status == PetStatus.success) {
-            ToastUtil.showSuccessToast(context, state.message);
+            // Only show toast directly on MyPetsPage if it was a pet delete action
+            if (state.message.toLowerCase().contains('removed') ||
+                state.message.toLowerCase().contains('deleted')) {
+              ToastUtil.showSuccessToast(context, state.message);
+            }
           } else if (state.status == PetStatus.failure) {
             ToastUtil.showErrorToast(context, state.message);
           }
@@ -99,19 +103,7 @@ class MyPetsPageMobile extends StatelessWidget {
                   pet[Constants.database.COLUMN_BREED]?.toString() ?? '';
               final weight =
                   pet[Constants.database.COLUMN_WEIGHT]?.toString() ?? '0';
-              String age = pet['age']?.toString() ?? '';
-              if (age.isEmpty) {
-                final ageStr =
-                    pet[Constants.database.COLUMN_BIRTH_DATE]?.toString() ?? '';
-                if (ageStr.isNotEmpty) {
-                  final birthDate = DateTime.tryParse(ageStr);
-                  if (birthDate != null) {
-                    age = '${DateTime.now().year - birthDate.year} yrs';
-                  }
-                } else {
-                  age = '0 yrs';
-                }
-              }
+              final age = PetAgeFormatter.formatPetCardAge(pet);
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),

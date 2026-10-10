@@ -86,3 +86,84 @@ class UsPhoneInputFormatter extends TextInputFormatter {
     );
   }
 }
+
+/// Helper class to calculate and format pet age consistently based on Date of Birth or age string.
+class PetAgeFormatter {
+  const PetAgeFormatter._();
+
+  static int daysInMonth(int year, int month) {
+    return DateTime(year, month + 1, 0).day;
+  }
+
+  static int calculateTotalMonths(DateTime birthDate, [DateTime? currentDate]) {
+    final now = currentDate ?? DateTime.now();
+    if (birthDate.isAfter(now)) return 0;
+    int months = (now.year - birthDate.year) * 12 + (now.month - birthDate.month);
+    final isNowLastDayOfMonth = now.day == daysInMonth(now.year, now.month);
+    if (now.day < birthDate.day && !(isNowLastDayOfMonth && birthDate.day >= now.day)) {
+      months--;
+    }
+    return months < 0 ? 0 : months;
+  }
+
+  static String formatAgeFromMonths(int totalMonths) {
+    if (totalMonths < 5) {
+      return '3 Months';
+    }
+    if (totalMonths <= 7) {
+      return '6 Months';
+    }
+    if (totalMonths < 12) {
+      return '9 Months';
+    }
+    int years = totalMonths ~/ 12;
+    if (years < 1) years = 1;
+    if (years > 20) years = 20;
+    return '$years Year${years == 1 ? '' : 's'}';
+  }
+
+  static String formatPetCardAge(Map<String, dynamic> pet) {
+    // 1. If dateOfBirth is present, calculate accurately from dateOfBirth
+    final birthStr = pet['dateOfBirth']?.toString() ??
+        pet['birthDate']?.toString() ??
+        pet['birth_date']?.toString() ??
+        pet['COLUMN_BIRTH_DATE']?.toString();
+    if (birthStr != null && birthStr.isNotEmpty && birthStr != 'null') {
+      final dob = DateTime.tryParse(birthStr);
+      if (dob != null) {
+        final totalMonths = calculateTotalMonths(dob);
+        return formatAgeFromMonths(totalMonths);
+      }
+    }
+
+    // 2. Otherwise format based on pet['age']
+    final rawAge = pet['age']?.toString().trim() ?? '';
+    if (rawAge.isNotEmpty && rawAge != 'null') {
+      final match = RegExp(r'(\d+)\s*(month|mon|mos|mo|m|year|yr|yrs|y)?', caseSensitive: false).firstMatch(rawAge);
+      if (match != null) {
+        final num = int.tryParse(match.group(1)!) ?? 0;
+        final unit = match.group(2)?.toLowerCase();
+        if (unit != null && unit.startsWith('m')) {
+          return formatAgeFromMonths(num);
+        } else if (unit != null && (unit.startsWith('y') || unit.startsWith('yr'))) {
+          final y = num < 1 ? 1 : (num > 20 ? 20 : num);
+          return '$y Year${y == 1 ? '' : 's'}';
+        } else {
+          if (num <= 9 && (num == 3 || num == 6 || num == 9)) {
+            return '$num Months';
+          }
+          if (num > 20) {
+            return formatAgeFromMonths(num);
+          }
+          if (num >= 1) {
+            return '$num Year${num == 1 ? '' : 's'}';
+          }
+        }
+      }
+      return rawAge;
+    }
+
+    return '3 Months';
+  }
+}
+
