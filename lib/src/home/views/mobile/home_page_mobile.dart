@@ -1238,27 +1238,24 @@ class _HomePageMobileState extends State<HomePageMobile> {
             ),
           ),
           const SizedBox(height: 11),
-          GestureDetector(
-            onTap: () => context.goNamed(RouteNames.petSelect),
-            child: Container(
-              width: 188,
-              height: 38,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(40),
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF3A3A3A), Colors.black],
-                ),
+          Container(
+            width: 188,
+            height: 38,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(40),
+              gradient: const LinearGradient(
+                colors: [Color(0xFF3A3A3A), Colors.black],
               ),
-              child: Text(
-                'Book Appointment',
-                textAlign: TextAlign.center,
-                style: AppFonts.parkinsans(
-                  size: 14,
-                  weight: FontWeight.w600,
-                  color: Colors.white,
-                  height: 22 / 14,
-                ),
+            ),
+            child: Text(
+              'Book Appointment',
+              textAlign: TextAlign.center,
+              style: AppFonts.parkinsans(
+                size: 14,
+                weight: FontWeight.w600,
+                color: Colors.white,
+                height: 22 / 14,
               ),
             ),
           ),
