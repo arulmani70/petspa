@@ -81,7 +81,8 @@ class SettingsPageMobile extends StatelessWidget {
               ),
               _buildSupportCard(context),
               const SizedBox(height: 24),
-              
+              _buildSocialMediaSection(),
+              const SizedBox(height: 24),
               _buildAuthButton(context, isLoggedIn),
               const SizedBox(height: 28),
 
@@ -571,7 +572,7 @@ class SettingsPageMobile extends StatelessWidget {
                 <line x1="12" y1="11.7" x2="12" y2="15.5"/>
               </svg>''',
             ),
-            'Privacy & Policy',
+            'Privacy Policy',
             () => context.pushNamed(RouteNames.privacyPolicy),
           ),
           const Divider(
@@ -597,7 +598,7 @@ class SettingsPageMobile extends StatelessWidget {
                 <rect x="12.5" y="15.4" width="5.5" height="2.6" rx="1.3" stroke-width="1.2"/>
               </svg>''',
             ),
-            'Terms & Condition',
+            'Terms & Conditions',
             () => context.pushNamed(RouteNames.termsCondition),
           ),
           if (isLoggedIn) ...[

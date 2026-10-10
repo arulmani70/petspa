@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shear_heaven_pet_spa/src/account/models/content_model.dart';
+import 'package:shear_heaven_pet_spa/src/account/models/store_contact_info_model.dart';
 import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
@@ -16,6 +17,7 @@ class _PrivacyPolicyPageMobileState extends State<PrivacyPolicyPageMobile> {
   bool _isLoading = true;
   String? _errorMessage;
   ContentModel? _content;
+  StoreContactInfo? _contactInfo;
 
   @override
   void initState() {
@@ -30,49 +32,82 @@ class _PrivacyPolicyPageMobileState extends State<PrivacyPolicyPageMobile> {
     });
 
     try {
-      final data = await ServicesLocator.contentRepository.getPrivacyPolicy();
+      final results = await Future.wait([
+        ServicesLocator.contentRepository.getPrivacyPolicy(),
+        ServicesLocator.contentRepository.getStoreContactInfo(),
+      ]);
+
       if (!mounted) return;
 
+      final privacy = results[0] as ContentModel;
+      final contact = results[1] as StoreContactInfo;
+
       setState(() {
-        _content = data;
+        _content = privacy.isNotEmpty ? privacy : ContentModel.privacyPolicyFallback();
+        _contactInfo = contact;
         _isLoading = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Could not load Privacy Policy.';
+        _content = ContentModel.privacyPolicyFallback();
+        _contactInfo = StoreContactInfo.defaultInfo();
         _isLoading = false;
       });
     }
   }
 
+  bool _canPop(BuildContext context) {
+    try {
+      return context.canPop();
+    } catch (_) {
+      return Navigator.of(context).canPop();
+    }
+  }
+
+  void _handleBack(BuildContext context) {
+    try {
+      if (context.canPop()) {
+        context.pop();
+        return;
+      }
+    } catch (_) {
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+        return;
+      }
+    }
+    try {
+      context.goNamed(RouteNames.settings);
+    } catch (_) {}
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: context.canPop(),
+      canPop: _canPop(context),
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        context.goNamed(RouteNames.settings);
+        _handleBack(context);
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFFAFAFA),
+        backgroundColor: const Color(0xFFF9FAFB),
         appBar: AppBar(
           backgroundColor: Colors.white,
           elevation: 0,
           titleSpacing: 0,
+          centerTitle: false,
           title: Text(
-            'Privacy & Policy',
-            style: AppFonts.parkinsans(size: 20, weight: FontWeight.w600, height: 26.949 / 20),
+            'Privacy Policy',
+            style: AppFonts.parkinsans(
+              size: 20,
+              weight: FontWeight.w700,
+              color: Colors.black,
+            ),
           ),
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.black, size: 21),
-            onPressed: () {
-              if (context.canPop()) {
-                context.pop();
-              } else {
-                context.goNamed(RouteNames.settings);
-              }
-            },
+            icon: const Icon(Icons.arrow_back, color: Colors.black, size: 22),
+            onPressed: () => _handleBack(context),
           ),
         ),
         body: SafeArea(
@@ -92,7 +127,7 @@ class _PrivacyPolicyPageMobileState extends State<PrivacyPolicyPageMobile> {
       );
     }
 
-    if (_errorMessage != null && _content == null) {
+    if (_errorMessage != null && (_content == null || _content!.isEmpty)) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -106,12 +141,15 @@ class _PrivacyPolicyPageMobileState extends State<PrivacyPolicyPageMobile> {
                 style: AppFonts.poppins(size: 14, color: Colors.black87),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1E1E1E),
+                  backgroundColor: Colors.black,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 ),
                 onPressed: _loadContent,
                 child: const Text('Retry'),
@@ -122,61 +160,165 @@ class _PrivacyPolicyPageMobileState extends State<PrivacyPolicyPageMobile> {
       );
     }
 
-    final content = _content ?? ContentModel.privacyPolicyFallback();
+    final content = (_content != null && _content!.isNotEmpty)
+        ? _content!
+        : ContentModel.privacyPolicyFallback();
+
+    final effectiveDate = content.effectiveDate ?? 'January 1, 2026';
 
     return RefreshIndicator(
       onRefresh: _loadContent,
-      color: const Color(0xFF1E1E1E),
+      color: Colors.black,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (content.title.isNotEmpty) ...[
-              Text(
-                content.title,
-                style: AppFonts.parkinsans(size: 18, weight: FontWeight.w700, color: Colors.black),
-              ),
-              const SizedBox(height: 8),
-            ],
-            if (content.effectiveDate != null && content.effectiveDate!.isNotEmpty) ...[
-              Text(
-                'Effective Date: ${content.effectiveDate}',
-                style: AppFonts.poppins(size: 12, weight: FontWeight.w500, color: Colors.grey.shade600),
-              ),
-              const SizedBox(height: 16),
-            ],
-            ...content.paragraphs.map((p) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(
-                    p,
-                    style: AppFonts.poppins(
-                      size: 14,
-                      weight: FontWeight.w400,
-                      color: Colors.black.withValues(alpha: 0.7),
-                      height: 1.6,
-                    ),
-                  ),
-                )),
-            ...content.sections.map((sec) => _buildSection(sec)),
-            const SizedBox(height: 20),
+            _buildHeaderBanner(content, effectiveDate),
+            const SizedBox(height: 18),
+            _buildIntroCard(content),
+            const SizedBox(height: 18),
+            ...content.sections.map((sec) => _buildSectionCard(sec)),
+            const SizedBox(height: 12),
+            _buildFooterContactCard(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSection(ContentSection sec) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
+  Widget _buildHeaderBanner(ContentModel content, String effectiveDate) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.black,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.shield_outlined, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'Effective: $effectiveDate',
+                  style: AppFonts.poppins(
+                    size: 11.5,
+                    weight: FontWeight.w500,
+                    color: Colors.white.withValues(alpha: 0.9),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Privacy Policy',
+            style: AppFonts.parkinsans(
+              size: 22,
+              weight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            content.subtitle ??
+                'Learn how Shear Heaven Pet Spa collects, uses, and protects your personal information.',
+            style: AppFonts.poppins(
+              size: 13,
+              weight: FontWeight.w400,
+              color: Colors.white.withValues(alpha: 0.85),
+              height: 1.45,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIntroCard(ContentModel content) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: content.paragraphs.map(
+          (p) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              p,
+              style: AppFonts.poppins(
+                size: 13.5,
+                weight: FontWeight.w400,
+                color: const Color(0xFF374151),
+                height: 1.6,
+              ),
+            ),
+          ),
+        ).toList(),
+      ),
+    );
+  }
+
+  Widget _buildSectionCard(ContentSection sec) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             sec.heading,
             style: AppFonts.parkinsans(
-              size: 16,
+              size: 15.5,
               weight: FontWeight.w700,
               color: Colors.black,
             ),
@@ -185,14 +327,86 @@ class _PrivacyPolicyPageMobileState extends State<PrivacyPolicyPageMobile> {
           Text(
             sec.body,
             style: AppFonts.poppins(
-              size: 14,
+              size: 13,
               weight: FontWeight.w400,
-              color: Colors.black.withValues(alpha: 0.7),
-              height: 1.6,
+              color: const Color(0xFF4B5563),
+              height: 1.55,
             ),
           ),
         ],
       ),
     );
   }
+
+  Widget _buildFooterContactCard() {
+    final contact = _contactInfo ?? StoreContactInfo.defaultInfo();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3F4F6),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Questions About Your Privacy?',
+            style: AppFonts.parkinsans(
+              size: 15.5,
+              weight: FontWeight.w700,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'If you have any questions regarding this policy or your personal data, feel free to contact us:',
+            style: AppFonts.poppins(
+              size: 12.5,
+              weight: FontWeight.w400,
+              color: const Color(0xFF4B5563),
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Icon(Icons.email_outlined, size: 16, color: Colors.black87),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  contact.email,
+                  style: AppFonts.poppins(
+                    size: 13,
+                    weight: FontWeight.w600,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(Icons.phone_outlined, size: 16, color: Colors.black87),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  contact.phone,
+                  style: AppFonts.poppins(
+                    size: 13,
+                    weight: FontWeight.w600,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
+

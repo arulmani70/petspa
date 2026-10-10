@@ -116,28 +116,81 @@ void main() {
       expect(find.text('Over 20 years in business.'), findsOneWidget);
     });
 
+    testWidgets('AboutUsPageMobile renders website fallback when API content is empty',
+        (tester) async {
+      fakeContentRepo.aboutUs = const ContentModel(title: '', content: '');
+      await tester.pumpWidget(buildTestableWidget(const AboutUsPageMobile()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Where Every Dog Gets the Royal Treatment'), findsOneWidget);
+      expect(find.text('Why Dog Owners Choose Shear Heaven'), findsOneWidget);
+      expect(find.text('Our Story & Passion'), findsOneWidget);
+      expect(find.text('Experienced Groomers'), findsWidgets);
+    });
+
     testWidgets('PrivacyPolicyPageMobile renders dynamic privacy policy from API',
         (tester) async {
+      fakeContentRepo.privacyPolicy = const ContentModel(
+        title: 'Privacy Policy Document',
+        content: 'Your privacy matters to us.\n\nWe encrypt all data.',
+        effectiveDate: 'March 1, 2026',
+        paragraphs: [
+          'Your privacy matters to us.',
+          'We encrypt all data.',
+        ],
+      );
       await tester.pumpWidget(buildTestableWidget(const PrivacyPolicyPageMobile()));
       await tester.pumpAndSettle();
 
-      expect(find.text('Privacy & Policy'), findsOneWidget);
-      expect(find.text('Privacy Policy Document'), findsOneWidget);
-      expect(find.text('Effective Date: March 1, 2026'), findsOneWidget);
+      expect(find.text('Privacy Policy'), findsWidgets);
+      expect(find.text('Effective: March 1, 2026'), findsOneWidget);
       expect(find.text('Your privacy matters to us.'), findsOneWidget);
       expect(find.text('We encrypt all data.'), findsOneWidget);
     });
 
+    testWidgets('PrivacyPolicyPageMobile renders website fallback when API content is empty',
+        (tester) async {
+      fakeContentRepo.privacyPolicy = const ContentModel(title: '', content: '');
+      await tester.pumpWidget(buildTestableWidget(const PrivacyPolicyPageMobile()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Privacy Policy'), findsWidgets);
+      expect(find.text('1. Information We Collect'), findsOneWidget);
+      expect(find.text('2. How We Use Your Information'), findsOneWidget);
+      expect(find.text('Questions About Your Privacy?'), findsOneWidget);
+    });
+
     testWidgets('TermsConditionPageMobile renders dynamic terms and conditions from API',
         (tester) async {
+      fakeContentRepo.termsConditions = const ContentModel(
+        title: 'Terms of Service',
+        content: 'App terms of service.\n\nCancellation policy details.',
+        effectiveDate: 'March 1, 2026',
+        paragraphs: [
+          'App terms of service.',
+          'Cancellation policy details.',
+        ],
+      );
       await tester.pumpWidget(buildTestableWidget(const TermsConditionPageMobile()));
       await tester.pumpAndSettle();
 
-      expect(find.text('Terms & Condition'), findsOneWidget);
-      expect(find.text('Terms of Service'), findsOneWidget);
-      expect(find.text('Effective Date: March 1, 2026'), findsOneWidget);
+      expect(find.text('Terms & Conditions'), findsWidgets);
+      expect(find.text('Effective: March 1, 2026'), findsOneWidget);
       expect(find.text('App terms of service.'), findsOneWidget);
       expect(find.text('Cancellation policy details.'), findsOneWidget);
     });
+
+    testWidgets('TermsConditionPageMobile renders website fallback when API content is empty',
+        (tester) async {
+      fakeContentRepo.termsConditions = const ContentModel(title: '', content: '');
+      await tester.pumpWidget(buildTestableWidget(const TermsConditionPageMobile()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Terms & Conditions'), findsWidgets);
+      expect(find.text('1. Acceptance of Terms'), findsOneWidget);
+      expect(find.text('2. Services'), findsOneWidget);
+      expect(find.text('Questions About These Terms?'), findsOneWidget);
+    });
   });
 }
+

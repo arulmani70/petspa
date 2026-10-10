@@ -70,11 +70,336 @@ class BookingServicesResult {
   bool get isEmpty =>
       breeds.isEmpty && packages.isEmpty && addOns.isEmpty && walkIn.isEmpty;
 
+  bool get isNotEmpty => !isEmpty;
+
   List<Map<String, dynamic>> get allServicesAsMap =>
       [...breeds, ...addOns, ...walkIn].map((s) => s.toMap()).toList();
 
   List<Map<String, dynamic>> get allPackagesAsMap =>
       packages.map((p) => p.toMap()).toList();
+
+  factory BookingServicesResult.fallback() {
+    return const BookingServicesResult(
+      breeds: [
+        ServiceItem(
+          id: 1,
+          isPackage: false,
+          isAddOn: false,
+          name: 'Small Dog (Under 20 lbs) — Grooming',
+          description: 'Full grooming for small breeds under 20 lbs.',
+          price: 55.0,
+          priceDisplay: r'$55 & up',
+          durationMinutes: 60,
+        ),
+        ServiceItem(
+          id: 2,
+          isPackage: false,
+          isAddOn: false,
+          name: 'Small Dog (Under 20 lbs) — Bathing',
+          description: 'Deep cleansing bath for small breeds.',
+          price: 35.0,
+          priceDisplay: r'$35 & up',
+          durationMinutes: 30,
+        ),
+        ServiceItem(
+          id: 3,
+          isPackage: false,
+          isAddOn: false,
+          name: 'Small Dog (Under 20 lbs) — Grooming & Bathing',
+          description: 'Complete bath and grooming package for small breeds.',
+          price: 65.0,
+          priceDisplay: r'$65 & up',
+          durationMinutes: 75,
+        ),
+        ServiceItem(
+          id: 4,
+          isPackage: false,
+          isAddOn: false,
+          name: 'Medium Dog (21 - 50 lbs) — Grooming',
+          description: 'Full grooming for medium dog breeds.',
+          price: 68.0,
+          priceDisplay: r'$68 & up',
+          durationMinutes: 75,
+        ),
+        ServiceItem(
+          id: 5,
+          isPackage: false,
+          isAddOn: false,
+          name: 'Medium Dog (21 - 50 lbs) — Bathing',
+          description: 'Refreshing bath for medium dog breeds.',
+          price: 45.0,
+          priceDisplay: r'$45 & up',
+          durationMinutes: 45,
+        ),
+        ServiceItem(
+          id: 6,
+          isPackage: false,
+          isAddOn: false,
+          name: 'Medium Dog (21 - 50 lbs) — Grooming & Bathing',
+          description: 'Complete bath and groom for medium dog breeds.',
+          price: 80.0,
+          priceDisplay: r'$80 & up',
+          durationMinutes: 90,
+        ),
+        ServiceItem(
+          id: 7,
+          isPackage: false,
+          isAddOn: false,
+          name: 'Large Dog (51 - 80 lbs) — Grooming',
+          description: 'Full grooming for large dog breeds.',
+          price: 85.0,
+          priceDisplay: r'$85 & up',
+          durationMinutes: 90,
+        ),
+        ServiceItem(
+          id: 8,
+          isPackage: false,
+          isAddOn: false,
+          name: 'Large Dog (51 - 80 lbs) — Bathing',
+          description: 'Thorough cleansing bath for large dog breeds.',
+          price: 55.0,
+          priceDisplay: r'$55 & up',
+          durationMinutes: 60,
+        ),
+        ServiceItem(
+          id: 9,
+          isPackage: false,
+          isAddOn: false,
+          name: 'Large Dog (51 - 80 lbs) — Grooming & Bathing',
+          description: 'Complete grooming and bath experience for large breeds.',
+          price: 100.0,
+          priceDisplay: r'$100 & up',
+          durationMinutes: 105,
+        ),
+      ],
+      walkIn: [
+        ServiceItem(
+          id: 10,
+          isPackage: false,
+          isAddOn: false,
+          name: 'Full Grooming',
+          description:
+              'Complete pet grooming including bath, blow dry, brushing, haircut, styling, nail clipping, and ear cleaning.',
+          price: 68.0,
+          priceDisplay: r'$68 & up',
+          durationMinutes: 75,
+        ),
+        ServiceItem(
+          id: 11,
+          isPackage: false,
+          isAddOn: false,
+          name: 'Bath & Blow Dry',
+          description:
+              'Deep cleansing bath with premium pet shampoo followed by blow dry and brush-out.',
+          price: 40.0,
+          priceDisplay: r'$40 & up',
+          durationMinutes: 45,
+        ),
+        ServiceItem(
+          id: 12,
+          isPackage: false,
+          isAddOn: false,
+          name: 'Hair Trimming',
+          description:
+              'Neat and manageable coat trimming customized to your preference or breed style.',
+          price: 30.0,
+          priceDisplay: r'$30 & up',
+          durationMinutes: 30,
+        ),
+        ServiceItem(
+          id: 13,
+          isPackage: false,
+          isAddOn: false,
+          name: 'Breed Styling',
+          description:
+              'Precision coat shaping according to traditional breed standards or custom styles.',
+          price: 55.0,
+          priceDisplay: r'$55 & up',
+          durationMinutes: 60,
+        ),
+        ServiceItem(
+          id: 14,
+          isPackage: false,
+          isAddOn: false,
+          name: 'Nail Trimming',
+          description:
+              'Carefully trimmed and smoothed nails to improve posture, mobility, and comfort.',
+          price: 15.0,
+          priceDisplay: r'$15',
+          durationMinutes: 15,
+        ),
+        ServiceItem(
+          id: 15,
+          isPackage: false,
+          isAddOn: false,
+          name: 'Ear Cleaning',
+          description:
+              'Gentle ear cleaning to remove wax and debris while supporting healthy ears.',
+          price: 12.0,
+          priceDisplay: r'$12',
+          durationMinutes: 10,
+        ),
+        ServiceItem(
+          id: 16,
+          isPackage: false,
+          isAddOn: false,
+          name: 'Teeth Brushing',
+          description:
+              'Oral hygiene care with pet-safe enzymatic toothpaste for fresh breath and cleaner teeth.',
+          price: 14.0,
+          priceDisplay: r'$14',
+          durationMinutes: 10,
+        ),
+        ServiceItem(
+          id: 17,
+          isPackage: false,
+          isAddOn: false,
+          name: 'Flea & Tick Treatment',
+          description:
+              'Specialized cleansing flea bath to cleanse the coat and keep your dog comfortable.',
+          price: 25.0,
+          priceDisplay: r'$25 & up',
+          durationMinutes: 30,
+        ),
+        ServiceItem(
+          id: 18,
+          isPackage: false,
+          isAddOn: false,
+          name: 'Puppy Grooming',
+          description:
+              'Gentle introduction to grooming in a calm setting with light bath, brush, and trim.',
+          price: 35.0,
+          priceDisplay: r'$35 & up',
+          durationMinutes: 45,
+        ),
+        ServiceItem(
+          id: 19,
+          isPackage: false,
+          isAddOn: false,
+          name: 'De-Shedding Treatment',
+          description:
+              'Undercoat removal process that minimizes shedding and keeps the coat healthy.',
+          price: 28.0,
+          priceDisplay: r'$28 & up',
+          durationMinutes: 30,
+        ),
+        ServiceItem(
+          id: 20,
+          isPackage: false,
+          isAddOn: false,
+          name: 'Skin Care Treatment',
+          description:
+              'Nourishing shampoos and conditioners formulated to soothe dry skin and revitalize the coat.',
+          price: 22.0,
+          priceDisplay: r'$22 & up',
+          durationMinutes: 20,
+        ),
+      ],
+      packages: [
+        ServiceItem(
+          id: 1,
+          isPackage: true,
+          isAddOn: false,
+          name: 'Spa Package',
+          description:
+              'Full Service Pet Grooming, coat conditioning, nail clipping, ear cleaning, and finishing treatments.',
+          price: 85.0,
+          priceDisplay: r'$85 & up',
+          durationMinutes: 90,
+        ),
+        ServiceItem(
+          id: 2,
+          isPackage: true,
+          isAddOn: false,
+          name: 'Bath & Tidy Package',
+          description:
+              'Bath, blow dry, nail clipping, ear cleaning, and light sanitary trimming.',
+          price: 50.0,
+          priceDisplay: r'$50 & up',
+          durationMinutes: 45,
+        ),
+        ServiceItem(
+          id: 3,
+          isPackage: true,
+          isAddOn: false,
+          name: 'Deluxe Puppy Spa',
+          description:
+              'Gentle puppy bath, brush out, nail trim, ear cleaning, and positive intro styling.',
+          price: 45.0,
+          priceDisplay: r'$45 & up',
+          durationMinutes: 45,
+        ),
+      ],
+      addOns: [
+        ServiceItem(
+          id: 1,
+          isPackage: false,
+          isAddOn: true,
+          name: 'Nail Grinding & Buffing',
+          description:
+              'Smooth round finish on nails using a professional rotary tool.',
+          price: 8.0,
+          priceDisplay: r'$8',
+          durationMinutes: 10,
+        ),
+        ServiceItem(
+          id: 2,
+          isPackage: false,
+          isAddOn: true,
+          name: 'Medicated Shampoo',
+          description:
+              'Therapeutic bath treatment for sensitive or irritated skin.',
+          price: 10.0,
+          priceDisplay: r'$10',
+          durationMinutes: 10,
+        ),
+        ServiceItem(
+          id: 3,
+          isPackage: false,
+          isAddOn: true,
+          name: 'Blueberry Facial',
+          description:
+              'Tearless, aromatic face cleanser that removes tear stains and dirt.',
+          price: 10.0,
+          priceDisplay: r'$10',
+          durationMinutes: 10,
+        ),
+        ServiceItem(
+          id: 4,
+          isPackage: false,
+          isAddOn: true,
+          name: 'Breath Freshener Spray',
+          description:
+              'Refreshing dental spray for instant breath refreshment.',
+          price: 6.0,
+          priceDisplay: r'$6',
+          durationMinutes: 5,
+        ),
+        ServiceItem(
+          id: 5,
+          isPackage: false,
+          isAddOn: true,
+          name: 'Paw Balm Treatment',
+          description:
+              'Soothing moisturizer applied to dry, cracked paw pads.',
+          price: 8.0,
+          priceDisplay: r'$8',
+          durationMinutes: 5,
+        ),
+        ServiceItem(
+          id: 6,
+          isPackage: false,
+          isAddOn: true,
+          name: 'De-Matting Treatment',
+          description:
+              'Gentle detangling for knotted or tangled coat sections.',
+          price: 15.0,
+          priceDisplay: r'$15 & up',
+          durationMinutes: 20,
+        ),
+      ],
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -128,14 +453,16 @@ class ServiceRepository {
   Future<BookingServicesResult> getBookingServices() async {
     log.d('ServiceRepository::getBookingServices::GET /api/service-packages');
 
-    final response =
-        await ServicesLocator.apiRepository.get('/api/service-packages');
-    if (response == null || !response.containsKey('data')) {
-      throw Exception('Failed to fetch services: empty response');
-    }
+    try {
+      final response =
+          await ServicesLocator.apiRepository.get('/api/service-packages');
+      if (response == null || !response.containsKey('data')) {
+        log.w('ServiceRepository::getBookingServices::Empty response, using fallback');
+        return BookingServicesResult.fallback();
+      }
 
-    final data = response['data'] as Map<String, dynamic>;
-    log.d('ServiceRepository::getBookingServices::keys=${data.keys.toList()}');
+      final data = response['data'] as Map<String, dynamic>;
+      log.d('ServiceRepository::getBookingServices::keys=${data.keys.toList()}');
 
     // ── Breeds ────────────────────────────────────────────────────────────
     // Backend catalog: services 1–9
@@ -294,12 +621,23 @@ class ServiceRepository {
         ' packages=${packages.length}(ids 1–${packages.isEmpty ? 0 : packages.last.id})'
         ' addOns=${addOns.length}(ids 1–${addOns.isEmpty ? 0 : addOns.last.id})');
 
-    return BookingServicesResult(
-      breeds  : breeds,
-      packages: packages,
-      addOns  : addOns,
-      walkIn  : walkIn,
-    );
+      final result = BookingServicesResult(
+        breeds  : breeds,
+        packages: packages,
+        addOns  : addOns,
+        walkIn  : walkIn,
+      );
+
+      if (result.isEmpty) {
+        log.w('ServiceRepository::getBookingServices::Result is empty, using fallback');
+        return BookingServicesResult.fallback();
+      }
+
+      return result;
+    } catch (e) {
+      log.w('ServiceRepository::getBookingServices::Error fetching services ($e), using fallback');
+      return BookingServicesResult.fallback();
+    }
   }
 
   // ── Legacy surface ────────────────────────────────────────────────────────

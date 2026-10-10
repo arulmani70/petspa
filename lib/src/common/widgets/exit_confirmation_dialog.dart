@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 
 /// Reusable Exit Confirmation Dialog matching the Shear Heaven Pet Spa design system.

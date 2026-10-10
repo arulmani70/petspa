@@ -47,10 +47,14 @@ class ContentRepository {
 
       if (response != null && response['data'] != null) {
         final data = response['data'];
+        ContentModel? model;
         if (data is Map<String, dynamic>) {
-          return ContentModel.fromJson(data, defaultTitle: 'About Shear Heaven Pet Spa');
+          model = ContentModel.fromJson(data, defaultTitle: 'About Us');
         } else if (data is Map) {
-          return ContentModel.fromJson(Map<String, dynamic>.from(data), defaultTitle: 'About Shear Heaven Pet Spa');
+          model = ContentModel.fromJson(Map<String, dynamic>.from(data), defaultTitle: 'About Us');
+        }
+        if (model != null && model.isNotEmpty) {
+          return model;
         }
       }
 
@@ -73,10 +77,14 @@ class ContentRepository {
 
       if (response != null && response['data'] != null) {
         final data = response['data'];
+        ContentModel? model;
         if (data is Map<String, dynamic>) {
-          return ContentModel.fromJson(data, defaultTitle: 'Help & Support');
+          model = ContentModel.fromJson(data, defaultTitle: 'Help & Support');
         } else if (data is Map) {
-          return ContentModel.fromJson(Map<String, dynamic>.from(data), defaultTitle: 'Help & Support');
+          model = ContentModel.fromJson(Map<String, dynamic>.from(data), defaultTitle: 'Help & Support');
+        }
+        if (model != null && model.isNotEmpty) {
+          return model;
         }
       }
 
@@ -99,10 +107,14 @@ class ContentRepository {
 
       if (response != null && response['data'] != null) {
         final data = response['data'];
+        ContentModel? model;
         if (data is Map<String, dynamic>) {
-          return ContentModel.fromJson(data, defaultTitle: 'Privacy Policy');
+          model = ContentModel.fromJson(data, defaultTitle: 'Privacy Policy');
         } else if (data is Map) {
-          return ContentModel.fromJson(Map<String, dynamic>.from(data), defaultTitle: 'Privacy Policy');
+          model = ContentModel.fromJson(Map<String, dynamic>.from(data), defaultTitle: 'Privacy Policy');
+        }
+        if (model != null && model.isNotEmpty) {
+          return model;
         }
       }
 
@@ -125,10 +137,14 @@ class ContentRepository {
 
       if (response != null && response['data'] != null) {
         final data = response['data'];
+        ContentModel? model;
         if (data is Map<String, dynamic>) {
-          return ContentModel.fromJson(data, defaultTitle: 'Terms & Conditions');
+          model = ContentModel.fromJson(data, defaultTitle: 'Terms & Conditions');
         } else if (data is Map) {
-          return ContentModel.fromJson(Map<String, dynamic>.from(data), defaultTitle: 'Terms & Conditions');
+          model = ContentModel.fromJson(Map<String, dynamic>.from(data), defaultTitle: 'Terms & Conditions');
+        }
+        if (model != null && model.isNotEmpty) {
+          return model;
         }
       }
 

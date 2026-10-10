@@ -125,7 +125,7 @@ void main() {
         'data': {
           'storeName': 'Shear Heaven Main Branch',
           'address': '2218 S. Bowen, Arlington, TX',
-          'phone': '(669)-338-5227',
+          'phone': '(817) 277-8433',
           'email': 'contact@shearheaven.com',
           'operatingHours': 'Mon - Sat: 9:00 AM - 6:00 PM',
         },
@@ -133,7 +133,7 @@ void main() {
 
       final result = await contentRepo.getStoreContactInfo();
       expect(result.storeName, 'Shear Heaven Main Branch');
-      expect(result.phone, '(669)-338-5227');
+      expect(result.phone, '(817) 277-8433');
       expect(result.email, 'contact@shearheaven.com');
     });
 
@@ -196,5 +196,43 @@ void main() {
         expect(result.paragraphs.length, 2);
       },
     );
+
+    test('getAboutUs falls back to static website content when API returns empty data', () async {
+      mockApi.responses['/api/content/about-us'] = {
+        'success': true,
+        'data': {},
+      };
+
+      final result = await contentRepo.getAboutUs();
+      expect(result.title, 'About Us');
+      expect(result.paragraphs.isNotEmpty, true);
+      expect(result.paragraphs.first, contains('Shear Heaven Pet Spa'));
+      expect(result.sections.isNotEmpty, true);
+    });
+
+    test('getPrivacyPolicy falls back to static website content when API returns null', () async {
+      mockApi.responses['/api/content/privacy-policy'] = {
+        'success': true,
+        'data': null,
+      };
+
+      final result = await contentRepo.getPrivacyPolicy();
+      expect(result.title, 'Privacy Policy');
+      expect(result.sections.isNotEmpty, true);
+      expect(result.sections.first.heading, contains('1. Information We Collect'));
+    });
+
+    test('getTermsConditions falls back to static website content on empty response', () async {
+      mockApi.responses['/api/content/terms-conditions'] = {
+        'success': true,
+        'data': {'content': ''},
+      };
+
+      final result = await contentRepo.getTermsConditions();
+      expect(result.title, 'Terms & Conditions');
+      expect(result.sections.isNotEmpty, true);
+      expect(result.sections.first.heading, contains('1. Acceptance of Terms'));
+    });
   });
 }
+

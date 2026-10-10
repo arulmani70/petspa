@@ -38,27 +38,56 @@ class _HelpSupportPageMobileState extends State<HelpSupportPageMobile> {
       final results = await Future.wait([contactFuture, helpFuture]);
       if (!mounted) return;
 
+      final contact = results[0] as StoreContactInfo;
+      final help = results[1] as ContentModel;
+
       setState(() {
-        _contactInfo = results[0] as StoreContactInfo;
-        _helpContent = results[1] as ContentModel;
+        _contactInfo = contact;
+        _helpContent = help.isNotEmpty ? help : ContentModel.helpSupportFallback();
         _isLoading = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Could not load Help & Support information.';
+        _contactInfo = StoreContactInfo.defaultInfo();
+        _helpContent = ContentModel.helpSupportFallback();
         _isLoading = false;
       });
     }
   }
 
+  bool _canPop(BuildContext context) {
+    try {
+      return context.canPop();
+    } catch (_) {
+      return Navigator.of(context).canPop();
+    }
+  }
+
+  void _handleBack(BuildContext context) {
+    try {
+      if (context.canPop()) {
+        context.pop();
+        return;
+      }
+    } catch (_) {
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+        return;
+      }
+    }
+    try {
+      context.goNamed(RouteNames.settings);
+    } catch (_) {}
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: context.canPop(),
+      canPop: _canPop(context),
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        context.goNamed(RouteNames.settings);
+        _handleBack(context);
       },
       child: Scaffold(
         backgroundColor: const Color(0xFFFAFAFA),
@@ -72,13 +101,7 @@ class _HelpSupportPageMobileState extends State<HelpSupportPageMobile> {
           ),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.black, size: 21),
-            onPressed: () {
-              if (context.canPop()) {
-                context.pop();
-              } else {
-                context.goNamed(RouteNames.settings);
-              }
-            },
+            onPressed: () => _handleBack(context),
           ),
         ),
         body: SafeArea(

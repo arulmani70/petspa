@@ -501,14 +501,39 @@ class _ProfilePageMobileState extends State<ProfilePageMobile> {
     );
   }
 
+  bool _canPop(BuildContext context) {
+    try {
+      return context.canPop();
+    } catch (_) {
+      return Navigator.of(context).canPop();
+    }
+  }
+
+  void _handleBack(BuildContext context) {
+    try {
+      if (context.canPop()) {
+        context.pop();
+        return;
+      }
+    } catch (_) {
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+        return;
+      }
+    }
+    try {
+      context.goNamed(RouteNames.settings);
+    } catch (_) {}
+  }
+
   // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final body = PopScope(
-      canPop: context.canPop(),
+      canPop: _canPop(context),
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        context.goNamed(RouteNames.settings);
+        _handleBack(context);
       },
       child: Scaffold(
         backgroundColor: Colors.white,
@@ -519,9 +544,7 @@ class _ProfilePageMobileState extends State<ProfilePageMobile> {
         titleSpacing         : 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Color(0xFF111827), size: 24),
-          onPressed: () => context.canPop()
-              ? context.pop()
-              : context.goNamed(RouteNames.settings),
+          onPressed: () => _handleBack(context),
         ),
         title: Text('My Profile',
             style: AppFonts.parkinsans(
