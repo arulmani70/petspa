@@ -65,10 +65,14 @@ class _CreateAccountPageMobileState extends State<CreateAccountPageMobile> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: context.canPop(),
+      canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        context.goNamed(RouteNames.login);
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.goNamed(RouteNames.login);
+        }
       },
       child: Scaffold(
         backgroundColor: const Color(0xFFF0F8FD),

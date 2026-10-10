@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:logger/logger.dart';
 import 'package:shear_heaven_pet_spa/src/account/models/app_notification.dart';
+import 'package:shear_heaven_pet_spa/src/app/routes.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/customer_summary.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_booking.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_schedule_models.dart';
@@ -441,6 +442,7 @@ class GroomerHomeBloc extends Bloc<GroomerHomeEvent, GroomerHomeState> {
   ) async {
     await repository.logout();
     emit(GroomerHomeState.initial);
+    Routes.redirectToLogin(isGroomer: true);
   }
 
   bool _isCreatingBooking = false;

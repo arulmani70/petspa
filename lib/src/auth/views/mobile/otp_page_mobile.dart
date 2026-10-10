@@ -91,10 +91,14 @@ class _OtpPageMobileState extends State<OtpPageMobile> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: context.canPop(),
+      canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        context.goNamed(RouteNames.signup);
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.goNamed(RouteNames.signup);
+        }
       },
       child: Scaffold(
         backgroundColor: const Color(0xFFF0F8FD),

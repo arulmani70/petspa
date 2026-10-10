@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logger/logger.dart';
+import 'package:shear_heaven_pet_spa/src/app/routes.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/login/models/groomer_login_response.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/login/repo/groomer_login_repository.dart';
 
@@ -65,5 +66,6 @@ class GroomerLoginBloc extends Bloc<GroomerLoginEvent, GroomerLoginState> {
   ) async {
     await repository.logout();
     emit(GroomerLoginState.initial);
+    Routes.redirectToLogin(isGroomer: true);
   }
 }

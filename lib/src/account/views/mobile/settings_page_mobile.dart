@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
+import 'package:shear_heaven_pet_spa/src/app/routes.dart';
 import 'package:shear_heaven_pet_spa/src/auth/bloc/auth_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/common/common.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
@@ -907,7 +908,7 @@ class SettingsPageMobile extends StatelessWidget {
                           onPressed: () {
                             Navigator.of(dialogContext).pop();
                             context.read<AuthBloc>().add(const LogoutSubmitted());
-                            context.goNamed(RouteNames.login);
+                            Routes.redirectToLogin(isGroomer: false);
                           },
                           style: TextButton.styleFrom(
                             backgroundColor: Colors.black,

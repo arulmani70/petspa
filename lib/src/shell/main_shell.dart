@@ -1,7 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shear_heaven_pet_spa/src/common/widgets/exit_confirmation_dialog.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/network_status_widget.dart';
 
 /// Floating pill bottom dock matching the Figma "Group 75900" design.
@@ -29,10 +31,18 @@ class MainShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
     return PopScope(
-      canPop: navigationShell.currentIndex == 0,
-      onPopInvokedWithResult: (didPop, result) {
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
-        navigationShell.goBranch(0);
+        if (navigationShell.currentIndex != 0) {
+          navigationShell.goBranch(0);
+          return;
+        }
+
+        final shouldExit = await ExitConfirmationDialog.show(context);
+        if (shouldExit) {
+          SystemNavigator.pop();
+        }
       },
       child: Scaffold(
       backgroundColor: Colors.transparent,

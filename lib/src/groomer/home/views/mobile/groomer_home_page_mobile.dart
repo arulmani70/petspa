@@ -1,15 +1,18 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:shear_heaven_pet_spa/src/account/models/app_notification.dart';
 import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
+import 'package:shear_heaven_pet_spa/src/app/routes.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/utils/booking_date_utils.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/toast_util.dart';
+import 'package:shear_heaven_pet_spa/src/common/widgets/exit_confirmation_dialog.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_booking.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_schedule_models.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_user.dart';
@@ -904,9 +907,7 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
 
     if (shouldLogout == true) {
       await ServicesLocator.groomerHomeRepository.logout();
-      if (mounted) {
-        context.goNamed(RouteNames.login);
-      }
+      Routes.redirectToLogin(isGroomer: true);
     }
   }
 
@@ -923,10 +924,18 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: _currentTabIndex == 0,
-      onPopInvokedWithResult: (didPop, result) {
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
-        setState(() => _currentTabIndex = 0);
+        if (_currentTabIndex != 0) {
+          setState(() => _currentTabIndex = 0);
+          return;
+        }
+
+        final shouldExit = await ExitConfirmationDialog.show(context);
+        if (shouldExit) {
+          SystemNavigator.pop();
+        }
       },
       child: Scaffold(
         backgroundColor: const Color(0xFFF9FAFB),

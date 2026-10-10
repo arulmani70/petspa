@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
@@ -29,10 +30,14 @@ class _LoginPageMobileState extends State<LoginPageMobile> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: context.canPop(),
+      canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        context.goNamed(RouteNames.home);
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          SystemNavigator.pop();
+        }
       },
       child: Scaffold(
         backgroundColor: const Color(0xFFF0F8FD),
@@ -102,7 +107,7 @@ class _LoginPageMobileState extends State<LoginPageMobile> {
                             if (context.canPop()) {
                               context.pop();
                             } else {
-                              context.goNamed(RouteNames.home);
+                              context.goNamed(RouteNames.welcome);
                             }
                           },
                         ),

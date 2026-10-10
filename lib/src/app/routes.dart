@@ -23,6 +23,7 @@ import 'package:shear_heaven_pet_spa/src/bookings/views/booking_details_page.dar
 import 'package:shear_heaven_pet_spa/src/bookings/views/booking_date_time_page.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/views/booking_review_page.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/views/booking_service_page.dart';
+import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/file_not_found.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/splashscreen.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/views/groomer_home_page.dart';
@@ -50,6 +51,28 @@ class Routes {
   static final GoRouter _router = GoRouter(
     navigatorKey: navigatorKey,
     initialLocation: '/${RouteNames.firstScreen}',
+    redirect: (BuildContext context, GoRouterState state) {
+      final loc = state.matchedLocation;
+      final session = ServicesLocator.sessionService;
+      final isCustomerLoggedIn = session.isLoggedIn;
+      final isGroomerLoggedIn = session.isGroomerLoggedIn;
+
+      // Protected Groomer routes
+      if (loc.startsWith('/${RouteNames.groomerHome}')) {
+        if (!isGroomerLoggedIn) {
+          return '/${RouteNames.groomerLogin}';
+        }
+      }
+
+      // Protected Customer routes
+      if (loc == '/${RouteNames.profile}') {
+        if (!isCustomerLoggedIn) {
+          return '/${RouteNames.login}';
+        }
+      }
+
+      return null;
+    },
     routes: [
       GoRoute(
         name: RouteNames.firstScreen,
@@ -302,16 +325,19 @@ class Routes {
   static void redirectToLogin({bool isGroomer = false}) {
     try {
       final targetRoute = isGroomer ? '/${RouteNames.groomerLogin}' : '/${RouteNames.login}';
+
+      // Clear all imperatively pushed modal/route layers on the root Navigator
+      while (navigatorKey.currentState?.canPop() == true) {
+        navigatorKey.currentState?.pop();
+      }
+
       String? currentRoute;
       try {
         currentRoute = _router.routerDelegate.currentConfiguration.uri.toString();
       } catch (_) {}
 
-      if (currentRoute != null &&
-          (currentRoute == targetRoute ||
-              currentRoute == '/${RouteNames.welcome}' ||
-              currentRoute == '/${RouteNames.firstScreen}')) {
-        _staticLog.d('Routes::redirectToLogin::Already at or navigating to $currentRoute, skipping redirect');
+      if (currentRoute != null && currentRoute == targetRoute) {
+        _staticLog.d('Routes::redirectToLogin::Already at $currentRoute, skipping redirect');
         return;
       }
 

@@ -77,6 +77,15 @@ class _ProfilePageMobileState extends State<ProfilePageMobile> {
 
   // ── GET /api/auth/profile ─────────────────────────────────────────────────
   Future<void> _loadProfile() async {
+    if (!ServicesLocator.sessionService.isLoggedIn) {
+      if (mounted) {
+        setState(() {
+          _loading  = false;
+          _errorMsg = null;
+        });
+      }
+      return;
+    }
     setState(() {
       _loading  = true;
       _errorMsg = null;

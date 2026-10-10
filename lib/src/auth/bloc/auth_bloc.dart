@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logger/logger.dart';
+import 'package:shear_heaven_pet_spa/src/app/routes.dart';
 import 'package:shear_heaven_pet_spa/src/auth/repo/auth_repository.dart';
 
 part 'auth_event.dart';
@@ -173,10 +174,20 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     try {
       emit(state.copyWith(status: () => AuthStatus.loading));
       await _repository.logout();
-      emit(state.copyWith(status: () => AuthStatus.unauthenticated, message: () => 'Logged out'));
+      emit(state.copyWith(
+        status : () => AuthStatus.unauthenticated,
+        user   : () => null,
+        message: () => 'Logged out',
+      ));
+      Routes.redirectToLogin(isGroomer: false);
     } catch (e) {
       _log.e("AuthBloc::_onLogoutSubmitted::Error: $e");
-      emit(state.copyWith(status: () => AuthStatus.unauthenticated, message: () => e.toString()));
+      emit(state.copyWith(
+        status : () => AuthStatus.unauthenticated,
+        user   : () => null,
+        message: () => e.toString(),
+      ));
+      Routes.redirectToLogin(isGroomer: false);
     }
   }
 
@@ -189,10 +200,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         confirm: event.confirm,
       );
       emit(state.copyWith(
-        status: () => AuthStatus.unauthenticated,
-        user: () => null,
+        status : () => AuthStatus.unauthenticated,
+        user   : () => null,
         message: () => 'Account deleted successfully',
       ));
+      Routes.redirectToLogin(isGroomer: false);
     } catch (e) {
       _log.e("AuthBloc::_onDeleteAccountSubmitted::Error: $e");
       emit(state.copyWith(
