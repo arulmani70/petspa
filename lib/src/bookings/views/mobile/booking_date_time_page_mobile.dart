@@ -115,6 +115,76 @@ class _BookingDateTimePageMobileState
   // Active bookings for current authenticated customer (used strictly for duplicate booking validation)
   List<Map<String, dynamic>> _userActiveBookings = [];
 
+  // Tracks slots for which the customer has already acknowledged the conflict warning
+  final Set<String> _warnedSlots = {};
+
+  Future<bool?> _showPetConflictWarningDialog() async {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Color(0xFFF59E0B), size: 24),
+            const SizedBox(width: 8),
+            Text(
+              'Booking Notice',
+              style: AppFonts.parkinsans(
+                size: 18,
+                weight: FontWeight.w700,
+                color: const Color(0xFF111827),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          BookingDateUtils.duplicatePetBookingWarningMessage,
+          style: AppFonts.poppins(
+            size: 14,
+            color: const Color(0xFF4B5563),
+            height: 1.45,
+          ),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF6B7280),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            ),
+            child: Text(
+              'Cancel',
+              style: AppFonts.poppins(size: 14, weight: FontWeight.w500),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF111827),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(30),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            ),
+            child: Text(
+              'Continue',
+              style: AppFonts.poppins(
+                size: 14,
+                weight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── lifecycle ──────────────────────────────────────────────────────────────
   @override
   void initState() {
@@ -728,14 +798,18 @@ class _BookingDateTimePageMobileState
       final rawGroomId = raw['groomerId'];
       final int? gId   = rawGroomId is int ? rawGroomId : int.tryParse(rawGroomId?.toString() ?? '');
 
-      // ── Customer-Specific Active Duplicate Check ───────────────────────────
+      // ── Customer & Pet Specific Active Duplicate Check ───────────────────────────
       final dateStr = _draft.date != null ? DateFormat('yyyy-MM-dd').format(_draft.date!) : '';
+      final petId = BookingDateUtils.parsePetIdFromPet(_draft.pet);
+      final petName = BookingDateUtils.parsePetNameFromPet(_draft.pet);
       final bool isAlreadyBooked = BookingDateUtils.isSlotAlreadyBookedByUser(
         slotDate: dateStr,
         slotStartTime: st,
         slotEndTime: raw['endTime']?.toString() ?? '',
         slotGroomerId: gId,
         slotDurationMinutes: _draft.apiDurationMinutes,
+        targetPetId: petId,
+        targetPetName: petName,
         userBookings: _userActiveBookings,
       );
 
@@ -818,7 +892,7 @@ class _BookingDateTimePageMobileState
 
   // ── slot selection ─────────────────────────────────────────────────────────
 
-  void _selectSlot(_Slot slot) {
+  void _selectSlot(_Slot slot) async {
     final isSelectable = (slot.status == _SlotStatus.available || slot.status == _SlotStatus.selected) &&
         slot.status != _SlotStatus.booked &&
         slot.status != _SlotStatus.atCapacity &&
@@ -831,11 +905,11 @@ class _BookingDateTimePageMobileState
       if (slot.status == _SlotStatus.alreadyBooked) {
         ToastUtil.showErrorToast(
           context,
-          'You already have an active booking for this time slot. Please choose another time.',
+          'You already have an active booking with this groomer for this time slot.',
         );
       }
       final reason = slot.status == _SlotStatus.alreadyBooked
-          ? 'alreadyBooked (current customer holds active booking)'
+          ? 'alreadyBooked (user already has active booking with this groomer)'
           : ((slot.status == _SlotStatus.atCapacity || slot.capacity.bookingCount >= slot.capacity.maxBookings)
               ? 'atCapacity (bookingCount=${slot.capacity.bookingCount} >= maxBookings=${slot.capacity.maxBookings})'
               : (slot.status == _SlotStatus.booked
@@ -852,23 +926,32 @@ class _BookingDateTimePageMobileState
     }
 
     final dateStr = _draft.date != null ? DateFormat('yyyy-MM-dd').format(_draft.date!) : '';
-    final isDuplicate = BookingDateUtils.isSlotAlreadyBookedByUser(
+    final petId = BookingDateUtils.parsePetIdFromPet(_draft.pet);
+    final petName = BookingDateUtils.parsePetNameFromPet(_draft.pet);
+    final slotKey = '$dateStr-${slot.startTime}';
+
+    final conflictingBooking = BookingDateUtils.findConflictingBookingForPetWithAnotherGroomer(
       slotDate: dateStr,
       slotStartTime: slot.startTime,
       slotEndTime: slot.endTime,
-      slotGroomerId: slot.groomerId,
       slotDurationMinutes: _draft.apiDurationMinutes,
+      slotGroomerId: slot.groomerId,
+      targetPetId: petId,
+      targetPetName: petName,
       userBookings: _userActiveBookings,
     );
 
-    if (isDuplicate) {
-      _log.w('BookingDateTimePage::_selectSlot::Customer already owns an active booking overlapping ${slot.startTime}-${slot.endTime} on $dateStr');
-      ToastUtil.showErrorToast(
-        context,
-        'You already have an active booking for this time slot. Please choose another time.',
-      );
-      return;
+    if (conflictingBooking != null && !_warnedSlots.contains(slotKey)) {
+      _log.w('BookingDateTimePage::_selectSlot::Pet has overlapping booking with another groomer during ${slot.startTime}-${slot.endTime}. Showing warning.');
+      final shouldProceed = await _showPetConflictWarningDialog();
+      if (shouldProceed != true) {
+        _log.d('BookingDateTimePage::_selectSlot::Customer cancelled after warning dialog.');
+        return;
+      }
+      _warnedSlots.add(slotKey);
     }
+
+    if (!mounted) return;
 
     _log.i('BookingDateTimePage::_selectSlot::Slot selected: ${slot.startTime}-${slot.endTime}'
         ' bookingCount=${slot.capacity.bookingCount} maxBookings=${slot.capacity.maxBookings}'
@@ -982,7 +1065,7 @@ class _BookingDateTimePageMobileState
 
   // ── navigation ─────────────────────────────────────────────────────────────
 
-  void _onContinue() {
+  void _onContinue() async {
     if (_draft.date == null || !BookingDateUtils.isDateAllowed(_draft.date)) {
       _showSnack(BookingDateUtils.invalidDateMessage);
       return;
@@ -1011,19 +1094,31 @@ class _BookingDateTimePageMobileState
       _showSnack('The selected slot is no longer available. Please choose another.');
       return;
     }
+
     final dateStr = DateFormat('yyyy-MM-dd').format(_draft.date!);
-    final isDuplicate = BookingDateUtils.isSlotAlreadyBookedByUser(
+    final petId = BookingDateUtils.parsePetIdFromPet(_draft.pet);
+    final petName = BookingDateUtils.parsePetNameFromPet(_draft.pet);
+    final slotKey = '$dateStr-$slot';
+
+    final conflictingBooking = BookingDateUtils.findConflictingBookingForPetWithAnotherGroomer(
       slotDate: dateStr,
       slotStartTime: slot,
       slotEndTime: end,
-      slotGroomerId: _draft.selectedSlot?['groomerId'] ?? _draft.groomer?['id'],
       slotDurationMinutes: _draft.apiDurationMinutes,
+      slotGroomerId: _draft.selectedSlot?['groomerId'] ?? _draft.groomer?['id'],
+      targetPetId: petId,
+      targetPetName: petName,
       userBookings: _userActiveBookings,
     );
-    if (isDuplicate) {
-      _showSnack('You already have an active booking for this time slot. Please choose another time.');
-      return;
+    if (conflictingBooking != null && !_warnedSlots.contains(slotKey)) {
+      final shouldProceed = await _showPetConflictWarningDialog();
+      if (shouldProceed != true) {
+        return;
+      }
+      _warnedSlots.add(slotKey);
     }
+
+    if (!mounted) return;
     context.pushNamed(RouteNames.bookingReview);
   }
 
@@ -1833,11 +1928,11 @@ class _SlotButton extends StatelessWidget {
               if (isAlreadyBooked) {
                 ToastUtil.showErrorToast(
                   context,
-                  'You already have an active booking for this time slot. Please choose another time.',
+                  'You already have an active booking with this groomer for this time slot.',
                 );
               }
               final reason = isAlreadyBooked
-                  ? 'alreadyBooked (current customer holds active booking)'
+                  ? 'alreadyBooked (user already holds active booking with this groomer)'
                   : (isBooked
                       ? 'booked (single-booking overlap)'
                       : 'atCapacity (bookingCount=${slot.capacity.bookingCount} >= maxBookings=${slot.capacity.maxBookings})');

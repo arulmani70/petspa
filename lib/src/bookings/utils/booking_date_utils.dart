@@ -270,7 +270,7 @@ class BookingDateUtils {
   /// Checks whether a booking status from the user's booking history is considered
   /// an active / slot-occupying booking.
   ///
-  /// Active statuses: pending, confirmed, cancellation_requested, in_progress, scheduled (or empty).
+  /// Active statuses: pending, confirmed, cancellation_requested, in_progress, scheduled, accepted (or empty).
   /// Inactive statuses: cancelled, canceled, rejected, completed, expired.
   static bool isBookingActive(Map<dynamic, dynamic> booking) {
     final status = (booking['status'] ?? booking['Status'] ?? '')
@@ -298,21 +298,368 @@ class BookingDateUtils {
     return int.tryParse(raw.toString());
   }
 
-  /// Frontend calculation to detect if the current authenticated customer already owns
-  /// an active booking for the same slot.
+  /// Extracts pet ID from a booking object map.
+  static int? parsePetIdFromBooking(Map<dynamic, dynamic> booking) {
+    final nested = booking['pet'] ??
+        booking['Pet'] ??
+        booking['petData'] ??
+        booking['pet_data'] ??
+        booking['petProfile'] ??
+        booking['pet_profile'] ??
+        booking['PetProfile'] ??
+        booking['petInfo'] ??
+        booking['pet_info'] ??
+        booking['PetInfo'];
+    if (nested is Map) {
+      final rawNested = nested['id'] ??
+          nested['petId'] ??
+          nested['pet_id'] ??
+          nested['PetId'] ??
+          nested['pet_ID'];
+      if (rawNested is int && rawNested > 0) return rawNested;
+      final parsed = int.tryParse(rawNested?.toString().trim() ?? '');
+      if (parsed != null && parsed > 0) return parsed;
+    }
+
+    final raw = booking['petId'] ??
+        booking['pet_id'] ??
+        booking['PetId'] ??
+        booking['pet_ID'] ??
+        booking['petID'];
+    if (raw is int && raw > 0) return raw;
+    final parsed = int.tryParse(raw?.toString().trim() ?? '');
+    if (parsed != null && parsed > 0) return parsed;
+
+    return null;
+  }
+
+  /// Extracts pet ID from a pet map (e.g. `_draft.pet`).
+  static int? parsePetIdFromPet(Map<dynamic, dynamic>? pet) {
+    if (pet == null) return null;
+    final raw = pet['id'] ??
+        pet['petId'] ??
+        pet['pet_id'] ??
+        pet['PetId'] ??
+        pet['pet_ID'] ??
+        pet['petID'];
+    if (raw is int && raw > 0) return raw;
+    final parsed = int.tryParse(raw?.toString().trim() ?? '');
+    if (parsed != null && parsed > 0) return parsed;
+    return null;
+  }
+
+  /// Extracts pet name from a booking object.
+  static String parsePetNameFromBooking(Map<dynamic, dynamic> booking) {
+    final nested = booking['pet'] ??
+        booking['Pet'] ??
+        booking['petData'] ??
+        booking['pet_data'] ??
+        booking['petProfile'] ??
+        booking['pet_profile'] ??
+        booking['PetProfile'] ??
+        booking['petInfo'] ??
+        booking['pet_info'] ??
+        booking['PetInfo'];
+    if (nested is Map) {
+      final n = (nested['pet_name'] ??
+              nested['petName'] ??
+              nested['name'] ??
+              nested['PetName'])
+          ?.toString()
+          .trim();
+      if (n != null && n.isNotEmpty && n.toLowerCase() != 'null') return n;
+    }
+
+    final direct = (booking['petName'] ??
+            booking['pet_name'] ??
+            booking['PetName'] ??
+            booking['name'])
+        ?.toString()
+        .trim();
+    if (direct != null &&
+        direct.isNotEmpty &&
+        direct.toLowerCase() != 'null') {
+      return direct;
+    }
+    return '';
+  }
+
+  /// Extracts pet name from a pet map.
+  static String parsePetNameFromPet(Map<dynamic, dynamic>? pet) {
+    if (pet == null) return '';
+    final direct = (pet['pet_name'] ??
+            pet['petName'] ??
+            pet['name'] ??
+            pet['PetName'])
+        ?.toString()
+        .trim();
+    if (direct != null &&
+        direct.isNotEmpty &&
+        direct.toLowerCase() != 'null') {
+      return direct;
+    }
+    return '';
+  }
+
+  /// Checks whether a booking matches the given target pet (by ID or fallback to name).
+  static bool isBookingForSamePet({
+    required Map<dynamic, dynamic> booking,
+    int? targetPetId,
+    String? targetPetName,
+  }) {
+    final bPetId = parsePetIdFromBooking(booking);
+    if (targetPetId != null && targetPetId > 0 && bPetId != null && bPetId > 0) {
+      return bPetId == targetPetId;
+    }
+
+    final bPetName = parsePetNameFromBooking(booking).trim().toLowerCase();
+    final tName = (targetPetName ?? '').trim().toLowerCase();
+
+    if (tName.isNotEmpty && bPetName.isNotEmpty && tName != 'null' && bPetName != 'null') {
+      return bPetName == tName;
+    }
+
+    return false;
+  }
+
+  /// User-facing warning message for duplicate pet bookings with another groomer.
+  static const String duplicatePetBookingWarningMessage =
+      'This pet already has a booking with another groomer during this time slot. Do you want to continue?';
+
+  /// User-facing validation error message for conflicting pet bookings (legacy reference).
+  static const String duplicatePetBookingMessage =
+      'This pet already has a booking with another groomer during this time slot. Do you want to continue?';
+
+  /// Finds an active booking for the target pet that overlaps with the candidate
+  /// slot on the given date across ANY groomer.
   ///
-  /// Compares:
-  /// - booking date (normalized 'yyyy-MM-dd')
-  /// - groomer ID (if slot groomer is specified)
-  /// - startTime & endTime (exact match OR time range overlap)
-  /// - active booking status
+  /// Criteria for conflict:
+  /// 1. Booking status is active (pending, confirmed, in_progress, etc. — NOT cancelled/rejected).
+  /// 2. Booking is for the same pet (matching petId or petName).
+  /// 3. Booking date matches [slotDate] ('yyyy-MM-dd').
+  /// 4. Time ranges overlap: [sStartMin, sEndMin) overlaps [bStartMin, bEndMin).
+  ///
+  /// Returns the conflicting booking map if found, or null otherwise.
+  static Map<String, dynamic>? findConflictingBookingForPet({
+    required dynamic slotDate,
+    required dynamic slotStartTime,
+    dynamic slotEndTime,
+    int? slotDurationMinutes,
+    int? targetPetId,
+    String? targetPetName,
+    required List<Map<String, dynamic>> userBookings,
+    int? excludeBookingId,
+  }) {
+    if (userBookings.isEmpty) return null;
+
+    final normSlotDate = normalizeDateString(slotDate);
+    if (normSlotDate == null || normSlotDate.isEmpty) return null;
+
+    final normSlotStart = normalizeTimeString(slotStartTime);
+    if (normSlotStart == null) return null;
+
+    final sStartMin = timeToMinutes(normSlotStart);
+    if (sStartMin == null) return null;
+
+    final dur = (slotDurationMinutes != null && slotDurationMinutes > 0)
+        ? slotDurationMinutes
+        : 60;
+
+    final normSlotEnd = normalizeTimeString(slotEndTime) ??
+        normalizeTimeString(
+            '${(sStartMin + dur) ~/ 60}:${((sStartMin + dur) % 60).toString().padLeft(2, '0')}');
+
+    final sEndMin = normSlotEnd != null
+        ? (timeToMinutes(normSlotEnd) ?? (sStartMin + dur))
+        : (sStartMin + dur);
+
+    if (sStartMin >= sEndMin) return null;
+
+    for (final b in userBookings) {
+      if (!isBookingActive(b)) continue;
+
+      if (excludeBookingId != null && excludeBookingId > 0) {
+        final rawId = b['bookingId'] ?? b['id'] ?? b['booking_id'];
+        final bId = rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
+        if (bId == excludeBookingId) continue;
+      }
+
+      final bDateRaw =
+          b['bookingDate'] ?? b['BookingDate'] ?? b['date'] ?? b['booking_date'];
+      final normBDate = normalizeDateString(bDateRaw);
+      if (normBDate == null || normBDate.isEmpty || normBDate != normSlotDate) {
+        continue;
+      }
+
+      final matchesPet = isBookingForSamePet(
+        booking: b,
+        targetPetId: targetPetId,
+        targetPetName: targetPetName,
+      );
+      if (!matchesPet) continue;
+
+      final bStartRaw = b['startTime'] ?? b['StartTime'] ?? b['start_time'];
+      final bEndRaw = b['endTime'] ?? b['EndTime'] ?? b['end_time'];
+
+      final normBStart = normalizeTimeString(bStartRaw);
+      final normBEnd = normalizeTimeString(bEndRaw);
+
+      if (normBStart == null) continue;
+      final bStartMin = timeToMinutes(normBStart);
+      if (bStartMin == null) continue;
+
+      final bEndMin = normBEnd != null
+          ? (timeToMinutes(normBEnd) ?? (bStartMin + dur))
+          : (bStartMin + dur);
+
+      if (bStartMin >= bEndMin) continue;
+
+      // Overlap condition: startA < endB && endA > startB
+      if (sStartMin < bEndMin && sEndMin > bStartMin) {
+        return b;
+      }
+    }
+
+    return null;
+  }
+
+  /// Finds an active booking for the target pet that overlaps with the candidate
+  /// slot on the given date with another groomer.
+  static Map<String, dynamic>? findConflictingBookingForPetWithAnotherGroomer({
+    required dynamic slotDate,
+    required dynamic slotStartTime,
+    dynamic slotEndTime,
+    int? slotDurationMinutes,
+    dynamic slotGroomerId,
+    int? targetPetId,
+    String? targetPetName,
+    required List<Map<String, dynamic>> userBookings,
+    int? excludeBookingId,
+  }) {
+    if (userBookings.isEmpty) return null;
+
+    final normSlotDate = normalizeDateString(slotDate);
+    if (normSlotDate == null || normSlotDate.isEmpty) return null;
+
+    final normSlotStart = normalizeTimeString(slotStartTime);
+    if (normSlotStart == null) return null;
+
+    final sStartMin = timeToMinutes(normSlotStart);
+    if (sStartMin == null) return null;
+
+    final dur = (slotDurationMinutes != null && slotDurationMinutes > 0)
+        ? slotDurationMinutes
+        : 60;
+
+    final normSlotEnd = normalizeTimeString(slotEndTime) ??
+        normalizeTimeString(
+            '${(sStartMin + dur) ~/ 60}:${((sStartMin + dur) % 60).toString().padLeft(2, '0')}');
+
+    final sEndMin = normSlotEnd != null
+        ? (timeToMinutes(normSlotEnd) ?? (sStartMin + dur))
+        : (sStartMin + dur);
+
+    if (sStartMin >= sEndMin) return null;
+
+    final int? targetGroomId = slotGroomerId is int
+        ? slotGroomerId
+        : (slotGroomerId != null
+            ? int.tryParse(slotGroomerId.toString())
+            : null);
+
+    for (final b in userBookings) {
+      if (!isBookingActive(b)) continue;
+
+      if (excludeBookingId != null && excludeBookingId > 0) {
+        final rawId = b['bookingId'] ?? b['id'] ?? b['booking_id'];
+        final bId = rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
+        if (bId == excludeBookingId) continue;
+      }
+
+      final bDateRaw =
+          b['bookingDate'] ?? b['BookingDate'] ?? b['date'] ?? b['booking_date'];
+      final normBDate = normalizeDateString(bDateRaw);
+      if (normBDate == null || normBDate.isEmpty || normBDate != normSlotDate) {
+        continue;
+      }
+
+      final matchesPet = isBookingForSamePet(
+        booking: b,
+        targetPetId: targetPetId,
+        targetPetName: targetPetName,
+      );
+      if (!matchesPet) continue;
+
+      // If slot specifies a groomer and existing booking is with the same groomer,
+      // it is handled as same-groomer duplicate, not "another groomer".
+      if (targetGroomId != null && targetGroomId > 0) {
+        final bGroomId = parseGroomerId(b);
+        if (bGroomId != null && bGroomId > 0 && bGroomId == targetGroomId) {
+          continue;
+        }
+      }
+
+      final bStartRaw = b['startTime'] ?? b['StartTime'] ?? b['start_time'];
+      final bEndRaw = b['endTime'] ?? b['EndTime'] ?? b['end_time'];
+
+      final normBStart = normalizeTimeString(bStartRaw);
+      final normBEnd = normalizeTimeString(bEndRaw);
+
+      if (normBStart == null) continue;
+      final bStartMin = timeToMinutes(normBStart);
+      if (bStartMin == null) continue;
+
+      final bEndMin = normBEnd != null
+          ? (timeToMinutes(normBEnd) ?? (bStartMin + dur))
+          : (bStartMin + dur);
+
+      if (bStartMin >= bEndMin) continue;
+
+      // Overlap condition: startA < endB && endA > startB
+      if (sStartMin < bEndMin && sEndMin > bStartMin) {
+        return b;
+      }
+    }
+
+    return null;
+  }
+
+  /// Convenience boolean check for pet booking conflict.
+  static bool isSlotAlreadyBookedForPet({
+    required dynamic slotDate,
+    required dynamic slotStartTime,
+    dynamic slotEndTime,
+    int? slotDurationMinutes,
+    int? targetPetId,
+    String? targetPetName,
+    required List<Map<String, dynamic>> userBookings,
+    int? excludeBookingId,
+  }) {
+    return findConflictingBookingForPet(
+          slotDate: slotDate,
+          slotStartTime: slotStartTime,
+          slotEndTime: slotEndTime,
+          slotDurationMinutes: slotDurationMinutes,
+          targetPetId: targetPetId,
+          targetPetName: targetPetName,
+          userBookings: userBookings,
+          excludeBookingId: excludeBookingId,
+        ) !=
+        null;
+  }
+
+  /// Checks whether the current user has already booked this slot with the SAME groomer.
+  /// (Different groomers remain selectable so warning dialog can be displayed).
   static bool isSlotAlreadyBookedByUser({
     required dynamic slotDate,
     required dynamic slotStartTime,
     dynamic slotEndTime,
     dynamic slotGroomerId,
     int? slotDurationMinutes,
+    int? targetPetId,
+    String? targetPetName,
     required List<Map<String, dynamic>> userBookings,
+    int? excludeBookingId,
   }) {
     if (userBookings.isEmpty) return false;
 
@@ -325,24 +672,35 @@ class BookingDateUtils {
     final sStartMin = timeToMinutes(normSlotStart);
     if (sStartMin == null) return false;
 
+    final dur = (slotDurationMinutes != null && slotDurationMinutes > 0)
+        ? slotDurationMinutes
+        : 60;
+
     final normSlotEnd = normalizeTimeString(slotEndTime) ??
-        (slotDurationMinutes != null
-            ? normalizeTimeString(
-                '${(sStartMin + slotDurationMinutes) ~/ 60}:${((sStartMin + slotDurationMinutes) % 60).toString().padLeft(2, '0')}')
-            : null);
+        normalizeTimeString(
+            '${(sStartMin + dur) ~/ 60}:${((sStartMin + dur) % 60).toString().padLeft(2, '0')}');
 
     final sEndMin = normSlotEnd != null
-        ? timeToMinutes(normSlotEnd)
-        : (slotDurationMinutes != null ? sStartMin + slotDurationMinutes : sStartMin + 60);
+        ? (timeToMinutes(normSlotEnd) ?? (sStartMin + dur))
+        : (sStartMin + dur);
 
     final int? targetGroomId = slotGroomerId is int
         ? slotGroomerId
-        : (slotGroomerId != null ? int.tryParse(slotGroomerId.toString()) : null);
+        : (slotGroomerId != null
+            ? int.tryParse(slotGroomerId.toString())
+            : null);
 
     for (final b in userBookings) {
       if (!isBookingActive(b)) continue;
 
-      final bDateRaw = b['bookingDate'] ?? b['BookingDate'] ?? b['date'] ?? b['booking_date'];
+      if (excludeBookingId != null && excludeBookingId > 0) {
+        final rawId = b['bookingId'] ?? b['id'] ?? b['booking_id'];
+        final bId = rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
+        if (bId == excludeBookingId) continue;
+      }
+
+      final bDateRaw =
+          b['bookingDate'] ?? b['BookingDate'] ?? b['date'] ?? b['booking_date'];
       final normBDate = normalizeDateString(bDateRaw);
       if (normBDate != null && normBDate.isNotEmpty && normBDate != normSlotDate) {
         continue;
@@ -356,23 +714,26 @@ class BookingDateUtils {
       }
 
       final bStartRaw = b['startTime'] ?? b['StartTime'] ?? b['start_time'];
-      final bEndRaw   = b['endTime'] ?? b['EndTime'] ?? b['end_time'];
+      final bEndRaw = b['endTime'] ?? b['EndTime'] ?? b['end_time'];
 
       final normBStart = normalizeTimeString(bStartRaw);
-      final normBEnd   = normalizeTimeString(bEndRaw);
+      final normBEnd = normalizeTimeString(bEndRaw);
 
-      // 1. Exact start and end time match
       if (normBStart != null && normBStart == normSlotStart) {
         if (normBEnd == null || normSlotEnd == null || normBEnd == normSlotEnd) {
           return true;
         }
       }
 
-      // 2. Overlapping time range check
       final bStartMin = timeToMinutes(normBStart);
-      final bEndMin   = timeToMinutes(normBEnd);
+      if (bStartMin == null) continue;
 
-      if (bStartMin != null && bEndMin != null && bStartMin < bEndMin && sEndMin != null && sStartMin < sEndMin) {
+      final bEndMin = normBEnd != null
+          ? (timeToMinutes(normBEnd) ?? (bStartMin + dur))
+          : (bStartMin + dur);
+
+      if (bStartMin < bEndMin &&
+          sStartMin < sEndMin) {
         if (sStartMin < bEndMin && sEndMin > bStartMin) {
           return true;
         }

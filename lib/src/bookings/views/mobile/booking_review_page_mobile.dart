@@ -683,8 +683,9 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
       final finalEndTime   = _draft.endTime   ?? correctedEndTime;
 
       try {
-        if (session.isLoggedIn) {
-          final userBookings = await ServicesLocator.bookingRepository.getUpcomingBookingsApi();
+        if (session.isLoggedIn && groomerId > 0) {
+          final userBookings = await ServicesLocator.bookingRepository.getUpcomingBookingsApi(forceRefresh: true);
+
           final isDuplicate = BookingDateUtils.isSlotAlreadyBookedByUser(
             slotDate: bookingDate,
             slotStartTime: finalStartTime,
@@ -694,11 +695,11 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
             userBookings: userBookings,
           );
           if (isDuplicate) {
-            _log.w("BookingReviewPage::_confirmBooking::Customer already owns an active booking overlapping ($bookingDate, $finalStartTime-$finalEndTime, groomerId=$groomerId)");
+            _log.w("BookingReviewPage::_confirmBooking::Customer already owns an active booking with this groomer overlapping ($bookingDate, $finalStartTime-$finalEndTime, groomerId=$groomerId)");
             if (!mounted) return;
             ToastUtil.showErrorToast(
               context,
-              'You already have an active booking for this date and time slot. Please choose another time.',
+              'You already have an active booking with this groomer for this time slot. Please choose another time.',
             );
             setState(() => _confirming = false);
             return;
@@ -777,7 +778,9 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
         if (!mounted) return;
 
         if (response != null &&
-            (response['code'] == 'GROOMER_NOT_AVAILABLE' || response['statusCode'] == 409)) {
+            (response['code'] == 'GROOMER_NOT_AVAILABLE' ||
+             response['statusCode'] == 409 ||
+             response['status'] == 409)) {
           _log.d("BookingReviewPage::_confirmBooking::Groomer slot capacity reached");
           final errorMsg = response['message']?.toString() ??
               'Sorry, this slot was just taken. Please select another time.';
