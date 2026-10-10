@@ -10,7 +10,7 @@ class AppConstants {
   final String APP_TAGLINE = "Arlington's #1 Pet Grooming Booking APP";
   final String FONT_POPPINS = "Poppins";
 
-  final String BASE_URL = "https://shear-heaven-api.genzcodershub.com";
+  final String BASE_URL = "https://devapi.shearheavenpetspa.com";
   final String API_KEY = "";
 
   final Color PRIMARY_COLOR = const Color(0xFF0F766E);

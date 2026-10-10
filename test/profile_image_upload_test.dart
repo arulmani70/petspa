@@ -17,7 +17,7 @@ class _MockApiRepository extends ApiRepository {
     'email': 'jane@example.com',
     'mobile': '1234567890',
     'emailVerified': true,
-    'profilePictureUrl': 'https://shear-heaven-api.genzcodershub.com/uploads/jane.png',
+    'profilePictureUrl': 'https://devapi.shearheavenpetspa.com/uploads/jane.png',
   };
 
   FormData? lastPutMultipartFormData;
@@ -60,7 +60,7 @@ class _MockApiRepository extends ApiRepository {
       for (final field in formData.fields) {
         map[field.key] = field.value;
       }
-      map['profilePictureUrl'] = 'https://shear-heaven-api.genzcodershub.com/uploads/uploaded_avatar.png';
+      map['profilePictureUrl'] = 'https://devapi.shearheavenpetspa.com/uploads/uploaded_avatar.png';
       profileData = {
         ...?profileData,
         ...map,
@@ -96,7 +96,7 @@ void main() {
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({
-      'user_data': '{"name":"Jane Doe","email":"jane@example.com","mobile":"1234567890","profilePictureUrl":"https://shear-heaven-api.genzcodershub.com/uploads/jane.png"}',
+      'user_data': '{"name":"Jane Doe","email":"jane@example.com","mobile":"1234567890","profilePictureUrl":"https://devapi.shearheavenpetspa.com/uploads/jane.png"}',
     });
     FlutterSecureStorage.setMockInitialValues({});
 

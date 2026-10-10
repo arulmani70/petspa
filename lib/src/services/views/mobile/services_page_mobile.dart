@@ -18,7 +18,7 @@ const _kBorder    = Color(0xFFE5E7EB);
 const _kPageBg    = Color(0xFFFAFAFA);
 const _kCardBg    = Color(0xFFFFFFFF);
 const _kLightGrey = Color(0xFFF3F4F6);
-const _kBaseUrl   = 'https://shear-heaven-api.genzcodershub.com';
+const _kBaseUrl   = 'https://devapi.shearheavenpetspa.com';
 
 // ─────────────────────────────────────────────────────────────────────────────
 class ServicesPageMobile extends StatelessWidget {
@@ -40,146 +40,157 @@ class _ServicesView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _kPageBg,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black, size: 24),
-          onPressed: () => context.canPop() ? context.pop() : context.goNamed(RouteNames.home),
-        ),
-        title: Text(
-          'All Services',
-          style: AppFonts.parkinsans(
-            size: 20,
-            weight: FontWeight.w700,
-            color: Colors.black,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.goNamed(RouteNames.home);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: _kPageBg,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black, size: 24),
+            onPressed: () => context.canPop() ? context.pop() : context.goNamed(RouteNames.home),
+          ),
+          title: Text(
+            'All Services',
+            style: AppFonts.parkinsans(
+              size: 20,
+              weight: FontWeight.w700,
+              color: Colors.black,
+            ),
           ),
         ),
-      ),
-      body: BlocBuilder<ServiceBloc, ServiceState>(
-        builder: (context, state) {
-          if (state.status == ServiceStatus.loading ||
-              state.status == ServiceStatus.initial) {
-            // ── Skeleton loading ─────────────────────────────────────────
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(17, 22, 17, 130),
-              children: const [
-                ListCardSkeleton(), SizedBox(height: 14),
-                ListCardSkeleton(), SizedBox(height: 14),
-                ListCardSkeleton(), SizedBox(height: 14),
-                ListCardSkeleton(), SizedBox(height: 14),
-                ListCardSkeleton(),
-              ],
-            );
-          }
+        body: BlocBuilder<ServiceBloc, ServiceState>(
+          builder: (context, state) {
+            if (state.status == ServiceStatus.loading ||
+                state.status == ServiceStatus.initial) {
+              // ── Skeleton loading ─────────────────────────────────────────
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(17, 22, 17, 130),
+                children: const [
+                  ListCardSkeleton(), SizedBox(height: 14),
+                  ListCardSkeleton(), SizedBox(height: 14),
+                  ListCardSkeleton(), SizedBox(height: 14),
+                  ListCardSkeleton(), SizedBox(height: 14),
+                  ListCardSkeleton(),
+                ],
+              );
+            }
 
-          if (state.status == ServiceStatus.failure) {
-            return _ErrorView(
-              message: state.message,
-              onRetry: () =>
-                  context.read<ServiceBloc>().add(const InitializeServices()),
-            );
-          }
+            if (state.status == ServiceStatus.failure) {
+              return _ErrorView(
+                message: state.message,
+                onRetry: () =>
+                    context.read<ServiceBloc>().add(const InitializeServices()),
+              );
+            }
 
-          final bs = state.bookingServices;
-          if (bs == null || bs.isEmpty) {
-            return _EmptyView(
-              onRetry: () =>
-                  context.read<ServiceBloc>().add(const InitializeServices()),
-            );
-          }
+            final bs = state.bookingServices;
+            if (bs == null || bs.isEmpty) {
+              return _EmptyView(
+                onRetry: () =>
+                    context.read<ServiceBloc>().add(const InitializeServices()),
+              );
+            }
 
-          return RefreshIndicator(
-            color: _kBlack,
-            onRefresh: () async =>
-                context.read<ServiceBloc>().add(const RefreshServices()),
-            child: CustomScrollView(
-              slivers: [
-                const SliverToBoxAdapter(child: SizedBox(height: 16)),
+            return RefreshIndicator(
+              color: _kBlack,
+              onRefresh: () async =>
+                  context.read<ServiceBloc>().add(const RefreshServices()),
+              child: CustomScrollView(
+                slivers: [
+                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-                // ── Walk-In Services ─────────────────────────────────────
-                if (bs.walkIn.isNotEmpty) ...[
-                  _SectionHeader(label: 'Walk-In Services', icon: Icons.directions_walk),
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(17, 8, 17, 0),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (ctx, i) => Padding(
-                          padding: const EdgeInsets.only(bottom: 14),
-                          child: _ServiceListCard(
-                            item: bs.walkIn[i],
-                            onTap: () => ctx.pushNamed(
-                              RouteNames.serviceDetail,
-                              pathParameters: {
-                                'serviceId': bs.walkIn[i].id.toString(),
-                              },
+                  // ── Walk-In Services ─────────────────────────────────────
+                  if (bs.walkIn.isNotEmpty) ...[
+                    _SectionHeader(label: 'Walk-In Services', icon: Icons.directions_walk),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(17, 8, 17, 0),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (ctx, i) => Padding(
+                            padding: const EdgeInsets.only(bottom: 14),
+                            child: _ServiceListCard(
+                              item: bs.walkIn[i],
+                              onTap: () => ctx.pushNamed(
+                                RouteNames.serviceDetail,
+                                pathParameters: {
+                                  'serviceId': bs.walkIn[i].id.toString(),
+                                },
+                              ),
                             ),
                           ),
+                          childCount: bs.walkIn.length,
                         ),
-                        childCount: bs.walkIn.length,
                       ),
                     ),
-                  ),
-                ],
+                  ],
 
-                // ── Add-Ons ──────────────────────────────────────────────
-                if (bs.addOns.isNotEmpty) ...[
-                  _SectionHeader(label: 'Add-On Services', icon: Icons.add_circle_outline),
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(17, 8, 17, 0),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (ctx, i) => Padding(
-                          padding: const EdgeInsets.only(bottom: 14),
-                          child: _ServiceListCard(
-                            item: bs.addOns[i],
-                            onTap: () => ctx.pushNamed(
-                              RouteNames.serviceDetail,
-                              pathParameters: {
-                                'serviceId': bs.addOns[i].id.toString(),
-                              },
+                  // ── Add-Ons ──────────────────────────────────────────────
+                  if (bs.addOns.isNotEmpty) ...[
+                    _SectionHeader(label: 'Add-On Services', icon: Icons.add_circle_outline),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(17, 8, 17, 0),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (ctx, i) => Padding(
+                            padding: const EdgeInsets.only(bottom: 14),
+                            child: _ServiceListCard(
+                              item: bs.addOns[i],
+                              onTap: () => ctx.pushNamed(
+                                RouteNames.serviceDetail,
+                                pathParameters: {
+                                  'serviceId': bs.addOns[i].id.toString(),
+                                },
+                              ),
                             ),
                           ),
+                          childCount: bs.addOns.length,
                         ),
-                        childCount: bs.addOns.length,
                       ),
                     ),
-                  ),
-                ],
+                  ],
 
-                // ── Breed Services ───────────────────────────────────────
-                if (bs.breeds.isNotEmpty) ...[
-                  _SectionHeader(label: 'Breed Services', icon: Icons.pets),
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(17, 8, 17, 0),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (ctx, i) => Padding(
-                          padding: const EdgeInsets.only(bottom: 14),
-                          child: _ServiceListCard(
-                            item: bs.breeds[i],
-                            onTap: () => ctx.pushNamed(
-                              RouteNames.serviceDetail,
-                              pathParameters: {
-                                'serviceId': bs.breeds[i].id.toString(),
-                              },
+                  // ── Breed Services ───────────────────────────────────────
+                  if (bs.breeds.isNotEmpty) ...[
+                    _SectionHeader(label: 'Breed Services', icon: Icons.pets),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(17, 8, 17, 0),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (ctx, i) => Padding(
+                            padding: const EdgeInsets.only(bottom: 14),
+                            child: _ServiceListCard(
+                              item: bs.breeds[i],
+                              onTap: () => ctx.pushNamed(
+                                RouteNames.serviceDetail,
+                                pathParameters: {
+                                  'serviceId': bs.breeds[i].id.toString(),
+                                },
+                              ),
                             ),
                           ),
+                          childCount: bs.breeds.length,
                         ),
-                        childCount: bs.breeds.length,
                       ),
                     ),
-                  ),
-                ],
+                  ],
 
-                const SliverToBoxAdapter(child: SizedBox(height: 130)),
-              ],
-            ),
-          );
-        },
+                  const SliverToBoxAdapter(child: SizedBox(height: 130)),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

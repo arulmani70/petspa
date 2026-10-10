@@ -221,7 +221,7 @@ void main() {
       expect(booking1.petName, equals('Milo'));
       expect(
         booking1.profilePicture,
-        equals('https://shear-heaven-api.genzcodershub.com/uploads/pets/milo.png'),
+        equals('https://devapi.shearheavenpetspa.com/uploads/pets/milo.png'),
       );
 
       // 2. Nested pet object with full https image URL
@@ -248,7 +248,7 @@ void main() {
       expect(booking3.petName, equals('Rocky'));
       expect(
         booking3.profilePicture,
-        equals('https://shear-heaven-api.genzcodershub.com/uploads/rocky.png'),
+        equals('https://devapi.shearheavenpetspa.com/uploads/rocky.png'),
       );
 
       // 4. Null or empty image

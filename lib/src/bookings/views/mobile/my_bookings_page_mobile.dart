@@ -428,29 +428,50 @@ class _MyBookingsPageMobileState extends State<MyBookingsPageMobile> {
   Widget build(BuildContext context) {
     final isLoggedIn = ServicesLocator.sessionService.isLoggedIn;
     if (!isLoggedIn) {
-      return Scaffold(
-        backgroundColor: _kPageBg,
-        appBar: AppBar(
-          backgroundColor: _kCardBg,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.black, size: 22),
-            onPressed: () => context.canPop()
-                ? context.pop()
-                : context.goNamed(RouteNames.home),
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return;
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.goNamed(RouteNames.home);
+          }
+        },
+        child: Scaffold(
+          backgroundColor: _kPageBg,
+          appBar: AppBar(
+            backgroundColor: _kCardBg,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.black, size: 22),
+              onPressed: () => context.canPop()
+                  ? context.pop()
+                  : context.goNamed(RouteNames.home),
+            ),
+            centerTitle: false,
+            title: Text(
+              'My Bookings',
+              style: AppFonts.parkinsans(size: 20, weight: FontWeight.w600),
+            ),
           ),
-          centerTitle: false,
-          title: Text(
-            'My Bookings',
-            style: AppFonts.parkinsans(size: 20, weight: FontWeight.w600),
-          ),
+          body: _buildGuestState(),
         ),
-        body: _buildGuestState(),
       );
     }
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.goNamed(RouteNames.home);
+        }
+      },
+      child: Scaffold(
       backgroundColor: _kPageBg,
       appBar: AppBar(
         backgroundColor: _kCardBg,
@@ -539,8 +560,9 @@ class _MyBookingsPageMobileState extends State<MyBookingsPageMobile> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   bool get _loadingCurrent => _loading[_activeTab] == true;
   List<Map<String, dynamic>> get _currentBookings =>
@@ -946,7 +968,7 @@ class _BookingCard extends StatelessWidget {
 
   // ── helpers ───────────────────────────────────────────────────────────────
 
-  static const _kBaseUrl = 'https://shear-heaven-api.genzcodershub.com';
+  static const _kBaseUrl = 'https://devapi.shearheavenpetspa.com';
 
   String _fmt12(String hhmm) {
     if (hhmm.isEmpty) return '';

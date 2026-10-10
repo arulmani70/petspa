@@ -28,7 +28,7 @@ void main() {
         'total_duration_minutes': 60,
         'pet_name': 'Milo',
         'pet_breed': 'Golden Retriever',
-        'pet_photo': 'https://shear-heaven-api.genzcodershub.com/uploads/milo.png',
+        'pet_photo': 'https://devapi.shearheavenpetspa.com/uploads/milo.png',
         'service_name': 'Full Grooming',
         'date_label': 'Oct 15, 2026',
         'time_label': '10:00 AM',

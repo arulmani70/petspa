@@ -23,7 +23,7 @@ const _kLightGrey  = Color(0xFFF3F4F6);
 
 // Base URL as a plain string constant — avoids const-expression issue
 // with AppConstants (which holds non-const Color fields).
-const _kBaseUrl = 'https://shear-heaven-api.genzcodershub.com';
+const _kBaseUrl = 'https://devapi.shearheavenpetspa.com';
 
 // ─────────────────────────────────────────────────────────────────────────────
 class BookingServicePageMobile extends StatefulWidget {

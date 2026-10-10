@@ -19,10 +19,14 @@ class SettingsPageMobile extends StatelessWidget {
     final isLoggedIn = ServicesLocator.sessionService.isLoggedIn;
 
     final body = PopScope(
-      canPop: context.canPop(),
+      canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        context.goNamed(RouteNames.home);
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.goNamed(RouteNames.home);
+        }
       },
       child: Scaffold(
         backgroundColor: const Color(0xFFF8F9FA),

@@ -36,7 +36,7 @@ class _LoginPageMobileState extends State<LoginPageMobile> {
         if (context.canPop()) {
           context.pop();
         } else {
-          SystemNavigator.pop();
+          context.goNamed(RouteNames.welcome);
         }
       },
       child: Scaffold(

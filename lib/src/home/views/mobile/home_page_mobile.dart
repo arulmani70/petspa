@@ -1797,7 +1797,7 @@ class _ServiceTile extends StatelessWidget {
   });
 
   // Fallback local asset when API imageUrl is absent
-  static const _kBaseUrl = 'https://shear-heaven-api.genzcodershub.com';
+  static const _kBaseUrl = 'https://devapi.shearheavenpetspa.com';
 
   @override
   Widget build(BuildContext context) {

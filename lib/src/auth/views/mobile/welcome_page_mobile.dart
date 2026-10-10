@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
+import 'package:shear_heaven_pet_spa/src/common/widgets/exit_confirmation_dialog.dart';
 
 class WelcomePageMobile extends StatefulWidget {
   const WelcomePageMobile({super.key});
@@ -78,7 +79,16 @@ class _WelcomePageMobileState extends State<WelcomePageMobile>
     final double skipTop = pad.top > 0 ? pad.top + 16 : h * (64.0 / 844.0);
     const double skipRight = 16.0;
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final shouldExit = await ExitConfirmationDialog.show(context);
+        if (shouldExit) {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
       backgroundColor: const Color(0xFF8DC8E8),
       body: Stack(
         children: [
@@ -265,7 +275,8 @@ class _WelcomePageMobileState extends State<WelcomePageMobile>
           ),
         ],
       ),
-    );
+    ),
+  );
   }
 }
 

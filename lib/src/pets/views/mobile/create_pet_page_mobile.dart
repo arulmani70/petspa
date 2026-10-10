@@ -22,7 +22,7 @@ class CreatePetPageMobile extends StatefulWidget {
 class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  String? _weight;
+  String? _weight = 'Medium';
   List<String> _weightOptions = [];
   String? _selectedAge;
   final List<String> _ageOptions = [
@@ -67,10 +67,21 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
             (opt) =>
                 opt.toLowerCase() == trimmed.toLowerCase() ||
                 opt.toLowerCase().startsWith(trimmed.toLowerCase()) ||
-                trimmed.toLowerCase().startsWith(opt.toLowerCase()),
+                trimmed.toLowerCase().startsWith(opt.toLowerCase()) ||
+                (trimmed.toLowerCase() == 'medium' && opt.toLowerCase().contains('medium')),
             orElse: () => trimmed,
           );
           _weight = match;
+        } else if ((_weight == null || _weight!.isEmpty) && !_isEdit) {
+          if (_weightOptions.isNotEmpty) {
+            final match = _weightOptions.firstWhere(
+              (opt) => opt.toLowerCase().contains('medium'),
+              orElse: () => _weightOptions.first,
+            );
+            _weight = match;
+          } else {
+            _weight = 'Medium';
+          }
         }
       });
     }
@@ -81,23 +92,25 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
     super.didChangeDependencies();
     if (_initialized) return;
     _initialized = true;
-    final extra = GoRouterState.of(context).extra;
-    if (extra is Map) {
-      if (extra['pet'] != null && extra['pet'] is Map) {
-        _editingPet = Map<String, dynamic>.from(extra['pet'] as Map);
-        _isEdit = true;
-        _populateForm(_editingPet!);
-      } else if (extra.containsKey(Constants.database.COLUMN_PET_NAME) ||
-          extra.containsKey('petName') ||
-          extra.containsKey('name') ||
-          extra.containsKey(Constants.database.COLUMN_ID) ||
-          extra.containsKey('id') ||
-          extra.containsKey('_id')) {
-        _editingPet = Map<String, dynamic>.from(extra);
-        _isEdit = true;
-        _populateForm(_editingPet!);
+    try {
+      final extra = GoRouterState.of(context).extra;
+      if (extra is Map) {
+        if (extra['pet'] != null && extra['pet'] is Map) {
+          _editingPet = Map<String, dynamic>.from(extra['pet'] as Map);
+          _isEdit = true;
+          _populateForm(_editingPet!);
+        } else if (extra.containsKey(Constants.database.COLUMN_PET_NAME) ||
+            extra.containsKey('petName') ||
+            extra.containsKey('name') ||
+            extra.containsKey(Constants.database.COLUMN_ID) ||
+            extra.containsKey('id') ||
+            extra.containsKey('_id')) {
+          _editingPet = Map<String, dynamic>.from(extra);
+          _isEdit = true;
+          _populateForm(_editingPet!);
+        }
       }
-    }
+    } catch (_) {}
   }
 
   void _populateForm(Map<String, dynamic> pet) {
@@ -116,13 +129,14 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
           (opt) =>
               opt.toLowerCase() == _weight!.toLowerCase() ||
               opt.toLowerCase().startsWith(_weight!.toLowerCase()) ||
-              _weight!.toLowerCase().startsWith(opt.toLowerCase()),
+              _weight!.toLowerCase().startsWith(opt.toLowerCase()) ||
+              (_weight!.toLowerCase() == 'medium' && opt.toLowerCase().contains('medium')),
           orElse: () => _weight!,
         );
         _weight = match;
       }
     } else {
-      _weight = null;
+      _weight = 'Medium';
     }
 
     _notesController.text =
@@ -451,7 +465,8 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
     final petData = <String, dynamic>{
       Constants.database.COLUMN_PET_NAME: _nameController.text.trim(),
       Constants.database.COLUMN_BREED: _breed ?? '',
-      Constants.database.COLUMN_WEIGHT: _weight ?? '',
+      Constants.database.COLUMN_WEIGHT: (_weight != null && _weight!.trim().isNotEmpty) ? _weight!.trim() : 'Medium',
+      'weight': (_weight != null && _weight!.trim().isNotEmpty) ? _weight!.trim() : 'Medium',
       Constants.database.COLUMN_NOTES: _notesController.text.trim(),
       Constants.database.COLUMN_BIRTH_DATE: _birthDate
           ?.toIso8601String()
@@ -490,8 +505,8 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
         listener: (context, state) {
           if (state.status == PetStatus.success) {
             ToastUtil.showSuccessToast(context, state.message);
-            if (context.canPop()) {
-              context.pop();
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
             } else if (_isEdit) {
               context.goNamed(RouteNames.myPets);
             } else {
@@ -503,11 +518,14 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
         },
         builder: (context, state) {
           final bloc = context.read<PetBloc>();
+          final canPopNow = Navigator.of(context).canPop();
           return PopScope(
-            canPop: context.canPop(),
+            canPop: canPopNow,
             onPopInvokedWithResult: (didPop, result) {
               if (didPop) return;
-              context.goNamed(RouteNames.myPets);
+              try {
+                context.goNamed(RouteNames.myPets);
+              } catch (_) {}
             },
             child: Scaffold(
               backgroundColor: const Color(0xFFFAFAFA),
@@ -522,10 +540,12 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
                   size: 21,
                 ),
                 onPressed: () {
-                  if (context.canPop()) {
-                    context.pop();
+                  if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
                   } else {
-                    context.goNamed(RouteNames.myPets);
+                    try {
+                      context.goNamed(RouteNames.myPets);
+                    } catch (_) {}
                   }
                 },
               ),
@@ -575,10 +595,13 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
                                     children: [
                                       _buildSectionTitle("Weight"),
                                       _buildDropdown<String>(
-                                        hint: "Select Weight",
+                                        hint: "eg: 12 kg",
                                         value: _weight,
-                                        items: _weightOptions.isNotEmpty ? _weightOptions : ['Small', 'Medium', 'Large'],
-                                        onChanged: (value) => setState(() => _weight = value),
+                                        items: _weightOptions.isNotEmpty
+                                            ? _weightOptions
+                                            : ['Small', 'Medium', 'Large', 'Extra Large'],
+                                        onChanged: (value) =>
+                                            setState(() => _weight = value),
                                       ),
                                     ],
                                   ),
@@ -591,7 +614,7 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
                                     children: [
                                       _buildSectionTitle("Age"),
                                       _buildDropdown<String>(
-                                        hint: "Select Age",
+                                        hint: "eg: 2 Yrs",
                                         value: _selectedAge,
                                         items: _ageOptions,
                                         onChanged: _onAgeSelected,
@@ -605,28 +628,45 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
-                                vertical: 8,
+                                vertical: 10,
                               ),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFE5F0FF),
+                                color: const Color(0xFFE8F2FF),
                                 borderRadius: BorderRadius.circular(50),
+                                border: Border.all(
+                                  color: const Color(0xFFBCE0FD),
+                                  width: 1.0,
+                                ),
                               ),
                               child: Row(
                                 children: [
-                                  SvgPicture.asset(
-                                    'assets/images/pets/fi_1828919_1_1908.svg',
-                                    height: 20,
-                                    width: 20,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Flexible(
-                                    child: Text(
-                                      "Size auto-detected: Medium",
-                                      style: TextStyle(
-                                        fontFamily: 'Poppins',
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w400,
-                                        color: Colors.black,
+                                  _buildRulerIcon(),
+                                  const SizedBox(width: 10),
+                                  Flexible(
+                                    child: RichText(
+                                      text: TextSpan(
+                                        style: const TextStyle(
+                                          fontFamily: 'Poppins',
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w400,
+                                          color: Colors.black,
+                                        ),
+                                        children: [
+                                          const TextSpan(
+                                            text: "Size auto-detected: ",
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w400,
+                                              color: Colors.black,
+                                            ),
+                                          ),
+                                          TextSpan(
+                                            text: _getDisplaySize(),
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              color: Color(0xFF0077CC),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ),
@@ -770,6 +810,50 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
           ),
         );
       },
+    );
+  }
+
+  String _getDisplaySize() {
+    if (_weight == null || _weight!.trim().isEmpty) {
+      return 'Medium';
+    }
+    final raw = _weight!.trim();
+    if (raw.toLowerCase().contains('small')) return 'Small';
+    if (raw.toLowerCase().contains('extra large') ||
+        raw.toLowerCase().contains('x-large') ||
+        raw.toLowerCase().contains('xl')) {
+      return 'Extra Large';
+    }
+    if (raw.toLowerCase().contains('large')) return 'Large';
+    if (raw.toLowerCase().contains('medium')) return 'Medium';
+
+    final numMatch = RegExp(r'(\d+(\.\d+)?)').firstMatch(raw);
+    if (numMatch != null) {
+      final val = double.tryParse(numMatch.group(1)!) ?? 0;
+      final isLbs = raw.toLowerCase().contains('lb');
+      final kg = isLbs ? val * 0.453592 : val;
+      if (kg <= 9) return 'Small';
+      if (kg <= 22) return 'Medium';
+      if (kg <= 40) return 'Large';
+      return 'Extra Large';
+    }
+    return raw;
+  }
+
+  Widget _buildRulerIcon() {
+    return SvgPicture.asset(
+      'assets/images/pets/icon_ruler.svg',
+      height: 18,
+      width: 18,
+      colorFilter: const ColorFilter.mode(
+        Color(0xFF2B2B2B),
+        BlendMode.srcIn,
+      ),
+      errorBuilder: (context, error, stackTrace) => const Icon(
+        Icons.straighten,
+        size: 18,
+        color: Color(0xFF2B2B2B),
+      ),
     );
   }
 

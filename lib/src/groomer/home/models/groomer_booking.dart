@@ -99,7 +99,7 @@ class GroomerBooking {
     if (str.startsWith('assets/')) {
       return str;
     }
-    const base = 'https://shear-heaven-api.genzcodershub.com';
+    const base = 'https://devapi.shearheavenpetspa.com';
     if (str.startsWith('/')) {
       return '$base$str';
     }

@@ -76,10 +76,14 @@ class _ChatPageMobileState extends State<ChatPageMobile> {
   Widget build(BuildContext context) {
     if (!ServicesLocator.sessionService.isLoggedIn) {
       return PopScope(
-        canPop: context.canPop(),
+        canPop: false,
         onPopInvokedWithResult: (didPop, result) {
           if (didPop) return;
-          context.goNamed(RouteNames.home);
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.goNamed(RouteNames.home);
+          }
         },
         child: Scaffold(
           backgroundColor: Colors.white,
@@ -112,10 +116,14 @@ class _ChatPageMobileState extends State<ChatPageMobile> {
       );
     }
     return PopScope(
-      canPop: context.canPop(),
+      canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        context.goNamed(RouteNames.home);
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.goNamed(RouteNames.home);
+        }
       },
       child: Scaffold(
         backgroundColor: Colors.white,
