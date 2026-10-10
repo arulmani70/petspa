@@ -20,6 +20,7 @@ import 'package:shear_heaven_pet_spa/src/common/services/customer_socket_service
 import 'package:shear_heaven_pet_spa/src/common/utils/toast_util.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/offer_details_dialog.dart';
 import 'package:shear_heaven_pet_spa/src/home/views/mobile/gallery_view.dart';
+import 'package:shear_heaven_pet_spa/src/offers/models/offer_model.dart';
 
 class HomePageMobile extends StatefulWidget {
   const HomePageMobile({super.key});
@@ -33,11 +34,13 @@ class _HomePageMobileState extends State<HomePageMobile> {
   String? _photoUrl;
   Timer? _popupTimer;
   StreamSubscription<AppNotification>? _realtimeNotificationSub;
+  List<OfferModel> _offers = [];
 
   @override
   void initState() {
     super.initState();
     _loadUser();
+    _loadOffers();
     _initRealtimeNotifications();
     try {
       if (GetIt.I.isRegistered<NotificationRepository>()) {
@@ -50,10 +53,21 @@ class _HomePageMobileState extends State<HomePageMobile> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _popupTimer = Timer(const Duration(seconds: 1), () {
         if (mounted) {
-          _showOffersPopup(context);
+          _showOffersPopup(context, offers: _offers);
         }
       });
     });
+  }
+
+  Future<void> _loadOffers() async {
+    try {
+      final offers = await ServicesLocator.offerRepository.getOffers();
+      if (mounted) {
+        setState(() {
+          _offers = offers;
+        });
+      }
+    } catch (_) {}
   }
 
   void _initRealtimeNotifications() {
@@ -144,6 +158,7 @@ class _HomePageMobileState extends State<HomePageMobile> {
                     onRefresh: () async {
                       final serviceBloc = context.read<ServiceBloc>();
                       await _loadUser();
+                      await _loadOffers();
                       try {
                         if (GetIt.I.isRegistered<NotificationRepository>()) {
                           await ServicesLocator.notificationRepository
@@ -172,7 +187,7 @@ class _HomePageMobileState extends State<HomePageMobile> {
                         const SizedBox(height: 20),
                         Padding(
                           padding: const EdgeInsets.only(left: 17),
-                          child: _buildSpecialOffers(context),
+                          child: _buildSpecialOffers(context, offers: _offers),
                         ),
                         const SizedBox(height: 30),
                         Padding(
@@ -1253,7 +1268,8 @@ class _HomePageMobileState extends State<HomePageMobile> {
   }
 }
 
-Widget _buildSpecialOffers(BuildContext context) {
+Widget _buildSpecialOffers(BuildContext context, {List<OfferModel>? offers}) {
+  final hasDynamicOffers = offers != null && offers.isNotEmpty;
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -1300,43 +1316,59 @@ Widget _buildSpecialOffers(BuildContext context) {
         child: ListView(
           scrollDirection: Axis.horizontal,
           clipBehavior: Clip.none,
-          children: [
-            _buildSpecialOfferCard(
-              context: context,
-              badgeText: '50% OFF',
-              title: '50% Off Full Grooming for New Pets!',
-              expiry: 'Ends in 2 days',
-              code: 'PAWSOME50',
-              imagePath: 'assets/images/common/offer_1.png',
-              description:
-                  "Get 50% off your pet's first Full Grooming session with us. A perfect way to try the royal treatment your pet deserves.",
-              eligibleServices: 'Full Grooming, Spa Package',
-            ),
-            const SizedBox(width: 14),
-            _buildSpecialOfferCard(
-              context: context,
-              badgeText: 'FREE ADD-ON',
-              title: 'Summer Splash: Free Nail Trimming',
-              expiry: 'Ends Aug 20',
-              code: 'SUMMERTRIM',
-              imagePath: 'assets/images/common/offer_2.png',
-              description:
-                  'Complimentary nail trimming and paw pad moisturizing with any full grooming or bath service.',
-              eligibleServices: 'Bath & Brush, Full Grooming',
-            ),
-            const SizedBox(width: 14),
-            _buildSpecialOfferCard(
-              context: context,
-              badgeText: 'REFER & EARN',
-              title: 'Refer a Friend, Get 20% Off',
-              expiry: 'No expiry',
-              code: 'FRIEND20',
-              imagePath: 'assets/images/common/offer_3.png',
-              description:
-                  'Refer a fellow pet parent and both of you enjoy 20% off on your next pet spa visit!',
-              eligibleServices: 'All Services & Packages',
-            ),
-          ],
+          children: hasDynamicOffers
+              ? offers.map((offer) => Padding(
+                  padding: const EdgeInsets.only(right: 14.0),
+                  child: _buildSpecialOfferCard(
+                    context: context,
+                    badgeText: offer.discountBadge,
+                    title: offer.title,
+                    expiry: offer.formattedExpiry,
+                    code: offer.promoCode,
+                    imagePath: offer.imageUrl ?? 'assets/images/common/offer_1.png',
+                    description: offer.description.isNotEmpty
+                        ? offer.description
+                        : "Get special discounts on our premium pet grooming packages.",
+                    eligibleServices: 'Full Grooming, Spa Package',
+                  ),
+                )).toList()
+              : [
+                  _buildSpecialOfferCard(
+                    context: context,
+                    badgeText: '50% OFF',
+                    title: '50% Off Full Grooming for New Pets!',
+                    expiry: 'Ends in 2 days',
+                    code: 'PAWSOME50',
+                    imagePath: 'assets/images/common/offer_1.png',
+                    description:
+                        "Get 50% off your pet's first Full Grooming session with us. A perfect way to try the royal treatment your pet deserves.",
+                    eligibleServices: 'Full Grooming, Spa Package',
+                  ),
+                  const SizedBox(width: 14),
+                  _buildSpecialOfferCard(
+                    context: context,
+                    badgeText: 'FREE ADD-ON',
+                    title: 'Summer Splash: Free Nail Trimming',
+                    expiry: 'Ends Aug 20',
+                    code: 'SUMMERTRIM',
+                    imagePath: 'assets/images/common/offer_2.png',
+                    description:
+                        'Complimentary nail trimming and paw pad moisturizing with any full grooming or bath service.',
+                    eligibleServices: 'Bath & Brush, Full Grooming',
+                  ),
+                  const SizedBox(width: 14),
+                  _buildSpecialOfferCard(
+                    context: context,
+                    badgeText: 'REFER & EARN',
+                    title: 'Refer a Friend, Get 20% Off',
+                    expiry: 'No expiry',
+                    code: 'FRIEND20',
+                    imagePath: 'assets/images/common/offer_3.png',
+                    description:
+                        'Refer a fellow pet parent and both of you enjoy 20% off on your next pet spa visit!',
+                    eligibleServices: 'All Services & Packages',
+                  ),
+                ],
         ),
       ),
     ],
@@ -1396,17 +1428,29 @@ Widget _buildSpecialOfferCard({
             children: [
               ClipRRect(
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                child: Image.asset(
-                  imagePath,
-                  height: 140,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (ctx, err, st) => Container(
-                    height: 140,
-                    color: Colors.grey.shade200,
-                    child: const Icon(Icons.image, color: Colors.grey),
-                  ),
-                ),
+                child: imagePath.startsWith('http')
+                    ? Image.network(
+                        imagePath,
+                        height: 140,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (ctx, err, st) => Container(
+                          height: 140,
+                          color: Colors.grey.shade200,
+                          child: const Icon(Icons.image, color: Colors.grey),
+                        ),
+                      )
+                    : Image.asset(
+                        imagePath,
+                        height: 140,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (ctx, err, st) => Container(
+                          height: 140,
+                          color: Colors.grey.shade200,
+                          child: const Icon(Icons.image, color: Colors.grey),
+                        ),
+                      ),
               ),
               Positioned(
                 top: 10,
@@ -1719,8 +1763,26 @@ Widget _buildPetAvatar(
   );
 }
 
-void _showOffersPopup(BuildContext context) {
-  OfferDetailsDialog.show(context);
+void _showOffersPopup(BuildContext context, {List<OfferModel>? offers}) {
+  if (offers != null && offers.isNotEmpty) {
+    final topOffer = offers.first;
+    OfferDetailsDialog.show(
+      context,
+      imagePath: topOffer.imageUrl ?? 'assets/images/common/offer_1.png',
+      badgeText: topOffer.discountBadge,
+      title: topOffer.title,
+      timerText: topOffer.formattedExpiry,
+      promoCode: topOffer.promoCode,
+      description: topOffer.description.isNotEmpty
+          ? topOffer.description
+          : "Get special discounts on our premium pet grooming packages.",
+      eligibleServices: 'Full Grooming, Spa Package',
+      termsConditions:
+          'Valid for selected services only · Subject to store terms & conditions.',
+    );
+  } else {
+    OfferDetailsDialog.show(context);
+  }
 }
 
 class _ServiceTile extends StatelessWidget {

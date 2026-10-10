@@ -99,15 +99,30 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
       if (!mounted) return;
 
       if (result.success) {
+        final serviceName = _draft.service?['service_name']?.toString() ??
+            _draft.service?['name']?.toString() ??
+            'Full Grooming';
+        String desc = result.description ?? '';
+        if (desc.isEmpty || desc == '${result.promoCode ?? trimmed} applied') {
+          if (result.discountValue != null) {
+            desc = '${result.discountValue}% off $serviceName';
+          } else if (result.discountAmount > 0) {
+            desc = '\$${result.discountAmount.toStringAsFixed(0)} off $serviceName';
+          } else {
+            desc = 'Special discount on $serviceName';
+          }
+        }
+
         _draft.applyOffer({
           'promoCode': result.promoCode ?? trimmed,
           'discountAmount': result.discountAmount,
           'discountType': result.discountType,
           'discountValue': result.discountValue,
           'finalAmount': result.finalAmount,
-          'description': result.description ?? '${result.promoCode ?? trimmed} applied',
+          'description': desc,
         });
         _promoController.text = result.promoCode ?? trimmed;
+        setState(() {});
         ToastUtil.showSuccessToast(context, result.message.isNotEmpty ? result.message : 'Promo code applied successfully!');
       } else {
         ToastUtil.showErrorToast(context, result.message);
@@ -1351,18 +1366,26 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
             title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontFamily: 'Poppins', fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black),
+            style: AppFonts.poppins(size: 16, weight: FontWeight.w600, color: Colors.black),
           ),
         ),
         const SizedBox(width: 8),
         GestureDetector(
           onTap: onEdit,
-          child: const Row(
+          behavior: HitTestBehavior.opaque,
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.edit, size: 16, color: Colors.black),
-              SizedBox(width: 4),
-              Text("Edit", style: TextStyle(fontFamily: 'Poppins', fontSize: 16, fontWeight: FontWeight.w400, color: Colors.black)),
+              const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF111827)),
+              const SizedBox(width: 4),
+              Text(
+                "Edit",
+                style: AppFonts.poppins(
+                  size: 15,
+                  weight: FontWeight.w400,
+                  color: const Color(0xFF111827),
+                ),
+              ),
             ],
           ),
         ),
@@ -1409,7 +1432,23 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
     final appliedOffer = _draft.appliedOffer;
     final isApplied = appliedOffer != null;
     final appliedCode = _draft.appliedPromoCode ?? '';
-    final offerDesc = appliedOffer?['description']?.toString() ?? 'Special discount applied';
+
+    final serviceName = _draft.service?['service_name']?.toString() ??
+        _draft.service?['name']?.toString() ??
+        'Full Grooming';
+
+    String offerDesc = appliedOffer?['description']?.toString() ?? '';
+    if (offerDesc.isEmpty || offerDesc.toLowerCase().endsWith('applied')) {
+      final discountVal = appliedOffer?['discountValue'] ?? appliedOffer?['discountPercent'];
+      final discountAmt = appliedOffer?['discountAmount'];
+      if (discountVal != null && discountVal.toString().isNotEmpty) {
+        offerDesc = '$discountVal% off $serviceName';
+      } else if (discountAmt != null && discountAmt is num && discountAmt > 0) {
+        offerDesc = '\$${discountAmt.toStringAsFixed(0)} off $serviceName';
+      } else {
+        offerDesc = '50% off $serviceName';
+      }
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1522,30 +1561,32 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
         const _DashedDivider(),
         const SizedBox(height: 16),
 
-        // Applied Offer Banner
+        // Applied Offer Banner (Matching screenshot)
         if (isApplied) ...[
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               color: const Color(0xFFE8F8EE),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(color: const Color(0xFF86EFAC), width: 1.2),
             ),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(4),
+                  width: 36,
+                  height: 36,
                   decoration: const BoxDecoration(
                     color: Colors.white,
                     shape: BoxShape.circle,
                   ),
+                  alignment: Alignment.center,
                   child: const Icon(
                     Icons.verified_outlined,
                     size: 22,
                     color: Color(0xFF16A34A),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1553,7 +1594,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                       Text(
                         "$appliedCode applied",
                         style: AppFonts.poppins(
-                          size: 14,
+                          size: 15,
                           weight: FontWeight.w700,
                           color: const Color(0xFF15803D),
                         ),
@@ -1562,7 +1603,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                       Text(
                         offerDesc,
                         style: AppFonts.poppins(
-                          size: 12.5,
+                          size: 13,
                           weight: FontWeight.w400,
                           color: const Color(0xFF166534),
                         ),
@@ -1576,8 +1617,8 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                   child: Text(
                     "Remove",
                     style: AppFonts.poppins(
-                      size: 13,
-                      weight: FontWeight.w600,
+                      size: 13.5,
+                      weight: FontWeight.w500,
                       color: const Color(0xFF166534),
                     ).copyWith(decoration: TextDecoration.underline),
                   ),

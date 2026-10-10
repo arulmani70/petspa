@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
+import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/toast_util.dart';
 
@@ -375,6 +376,17 @@ class OfferDetailsDialog extends StatelessWidget {
                         if (onClaim != null) {
                           onClaim!();
                         } else {
+                          Clipboard.setData(ClipboardData(text: promoCode));
+                          ServicesLocator.bookingDraft.applyOffer({
+                            'promoCode': promoCode,
+                            'title': title,
+                            'description': description,
+                            'badgeText': badgeText,
+                          });
+                          ToastUtil.showSuccessToast(
+                            context,
+                            'Promo $promoCode applied!',
+                          );
                           context.pushNamed(RouteNames.bookingService);
                         }
                       },

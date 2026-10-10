@@ -30,23 +30,23 @@ class OfferModel {
   factory OfferModel.fromJson(Map<String, dynamic> json) {
     final rawId = json['id'] ?? json['offerId'] ?? json['OfferId'] ?? json['_id'] ?? '';
     final code = json['promoCode'] ?? json['code'] ?? json['promo_code'] ?? json['PromoCode'] ?? '';
-    final title = json['title'] ?? json['name'] ?? json['offerName'] ?? code;
-    final desc = json['description'] ?? json['desc'] ?? '';
+    final title = json['title'] ?? json['name'] ?? json['offerName'] ?? json['offer_name'] ?? code;
+    final desc = json['description'] ?? json['desc'] ?? json['offer_description'] ?? '';
     final type = (json['discountType'] ?? json['discount_type'] ?? json['type'] ?? 'percentage')
         .toString()
         .toLowerCase();
 
-    final rawVal = json['discountValue'] ?? json['discount'] ?? json['discountAmount'] ?? json['value'] ?? 0;
+    final rawVal = json['discountValue'] ?? json['discount'] ?? json['discountAmount'] ?? json['discount_value'] ?? json['value'] ?? 0;
     final double discountVal = rawVal is num ? rawVal.toDouble() : (double.tryParse(rawVal.toString()) ?? 0.0);
 
-    final rawMin = json['minOrderAmount'] ?? json['minOrderValue'] ?? json['min_order_amount'];
+    final rawMin = json['minOrderAmount'] ?? json['minOrderValue'] ?? json['min_order_amount'] ?? json['minAmount'];
     final double? minOrder = rawMin is num ? rawMin.toDouble() : (rawMin != null ? double.tryParse(rawMin.toString()) : null);
 
-    final rawMax = json['maxDiscountAmount'] ?? json['max_discount_amount'] ?? json['maxDiscount'];
+    final rawMax = json['maxDiscountAmount'] ?? json['max_discount_amount'] ?? json['maxDiscount'] ?? json['maxAmount'];
     final double? maxDisc = rawMax is num ? rawMax.toDouble() : (rawMax != null ? double.tryParse(rawMax.toString()) : null);
 
-    final validUntilStr = (json['validUntil'] ?? json['expiryDate'] ?? json['valid_until'])?.toString();
-    final imgUrl = (json['imageUrl'] ?? json['image'] ?? json['bannerUrl'])?.toString();
+    final validUntilStr = (json['validUntil'] ?? json['expiryDate'] ?? json['valid_until'] ?? json['expiry_date'] ?? json['validTo'])?.toString();
+    final imgUrl = (json['imageUrl'] ?? json['image'] ?? json['bannerUrl'] ?? json['image_url'])?.toString();
 
     List<int>? services;
     final rawServices = json['applicableServices'] ?? json['services'] ?? json['applicable_services'];
@@ -159,9 +159,9 @@ class PromoValidationResult {
   factory PromoValidationResult.fromJson(Map<String, dynamic> json, {String? defaultPromoCode, double? originalAmount}) {
     final success = json['success'] == true;
     final message = json['message']?.toString() ?? (success ? 'Promo code applied successfully' : 'Invalid promo code');
-    final data = json['data'] is Map<String, dynamic> ? json['data'] as Map<String, dynamic> : null;
+    final data = json['data'] is Map<String, dynamic> ? json['data'] as Map<String, dynamic> : json;
 
-    if (!success || data == null) {
+    if (!success) {
       return PromoValidationResult(
         success: false,
         message: message,
@@ -170,8 +170,8 @@ class PromoValidationResult {
       );
     }
 
-    final code = (data['promoCode'] ?? data['code'] ?? defaultPromoCode ?? '').toString();
-    final rawDiscount = data['discountAmount'] ?? data['discount'] ?? data['discountValue'];
+    final code = (data['promoCode'] ?? data['code'] ?? data['promo_code'] ?? defaultPromoCode ?? '').toString();
+    final rawDiscount = data['discountAmount'] ?? data['discount'] ?? data['discount_amount'] ?? data['discountValue'];
     double discAmount = 0.0;
     if (rawDiscount is num) {
       discAmount = rawDiscount.toDouble();
@@ -179,18 +179,18 @@ class PromoValidationResult {
       discAmount = double.tryParse(rawDiscount.toString()) ?? 0.0;
     }
 
-    final type = (data['discountType'] ?? data['type'])?.toString();
-    final rawVal = data['discountValue'] ?? data['value'];
+    final type = (data['discountType'] ?? data['discount_type'] ?? data['type'])?.toString();
+    final rawVal = data['discountValue'] ?? data['discount_value'] ?? data['discount'] ?? data['value'];
     final double? discVal = rawVal is num ? rawVal.toDouble() : (rawVal != null ? double.tryParse(rawVal.toString()) : null);
 
-    final rawFinal = data['finalAmount'] ?? data['totalAmount'] ?? data['finalPrice'];
+    final rawFinal = data['finalAmount'] ?? data['final_amount'] ?? data['totalAmount'] ?? data['finalPrice'];
     double? finalAmt = rawFinal is num ? rawFinal.toDouble() : (rawFinal != null ? double.tryParse(rawFinal.toString()) : null);
 
     if (finalAmt == null && originalAmount != null) {
       finalAmt = (originalAmount - discAmount).clamp(0.0, double.infinity);
     }
 
-    final desc = (data['description'] ?? data['offerDescription'] ?? data['title'])?.toString();
+    final desc = (data['description'] ?? data['offerDescription'] ?? data['offer_description'] ?? data['title'])?.toString();
 
     return PromoValidationResult(
       success: true,
