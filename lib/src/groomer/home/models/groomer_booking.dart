@@ -1,5 +1,6 @@
 import 'package:intl/intl.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/utils/booking_date_utils.dart';
+import 'package:shear_heaven_pet_spa/src/common/constants/constansts.dart';
 
 class GroomerBooking {
   final int bookingId;
@@ -24,6 +25,7 @@ class GroomerBooking {
   final int totalDurationMinutes;
   final String storeId;
   final String? createdAt;
+  final String? cancellationReason;
 
   const GroomerBooking({
     required this.bookingId,
@@ -48,6 +50,7 @@ class GroomerBooking {
     this.totalDurationMinutes = 30,
     this.storeId = '',
     this.createdAt,
+    this.cancellationReason,
   });
 
   String get formattedBookingDate =>
@@ -99,7 +102,7 @@ class GroomerBooking {
     if (str.startsWith('assets/')) {
       return str;
     }
-    const base = 'https://devapi.shearheavenpetspa.com';
+    final base = Constants.app.BASE_URL;
     if (str.startsWith('/')) {
       return '$base$str';
     }
@@ -118,7 +121,7 @@ class GroomerBooking {
     String pName = 'Pet';
     String pBreed = '';
     String? pPic;
-    int? pId;
+    int? pId = int.tryParse(json['petId']?.toString() ?? json['pet_id']?.toString() ?? '');
     if (json['pet'] is Map<String, dynamic>) {
       final petMap = json['pet'] as Map<String, dynamic>;
       pName = petMap['petName']?.toString() ?? petMap['name']?.toString() ?? 'Pet';
@@ -132,7 +135,7 @@ class GroomerBooking {
           petMap['image'] ??
           petMap['avatar'];
       pPic = _normalizeImageUrl(rawPic);
-      pId = int.tryParse(petMap['id']?.toString() ?? '');
+      pId ??= int.tryParse(petMap['id']?.toString() ?? petMap['petId']?.toString() ?? '');
     } else {
       pName = json['petName']?.toString() ?? 'Pet';
       pBreed = json['breed']?.toString() ?? json['petBreed']?.toString() ?? '';
@@ -238,7 +241,8 @@ class GroomerBooking {
       totalPrice: price,
       totalDurationMinutes: int.tryParse(json['totalDurationMinutes']?.toString() ?? '30') ?? 30,
       storeId: json['storeId']?.toString() ?? '',
-      createdAt: json['createdAt']?.toString(),
+      createdAt: json['createdAt']?.toString() ?? json['created_at']?.toString(),
+      cancellationReason: json['cancellationReason']?.toString() ?? json['cancellation_reason']?.toString(),
     );
   }
 
@@ -265,6 +269,7 @@ class GroomerBooking {
     'totalDurationMinutes': totalDurationMinutes,
     'storeId': storeId,
     'createdAt': createdAt,
+    'cancellationReason': cancellationReason,
   };
 
   GroomerBooking copyWith({
@@ -290,6 +295,7 @@ class GroomerBooking {
     int? totalDurationMinutes,
     String? storeId,
     String? createdAt,
+    String? cancellationReason,
   }) {
     return GroomerBooking(
       bookingId: bookingId ?? this.bookingId,
@@ -314,6 +320,7 @@ class GroomerBooking {
       totalDurationMinutes: totalDurationMinutes ?? this.totalDurationMinutes,
       storeId: storeId ?? this.storeId,
       createdAt: createdAt ?? this.createdAt,
+      cancellationReason: cancellationReason ?? this.cancellationReason,
     );
   }
 }

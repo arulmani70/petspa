@@ -190,9 +190,17 @@ class BookingRepository {
       final response =
           await ServicesLocator.apiRepository.get('/api/bookings/upcoming');
       final list = _extractBookingsList(response, 'getUpcomingBookingsApi');
-      _cachedUpcomingBookings = list;
+      
+      // Auto-cancel any unaccepted pending bookings that exceeded the response deadline
+      List<Map<String, dynamic>> processed = list;
+      if (ServicesLocator.isBookingCancellationManagerRegistered) {
+        processed = await ServicesLocator.bookingCancellationManager
+            .filterAndProcessExpiredBookings(list);
+      }
+      
+      _cachedUpcomingBookings = processed;
       _lastUpcomingBookingsFetch = DateTime.now();
-      return list;
+      return processed;
     } catch (error) {
       log.e('BookingRepository::getUpcomingBookingsApi::Error: $error');
       if (_cachedUpcomingBookings != null) {

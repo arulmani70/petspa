@@ -62,6 +62,12 @@ class CustomerSocketService {
     'booking_notification',
     'booking_confirmed',
     'booking_accepted',
+    'booking_cancelled',
+    'booking_auto_cancelled',
+    'appointment_cancelled',
+    'booking_timeout',
+    'appointment_timeout',
+    'booking_rejected',
     'booking_in_progress',
     'booking_started',
     'booking_completed',
@@ -735,6 +741,13 @@ class CustomerSocketService {
   String _maskToken(String token) {
     if (token.length <= 8) return '****';
     return '${token.substring(0, 4)}...${token.substring(token.length - 4)}';
+  }
+
+  /// Dispatches a notification directly into the customer notification stream.
+  void handleDirectNotification(AppNotification notification) {
+    if (!_notificationController.isClosed) {
+      _notificationController.add(notification);
+    }
   }
 
   /// Helper for testing to inject mock notification payloads directly into the stream.

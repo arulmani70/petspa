@@ -136,7 +136,27 @@ class GroomerHomeRepository {
 
       if (response != null && response['data'] is List) {
         final list = response['data'] as List;
-        return list.map((item) => GroomerBooking.fromJson(item as Map<String, dynamic>)).toList();
+        final rawBookings = list
+            .map((item) => GroomerBooking.fromJson(item as Map<String, dynamic>))
+            .toList();
+
+        final List<GroomerBooking> activePending = [];
+        for (final booking in rawBookings) {
+          if (ServicesLocator.isBookingCancellationManagerRegistered &&
+              ServicesLocator.bookingCancellationManager.isScheduledStartTimeReached(
+                booking.bookingDate,
+                booking.startTime,
+              )) {
+            // Automatically cancel overdue unaccepted booking whose scheduled start time has arrived/passed
+            ServicesLocator.bookingCancellationManager.autoCancelBooking(
+              bookingId: booking.bookingId,
+              bookingData: booking.toJson(),
+            );
+            continue;
+          }
+          activePending.add(booking);
+        }
+        return activePending;
       }
       return [];
     } catch (e) {
@@ -203,9 +223,43 @@ class GroomerHomeRepository {
   }
 
   /// POST /api/groomer-auth/bookings/:id/approve
-  Future<({bool success, String message})> approveBookingDetails(int bookingId) async {
+  Future<({bool success, String message})> approveBookingDetails(int bookingId, {GroomerBooking? booking}) async {
     try {
       log.d('GroomerHomeRepository::approveBooking::Approving booking #$bookingId');
+
+      // Check if booking has already expired past the scheduled appointment start time
+      if (ServicesLocator.isBookingCancellationManagerRegistered) {
+        GroomerBooking? target = booking;
+        if (target == null) {
+          final response = await ServicesLocator.apiRepository.get(
+            '/api/groomer-auth/bookings/pending',
+          );
+          if (response != null && response['data'] is List) {
+            final list = response['data'] as List;
+            final rawBookings = list
+                .map((item) => GroomerBooking.fromJson(item as Map<String, dynamic>))
+                .toList();
+            target = rawBookings.where((b) => b.bookingId == bookingId).firstOrNull;
+          }
+        }
+
+        if (target != null) {
+          if (ServicesLocator.bookingCancellationManager.isScheduledStartTimeReached(
+            target.bookingDate,
+            target.startTime,
+          )) {
+            await ServicesLocator.bookingCancellationManager.autoCancelBooking(
+              bookingId: bookingId,
+              bookingData: target.toJson(),
+            );
+            return (
+              success: false,
+              message: 'This booking has expired because the scheduled appointment start time has passed without groomer acceptance.',
+            );
+          }
+        }
+      }
+
       final response = await ServicesLocator.apiRepository.post(
         '/api/groomer-auth/bookings/$bookingId/approve',
         {},
@@ -220,8 +274,8 @@ class GroomerHomeRepository {
     }
   }
 
-  Future<bool> approveBooking(int bookingId) async {
-    final res = await approveBookingDetails(bookingId);
+  Future<bool> approveBooking(int bookingId, {GroomerBooking? booking}) async {
+    final res = await approveBookingDetails(bookingId, booking: booking);
     return res.success;
   }
 

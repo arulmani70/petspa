@@ -379,6 +379,7 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
     try {
       final res = await ServicesLocator.groomerHomeRepository.approveBookingDetails(
         booking.bookingId,
+        booking: booking,
       );
       if (!mounted) return;
       if (res.success) {
@@ -2619,13 +2620,16 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
             ),
           ),
           const SizedBox(width: 6),
-          Text(
-            title,
-            style: AppFonts.poppins(
-              size: 11.5,
-              weight: FontWeight.w700,
-              color: const Color(0xFF6B7280),
-              letterSpacing: 0.5,
+          Flexible(
+            child: Text(
+              title,
+              style: AppFonts.poppins(
+                size: 11.5,
+                weight: FontWeight.w700,
+                color: const Color(0xFF6B7280),
+                letterSpacing: 0.5,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           const SizedBox(width: 6),
@@ -2693,7 +2697,7 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
     required Color bgColor,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -2724,12 +2728,16 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                 ),
                 child: Icon(icon, size: 14, color: color),
               ),
-              Text(
-                '$count',
-                style: AppFonts.parkinsans(
-                  size: 15,
-                  weight: FontWeight.w700,
-                  color: count > 0 ? color : const Color(0xFF111827),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  '$count',
+                  style: AppFonts.parkinsans(
+                    size: 15,
+                    weight: FontWeight.w700,
+                    color: count > 0 ? color : const Color(0xFF111827),
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -2966,6 +2974,7 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: Text(
@@ -2978,11 +2987,14 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      'Action Required',
-                      style: AppFonts.poppins(
-                        size: 11,
-                        color: const Color(0xFFDC2626),
+                    Flexible(
+                      child: Text(
+                        'Action Required',
+                        style: AppFonts.poppins(
+                          size: 11,
+                          color: const Color(0xFFDC2626),
+                        ),
+                        textAlign: TextAlign.right,
                       ),
                     ),
                   ],
@@ -2996,7 +3008,9 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Row(
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
@@ -3023,7 +3037,6 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
                     OutlinedButton(
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFF4B5563),
@@ -3132,6 +3145,7 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
                         child: Text(
@@ -3144,11 +3158,14 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        time,
-                        style: AppFonts.poppins(
-                          size: 11,
-                          color: const Color(0xFF9CA3AF),
+                      Flexible(
+                        child: Text(
+                          time,
+                          style: AppFonts.poppins(
+                            size: 11,
+                            color: const Color(0xFF9CA3AF),
+                          ),
+                          textAlign: TextAlign.right,
                         ),
                       ),
                     ],
@@ -3162,8 +3179,36 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                     ),
                   ),
                   if (booking != null && booking.status == 'pending') ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFFBEB),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFFFDE68A)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.timer_outlined, size: 12, color: Color(0xFFD97706)),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              'Acceptance Deadline: Scheduled start (${booking.startTime})',
+                              style: AppFonts.poppins(
+                                size: 10.5,
+                                weight: FontWeight.w600,
+                                color: const Color(0xFFB45309),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 8),
-                    Row(
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
                       children: [
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
@@ -3185,7 +3230,6 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
                         OutlinedButton(
                           style: OutlinedButton.styleFrom(
                             foregroundColor: const Color(0xFFEF4444),
@@ -4354,12 +4398,15 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                           color: Color(0xFF9CA3AF),
                         ),
                         const SizedBox(width: 6),
-                        Text(
-                          _getScheduledStatusText(booking),
-                          style: AppFonts.poppins(
-                            size: 11.5,
-                            weight: FontWeight.w500,
-                            color: const Color(0xFF6B7280),
+                        Flexible(
+                          child: Text(
+                            _getScheduledStatusText(booking),
+                            style: AppFonts.poppins(
+                              size: 11.5,
+                              weight: FontWeight.w500,
+                              color: const Color(0xFF6B7280),
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],

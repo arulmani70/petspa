@@ -49,13 +49,14 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     SaveProfileEvent event,
     Emitter<ProfileState> emit,
   ) async {
-    _log.d('ProfileBloc::_onSaveProfile::Saving profile name=${event.name} photoPath=${event.photoPath}');
+    _log.d('ProfileBloc::_onSaveProfile::Saving profile name=${event.name} photoPath=${event.photoPath} gender=${event.gender}');
     try {
       emit(state.copyWith(status: () => ProfileStatus.saving));
       final data = await _repository.updateProfilePut(
         name: event.name,
         mobile: event.mobile,
         photoPath: event.photoPath,
+        gender: event.gender,
       );
 
       if (data.isNotEmpty) {
@@ -63,6 +64,9 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
           ..addAll(data)
           ..['name'] = event.name
           ..['mobile'] = event.mobile;
+        if (event.gender != null && event.gender!.isNotEmpty) {
+          updated['gender'] = data['gender'] ?? event.gender;
+        }
         if (event.photoPath != null && event.photoPath!.isNotEmpty) {
           final newPhoto = data['profilePicture'] ?? data['profilePictureUrl'] ?? data['photoUrl'] ?? data['avatar'] ?? event.photoPath;
           updated['profilePicture'] = newPhoto;

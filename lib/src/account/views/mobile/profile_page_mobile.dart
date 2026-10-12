@@ -104,7 +104,8 @@ class _ProfilePageMobileState extends State<ProfilePageMobile> {
         _emailCtrl.text   = data['email']?.toString()   ?? '';
         _mobileCtrl.text  = data['mobile']?.toString()  ?? '';
         _addressCtrl.text = data['address']?.toString() ?? data['homeAddress']?.toString() ?? '';
-        final g           = data['gender']?.toString();
+        final user        = ServicesLocator.sessionService.getSessionUser();
+        final g           = data['gender']?.toString() ?? user?['gender']?.toString();
         if (g != null && (g == 'Female' || g == 'female')) {
           _gender = 'Female';
         } else {
@@ -158,20 +159,27 @@ class _ProfilePageMobileState extends State<ProfilePageMobile> {
     });
 
     try {
-      _log.d('ProfilePage::_saveProfile::name=$name mobile=$mobile photoPath=$_pickedPhotoPath');
+      _log.d('ProfilePage::_saveProfile::name=$name mobile=$mobile photoPath=$_pickedPhotoPath gender=$_gender');
       final updated = await ServicesLocator.authRepository.updateProfilePut(
         name     : name,
         mobile   : mobile.isNotEmpty ? mobile : null,
         photoPath: _pickedPhotoPath,
+        gender   : _gender,
       );
       if (!mounted) return;
       final newPhoto = updated['profilePictureUrl']?.toString() ??
           updated['profilePicture']?.toString() ??
           updated['avatar']?.toString() ??
           updated['photoUrl']?.toString();
+      final g = updated['gender']?.toString();
       setState(() {
         _saving     = false;
         _successMsg = 'Profile updated successfully.';
+        if (g != null && (g == 'Female' || g == 'female')) {
+          _gender = 'Female';
+        } else if (g != null && (g == 'Male' || g == 'male')) {
+          _gender = 'Male';
+        }
         if (newPhoto != null && newPhoto.isNotEmpty) {
           _photoUrl = newPhoto;
         } else if (_pickedPhotoPath != null) {
@@ -179,6 +187,7 @@ class _ProfilePageMobileState extends State<ProfilePageMobile> {
         }
         _pickedPhotoPath = null;
       });
+      ToastUtil.showSuccessToast(context, 'Profile updated successfully.');
     } catch (e) {
       _log.e('ProfilePage::_saveProfile::Error: $e');
       if (!mounted) return;

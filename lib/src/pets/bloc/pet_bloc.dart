@@ -66,7 +66,8 @@ class PetBloc extends Bloc<PetEvent, PetState> {
       ));
     } catch (e) {
       _log.e("PetBloc::_onCreatePet::Error: $e");
-      emit(state.copyWith(status: () => PetStatus.failure, message: () => e.toString()));
+      final message = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+      emit(state.copyWith(status: () => PetStatus.failure, message: () => message));
     }
   }
 
@@ -83,7 +84,8 @@ class PetBloc extends Bloc<PetEvent, PetState> {
       ));
     } catch (e) {
       _log.e("PetBloc::_onUpdatePet::Error: $e");
-      emit(state.copyWith(status: () => PetStatus.failure, message: () => e.toString()));
+      final message = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+      emit(state.copyWith(status: () => PetStatus.failure, message: () => message));
     }
   }
 

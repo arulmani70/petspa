@@ -85,8 +85,7 @@ class SettingsPageMobile extends StatelessWidget {
               ),
               _buildSupportCard(context),
               const SizedBox(height: 24),
-              _buildSocialMediaSection(),
-              const SizedBox(height: 24),
+
               _buildAuthButton(context, isLoggedIn),
               const SizedBox(height: 28),
 
@@ -854,7 +853,10 @@ class SettingsPageMobile extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 24,
+          ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
             child: Column(
@@ -891,7 +893,10 @@ class SettingsPageMobile extends StatelessWidget {
                             padding: EdgeInsets.zero,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(30),
-                              side: const BorderSide(color: Color(0xFFE5E7EB), width: 1.2),
+                              side: const BorderSide(
+                                color: Color(0xFFE5E7EB),
+                                width: 1.2,
+                              ),
                             ),
                           ),
                           child: Text(
@@ -912,7 +917,9 @@ class SettingsPageMobile extends StatelessWidget {
                         child: TextButton(
                           onPressed: () {
                             Navigator.of(dialogContext).pop();
-                            context.read<AuthBloc>().add(const LogoutSubmitted());
+                            context.read<AuthBloc>().add(
+                              const LogoutSubmitted(),
+                            );
                             Routes.redirectToLogin(isGroomer: false);
                           },
                           style: TextButton.styleFrom(

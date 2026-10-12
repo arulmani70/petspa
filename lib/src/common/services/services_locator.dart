@@ -1,6 +1,7 @@
 import 'package:get_it/get_it.dart';
 import 'package:shear_heaven_pet_spa/src/auth/repo/auth_repository.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/repo/booking_repository.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/services/booking_cancellation_manager.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/services/booking_draft.dart';
 import 'package:shear_heaven_pet_spa/src/chat/repo/chat_repository.dart';
 import 'package:shear_heaven_pet_spa/src/common/repos/api_repository.dart';
@@ -73,6 +74,8 @@ class ServicesLocator {
 
     serviceLocator.registerLazySingleton<BookingDraft>(() => BookingDraft());
 
+    serviceLocator.registerLazySingleton<BookingCancellationManager>(() => BookingCancellationManager());
+
     await serviceLocator<DeviceIdService>().initialize();
     await serviceLocator<ApiRepository>().initialize();
     await serviceLocator<NetworkService>().initialize();
@@ -94,6 +97,7 @@ class ServicesLocator {
     await serviceLocator<ContentRepository>().initialize();
     await serviceLocator<GalleryRepository>().initialize();
     await serviceLocator<PushNotificationService>().initialize();
+    await serviceLocator<BookingCancellationManager>().initialize();
   }
 
   static DatabaseRepository get databaseRepository => serviceLocator<DatabaseRepository>();
@@ -123,4 +127,6 @@ class ServicesLocator {
   static ContentRepository get contentRepository => serviceLocator<ContentRepository>();
   static GalleryRepository get galleryRepository => serviceLocator<GalleryRepository>();
   static BookingDraft get bookingDraft => serviceLocator<BookingDraft>();
+  static BookingCancellationManager get bookingCancellationManager => serviceLocator<BookingCancellationManager>();
+  static bool get isBookingCancellationManagerRegistered => serviceLocator.isRegistered<BookingCancellationManager>();
 }

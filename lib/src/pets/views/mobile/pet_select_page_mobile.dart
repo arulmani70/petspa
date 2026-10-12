@@ -47,15 +47,49 @@ class _PetSelectPageMobileState extends State<PetSelectPageMobile> {
     context.pushNamed(RouteNames.bookingService);
   }
 
+  void _handleBack(BuildContext context) {
+    bool canPop = false;
+    try {
+      canPop = context.canPop();
+    } catch (_) {
+      try {
+        canPop = Navigator.of(context).canPop();
+      } catch (_) {}
+    }
+    if (canPop) {
+      try {
+        context.pop();
+        return;
+      } catch (_) {
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+          return;
+        }
+      }
+    }
+    try {
+      context.goNamed(RouteNames.home);
+    } catch (_) {}
+  }
+
   @override
   Widget build(BuildContext context) {
     final draft = widget.initialBookingData ?? {};
 
+    bool canPop = false;
+    try {
+      canPop = context.canPop();
+    } catch (_) {
+      try {
+        canPop = Navigator.of(context).canPop();
+      } catch (_) {}
+    }
+
     return PopScope(
-      canPop: context.canPop(),
+      canPop: canPop,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        context.goNamed(RouteNames.home);
+        _handleBack(context);
       },
       child: Scaffold(
         backgroundColor: const Color(0xFFFAFAFA),
@@ -74,13 +108,7 @@ class _PetSelectPageMobileState extends State<PetSelectPageMobile> {
           ),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Color(0xFF111827), size: 22),
-            onPressed: () {
-              if (context.canPop()) {
-                context.pop();
-              } else {
-                context.goNamed(RouteNames.home);
-              }
-            },
+            onPressed: () => _handleBack(context),
           ),
         ),
         body: SafeArea(

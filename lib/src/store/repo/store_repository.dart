@@ -149,14 +149,22 @@ class StoreRepository {
     try {
       log.d("StoreRepository::getPetWeights::Loading from API /api/pet-weights");
       final response = await ServicesLocator.apiRepository.get('/api/pet-weights');
-      if (response == null || !response.containsKey('data')) throw Exception('Failed to fetch pet weights');
-      final Map<String, dynamic> data = response['data'] as Map<String, dynamic>;
+      final rawData = response?['data'];
 
       List<Map<String, dynamic>> petWeights = [];
-      if (data['petWeights'] != null && data['petWeights'] is List) {
-        for (var w in data['petWeights']) {
+      if (rawData is List) {
+        for (var w in rawData) {
           if (w is Map) {
             petWeights.add(Map<String, dynamic>.from(w));
+          }
+        }
+      } else if (rawData is Map) {
+        final list = rawData['petWeights'] ?? rawData['weights'];
+        if (list is List) {
+          for (var w in list) {
+            if (w is Map) {
+              petWeights.add(Map<String, dynamic>.from(w));
+            }
           }
         }
       }

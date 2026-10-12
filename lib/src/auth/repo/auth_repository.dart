@@ -472,6 +472,10 @@ class AuthRepository {
         mergedData['profilePictureUrl'] = existingUser['profilePictureUrl'];
         mergedData['profilePicture'] = existingUser['profilePicture'];
       }
+      if ((data['gender'] == null || data['gender'].toString().isEmpty) &&
+          existingUser['gender'] != null) {
+        mergedData['gender'] = existingUser['gender'];
+      }
       await _session.saveSession(mergedData);
       return mergedData;
     } catch (error) {
@@ -481,29 +485,40 @@ class AuthRepository {
   }
 
   /// PUT /api/auth/profile
-  /// Updates name, mobile, and/or profile photo.
+  /// Updates name, mobile, gender, and/or profile photo.
   Future<Map<String, dynamic>> updateProfile({
     String? name,
     String? mobile,
     String? photoPath,
+    String? gender,
   }) async {
-    return updateProfilePut(name: name, mobile: mobile, photoPath: photoPath);
+    return updateProfilePut(
+      name: name,
+      mobile: mobile,
+      photoPath: photoPath,
+      gender: gender,
+    );
   }
 
-  /// PUT /api/auth/profile — updates profile name, mobile, and optional profile photo.
+  /// PUT /api/auth/profile — updates profile name, mobile, gender, and optional profile photo.
   Future<Map<String, dynamic>> updateProfilePut({
     String? name,
     String? mobile,
     String? photoPath,
+    String? gender,
   }) async {
     try {
-      log.d('AuthRepository::updateProfilePut::name=$name mobile=$mobile photoPath=$photoPath');
+      log.d('AuthRepository::updateProfilePut::name=$name mobile=$mobile photoPath=$photoPath gender=$gender');
       final payload = <String, dynamic>{};
       if (name != null && name.isNotEmpty) {
         payload['name'] = name.trim();
       }
       if (mobile != null && mobile.isNotEmpty) {
         payload['mobile'] = mobile.replaceAll(RegExp(r'[^0-9]'), '');
+      }
+      if (gender != null && gender.trim().isNotEmpty) {
+        final g = gender.trim().toLowerCase();
+        payload['gender'] = (g == 'female' || g == 'male') ? g : gender.trim();
       }
 
       Map<String, dynamic>? data;
@@ -541,7 +556,7 @@ class AuthRepository {
 
       if (data == null || data.isEmpty) {
         if (payload.isEmpty && (photoPath == null || photoPath.isEmpty)) {
-          throw Exception('At least one of name, mobile, or profile picture is required');
+          throw Exception('At least one of name, mobile, gender, or profile picture is required');
         }
 
         final response = await _api.putData('/api/auth/profile', payload);
@@ -554,6 +569,9 @@ class AuthRepository {
       final merged = {..._session.getSessionUser() ?? {}, ...data};
       if (name != null && name.isNotEmpty) merged['name'] = name;
       if (mobile != null && mobile.isNotEmpty) merged['mobile'] = mobile;
+      if (gender != null && gender.trim().isNotEmpty) {
+        merged['gender'] = data['gender'] ?? payload['gender'];
+      }
       if (photoPath != null && photoPath.isNotEmpty) {
         merged['profilePictureUrl'] = photoPath;
         merged['profilePicture'] = photoPath;

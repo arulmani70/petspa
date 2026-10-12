@@ -72,4 +72,6 @@ class DatabaseConstants {
   final String COLUMN_STATUS = "status";
   final String COLUMN_TOTAL_PRICE = "total_price";
   final String COLUMN_SLOT = "slot";
+  final String COLUMN_CANCELLATION_REASON = "cancellation_reason";
+  final String COLUMN_ACCEPTANCE_DEADLINE = "acceptance_deadline";
 }

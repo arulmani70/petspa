@@ -247,7 +247,10 @@ class PetRepository {
       final response = await _api.postMultipart('/api/pets', formData);
 
       if (response == null || response['success'] == false) {
-        throw Exception("Failed to create pet");
+        final errorMsg = response?['message']?.toString() ??
+            response?['error']?.toString() ??
+            "Failed to create pet";
+        throw Exception(errorMsg);
       }
       log.d("PetRepository::createPet::Created pet successfully");
       return response['id'] ?? response['_id'] ?? response['data']?['id'] ?? 1;

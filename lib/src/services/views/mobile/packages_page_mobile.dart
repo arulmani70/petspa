@@ -270,7 +270,7 @@ class _PackageCard extends StatelessWidget {
                           ],
                           const Spacer(),
                           GestureDetector(
-                            onTap: () => context.goNamed(
+                            onTap: () => context.pushNamed(
                               RouteNames.bookingService,
                               extra: {'service': package, 'from_popular': true},
                             ),

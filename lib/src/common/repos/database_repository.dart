@@ -10,7 +10,7 @@ class DatabaseRepository {
   static Database? _database;
 
   static const String _databaseName = "shear_heaven.db";
-  static const int _databaseVersion = 1;
+  static const int _databaseVersion = 2;
 
   static final DatabaseRepository _instance = DatabaseRepository._internal();
   factory DatabaseRepository() => _instance;
@@ -179,6 +179,8 @@ class DatabaseRepository {
           ${Constants.database.COLUMN_SYNC_STATUS} TEXT DEFAULT '${Constants.database.SYNC_STATUS_PENDING}',
           ${Constants.database.COLUMN_CREATED_AT} TEXT NOT NULL,
           ${Constants.database.COLUMN_UPDATED_AT} TEXT NOT NULL,
+          ${Constants.database.COLUMN_CANCELLATION_REASON} TEXT,
+          ${Constants.database.COLUMN_ACCEPTANCE_DEADLINE} TEXT,
           ${Constants.database.COLUMN_IS_DELETED} INTEGER DEFAULT 0
         )
       ''');
@@ -193,6 +195,14 @@ class DatabaseRepository {
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     try {
       log.d("DatabaseRepository::_onUpgrade::Upgrading database from $oldVersion to $newVersion");
+      if (oldVersion < 2) {
+        try {
+          await db.execute('ALTER TABLE ${Constants.database.TABLE_BOOKINGS} ADD COLUMN ${Constants.database.COLUMN_CANCELLATION_REASON} TEXT');
+        } catch (_) {}
+        try {
+          await db.execute('ALTER TABLE ${Constants.database.TABLE_BOOKINGS} ADD COLUMN ${Constants.database.COLUMN_ACCEPTANCE_DEADLINE} TEXT');
+        } catch (_) {}
+      }
     } catch (error) {
       log.e("DatabaseRepository::_onUpgrade::Error: $error");
       rethrow;

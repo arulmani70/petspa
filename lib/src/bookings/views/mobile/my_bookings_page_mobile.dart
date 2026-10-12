@@ -665,7 +665,7 @@ class _MyBookingsPageMobileState extends State<MyBookingsPageMobile> {
     if (_currentBookings.isEmpty) {
       return _EmptyView(
         tab: _activeTab,
-        onBook: () => context.goNamed(RouteNames.petSelect),
+        onBook: () => context.pushNamed(RouteNames.petSelect),
       );
     }
 
@@ -702,7 +702,7 @@ class _MyBookingsPageMobileState extends State<MyBookingsPageMobile> {
                   ? () => _cancelBooking(booking)
                   : null,
               onBookAgain: _activeTab != _BookingTab.upcoming
-                  ? () => context.goNamed(RouteNames.petSelect)
+                  ? () => context.pushNamed(RouteNames.petSelect)
                   : null,
             ),
           );
@@ -756,15 +756,24 @@ class _BookingCard extends StatelessWidget {
   }
 
   int? get _petId {
-    final d = _petData;
-    final raw = d['id'] ??
-        d['petId'] ??
-        d['pet_id'] ??
-        d['PetId'] ??
-        booking['petId'] ??
+    final raw = booking['petId'] ??
         booking['pet_id'] ??
         booking['PetId'] ??
-        booking['id'];
+        booking[Constants.database.COLUMN_PET_ID] ??
+        (booking['pet'] is Map
+            ? (booking['pet']['id'] ??
+               booking['pet']['petId'] ??
+               booking['pet']['pet_id'] ??
+               booking['pet']['_id'] ??
+               booking['pet'][Constants.database.COLUMN_ID])
+            : null) ??
+        (booking['Pet'] is Map
+            ? (booking['Pet']['id'] ??
+               booking['Pet']['petId'] ??
+               booking['Pet']['pet_id'] ??
+               booking['Pet']['_id'] ??
+               booking['Pet'][Constants.database.COLUMN_ID])
+            : null);
     if (raw is int) return raw;
     return int.tryParse(raw?.toString() ?? '');
   }
@@ -961,6 +970,17 @@ class _BookingCard extends StatelessWidget {
   String get _status =>
       (booking['status']?.toString() ?? 'pending').toUpperCase();
 
+  String? get _cancellationReason {
+    final r = booking['cancellationReason'] ??
+        booking['cancellation_reason'] ??
+        booking['reason'] ??
+        booking['cancelReason'];
+    if (r != null && r.toString().trim().isNotEmpty && r.toString().trim() != 'null') {
+      return r.toString().trim();
+    }
+    return null;
+  }
+
   dynamic get _totalPrice => booking['totalPrice'] ?? booking['total_price'];
 
   dynamic get _totalDuration =>
@@ -1149,7 +1169,24 @@ class _BookingCard extends StatelessWidget {
     final durationLabel = _totalDuration != null ? '$_totalDuration min' : null;
 
     return GestureDetector(
-      onTap: () => context.pushNamed(RouteNames.bookingDetails, extra: booking),
+      onTap: () {
+        final enrichedBooking = Map<String, dynamic>.from(booking);
+        final id = _petId;
+        if (id != null) {
+          enrichedBooking['petId'] = id;
+          enrichedBooking['pet_id'] = id;
+          if (userPets.isNotEmpty) {
+            for (final p in userPets) {
+              final pId = p[Constants.database.COLUMN_ID] ?? p['id'] ?? p['petId'];
+              if (pId == id || pId.toString() == id.toString()) {
+                enrichedBooking['pet'] = p;
+                break;
+              }
+            }
+          }
+        }
+        context.pushNamed(RouteNames.bookingDetails, extra: enrichedBooking);
+      },
       child: Container(
         decoration: BoxDecoration(
           color: _kCardBg,
@@ -1257,6 +1294,76 @@ class _BookingCard extends StatelessWidget {
                   ),
               ],
             ),
+
+          // ── Cancellation Reason Banner ────────────────────────────────────
+          if (_status == 'CANCELLED' && _cancellationReason != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFECACA)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.info_outline,
+                    size: 14,
+                    color: Color(0xFFDC2626),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Reason: $_cancellationReason',
+                      style: AppFonts.poppins(
+                        size: 11.5,
+                        weight: FontWeight.w500,
+                        color: const Color(0xFFB91C1C),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // ── Pending Acceptance Timeout Info ──────────────────────────────
+          if (_status == 'PENDING') ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFDE68A)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.timer_outlined,
+                    size: 14,
+                    color: Color(0xFFD97706),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Awaiting groomer acceptance · Auto-cancels if not accepted by scheduled appointment time',
+                      style: AppFonts.poppins(
+                        size: 11.5,
+                        weight: FontWeight.w500,
+                        color: const Color(0xFFB45309),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
 
           // ── Actions ───────────────────────────────────────────────────────
           if (onCancel != null ||

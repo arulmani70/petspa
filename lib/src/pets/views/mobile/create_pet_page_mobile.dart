@@ -45,6 +45,7 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
   String? _photoPath;
   String _gender = 'Male';
   String _vaccinated = 'Yes';
+  bool _vaccinationDateError = false;
   bool _initialized = false;
 
   @override
@@ -245,14 +246,17 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
       _vaccinated = 'Yes';
     }
     
-    final lastVacc = DateTime.tryParse(
-      pet['lastVaccinatedDate']?.toString() ??
-      pet['lastVaccinated']?.toString() ??
-      '',
-    );
-    if (lastVacc != null) {
-      _lastVaccinatedDate = lastVacc;
+    final lastVaccStr = pet['lastVaccinatedDate']?.toString() ??
+        pet['lastVaccinated']?.toString();
+    if (_vaccinated == 'Yes' &&
+        lastVaccStr != null &&
+        lastVaccStr.trim().isNotEmpty &&
+        lastVaccStr.trim() != 'null') {
+      _lastVaccinatedDate = DateTime.tryParse(lastVaccStr.trim());
+    } else {
+      _lastVaccinatedDate = null;
     }
+    _vaccinationDateError = false;
     
     _behaviorNotesController.text =
         pet['behaviorNotes']?.toString() ??
@@ -423,6 +427,7 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
                   } else {
                     setState(() {
                       _lastVaccinatedDate = date;
+                      _vaccinationDateError = false;
                     });
                   }
                   Navigator.pop(context);
@@ -435,6 +440,16 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
     );
   }
 
+  void _onVaccinatedChanged(String value) {
+    setState(() {
+      _vaccinated = value;
+      if (value == 'No') {
+        _lastVaccinatedDate = null;
+        _vaccinationDateError = false;
+      }
+    });
+  }
+
   void _savePet(PetBloc bloc) {
     if (!_formKey.currentState!.validate()) return;
 
@@ -442,6 +457,17 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
       ToastUtil.showErrorToast(
         context,
         'Please upload a pet profile picture',
+      );
+      return;
+    }
+
+    if (_vaccinated == 'Yes' && _lastVaccinatedDate == null) {
+      setState(() {
+        _vaccinationDateError = true;
+      });
+      ToastUtil.showErrorToast(
+        context,
+        'Please select last vaccination date',
       );
       return;
     }
@@ -480,9 +506,8 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
       'age': _selectedAge ?? '',
       'gender': _gender.toLowerCase(),
       'allVaccinatedCurrent': _vaccinated == 'Yes' ? 'true' : 'false',
-      'lastVaccinatedDate': _vaccinated == 'Yes' && _lastVaccinatedDate != null
-          ? _lastVaccinatedDate!.toIso8601String().split('T').first
-          : null,
+      'lastVaccinatedDate':
+          _lastVaccinatedDate?.toIso8601String().split('T').first,
       'behaviorNotes': _behaviorNotesController.text.trim(),
     };
 
@@ -753,7 +778,11 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
                             ),
                             _buildSectionTitle("All Vaccinated Current"),
                             _buildVaccinatedRow(),
-                            _buildSectionTitle("Last Vaccinated Date"),
+                            _buildSectionTitle(
+                              _vaccinated == 'No'
+                                  ? "Last Vaccinated Date (Optional)"
+                                  : "Last Vaccinated Date",
+                            ),
                             _buildDateField(isBirthDate: false),
                             _buildSectionTitle("Behavior Notes"),
                             _buildTextField(
@@ -878,32 +907,38 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
       children: [
         _buildVaccineCheckbox(
           isChecked: _vaccinated == 'Yes',
-          onTap: () => setState(() => _vaccinated = 'Yes'),
+          onTap: () => _onVaccinatedChanged('Yes'),
         ),
         const SizedBox(width: 12),
-        const Text(
-          "Yes",
-          style: TextStyle(
-            fontFamily: 'Poppins',
-            fontSize: 16,
-            fontWeight: FontWeight.w400,
-            color: Colors.black,
+        GestureDetector(
+          onTap: () => _onVaccinatedChanged('Yes'),
+          child: const Text(
+            "Yes",
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 16,
+              fontWeight: FontWeight.w400,
+              color: Colors.black,
+            ),
           ),
         ),
         const SizedBox(width: 34),
         _buildVaccineCheckbox(
           isChecked: _vaccinated == 'No',
-          onTap: () => setState(() => _vaccinated = 'No'),
+          onTap: () => _onVaccinatedChanged('No'),
           radius: 7,
         ),
         const SizedBox(width: 12),
-        const Text(
-          "No",
-          style: TextStyle(
-            fontFamily: 'Poppins',
-            fontSize: 16,
-            fontWeight: FontWeight.w400,
-            color: Colors.black,
+        GestureDetector(
+          onTap: () => _onVaccinatedChanged('No'),
+          child: const Text(
+            "No",
+            style: TextStyle(
+              fontFamily: 'Poppins',
+              fontSize: 16,
+              fontWeight: FontWeight.w400,
+              color: Colors.black,
+            ),
           ),
         ),
       ],
@@ -1158,32 +1193,54 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
   Widget _buildDateField({required bool isBirthDate}) {
     final date = isBirthDate ? _birthDate : _lastVaccinatedDate;
     final hint = isBirthDate ? "eg: 03-08-2022" : "eg: 03-08-2025";
-    return GestureDetector(
-      onTap: () => _showCalendarModal(isBirthDate),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(50),
-          border: Border.all(color: const Color(0xFFE5E5E5)),
-        ),
-        child: Row(
-          children: [
-            Text(
-              date == null
-                  ? hint
-                  : "${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}",
-              style: TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 16,
-                color: date == null ? const Color(0xFF9F9F9F) : Colors.black,
-                height: 26.95 / 16,
-                letterSpacing: 0,
+    final hasError = !isBirthDate && _vaccinationDateError;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: () => _showCalendarModal(isBirthDate),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(50),
+              border: Border.all(
+                color: hasError ? Colors.red : const Color(0xFFE5E5E5),
+                width: hasError ? 1.5 : 1.0,
               ),
             ),
-          ],
+            child: Row(
+              children: [
+                Text(
+                  date == null
+                      ? hint
+                      : "${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}",
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 16,
+                    color: date == null ? const Color(0xFF9F9F9F) : Colors.black,
+                    height: 26.95 / 16,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-      ),
+        if (hasError)
+          const Padding(
+            padding: EdgeInsets.only(left: 16, top: 6),
+            child: Text(
+              'Please select last vaccination date',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 12,
+                color: Colors.red,
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

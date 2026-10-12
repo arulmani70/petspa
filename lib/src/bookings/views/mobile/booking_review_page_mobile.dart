@@ -738,6 +738,10 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
             (apiPrice is num ? apiPrice.toDouble() : _draft.totalPrice);
 
         final petData = _draft.pet;
+        final petId = petData?[Constants.database.COLUMN_ID] ??
+            petData?['id'] ??
+            petData?['petId'] ??
+            petData?['pet_id'];
         final petPhoto = petData?[Constants.database.COLUMN_PHOTO_URL]?.toString() ??
             petData?['profilePictureUrl']?.toString() ??
             petData?['profilePicture']?.toString() ??
@@ -748,13 +752,19 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
 
         _draft.lastBooking = {
           'booking_id': bookingId,
+          'bookingId': bookingId,
+          'id': bookingId,
           'status': data?['status'] ?? 'confirmed',
           'total_price': finalConfirmedPrice,
           'total_duration_minutes': data?['totalDurationMinutes'] ?? _draft.duration,
-          'pet_name': petData?['pet_name']?.toString() ?? petData?[Constants.database.COLUMN_PET_NAME]?.toString() ?? '',
+          'pet_id': petId,
+          'petId': petId,
+          'pet': petData,
+          'pet_name': petData?['pet_name']?.toString() ?? petData?[Constants.database.COLUMN_PET_NAME]?.toString() ?? petData?['name']?.toString() ?? '',
           'pet_breed': petData?['breed']?.toString() ?? petData?[Constants.database.COLUMN_BREED]?.toString() ?? '',
           'pet_weight': petData?['weight']?.toString() ?? petData?[Constants.database.COLUMN_WEIGHT]?.toString(),
-          'pet_birth_date': petData?['birth_date']?.toString() ?? petData?[Constants.database.COLUMN_BIRTH_DATE]?.toString(),
+          'pet_birth_date': petData?['birth_date']?.toString() ?? petData?[Constants.database.COLUMN_BIRTH_DATE]?.toString() ?? petData?['dateOfBirth']?.toString(),
+          'gender': petData?['gender']?.toString(),
           'pet_photo': petPhoto,
           'pet_photo_url': petPhoto,
           'photo_url': petPhoto,
@@ -873,7 +883,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildPromoCodeSection(),
-                    _sectionTitle("Selected Pet", () => context.goNamed(RouteNames.petSelect)),
+                    _sectionTitle("Selected Pet", () => context.pushNamed(RouteNames.petSelect)),
                     const SizedBox(height: 12),
                     _reviewCard(
                       image: _petImage(petPhoto),

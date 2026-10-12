@@ -25,9 +25,24 @@ class BookingHeader extends StatelessWidget {
       onBack!();
       return;
     }
-    if (context.canPop()) {
-      context.pop();
-      return;
+    bool canPop = false;
+    try {
+      canPop = context.canPop();
+    } catch (_) {
+      try {
+        canPop = Navigator.of(context).canPop();
+      } catch (_) {}
+    }
+    if (canPop) {
+      try {
+        context.pop();
+        return;
+      } catch (_) {
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+          return;
+        }
+      }
     }
     switch (step) {
       case 2:

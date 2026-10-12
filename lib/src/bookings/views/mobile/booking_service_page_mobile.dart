@@ -84,6 +84,46 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
     return parts.join('  ·  ');
   }
 
+  void _handleBack(BuildContext context) {
+    bool canPop = false;
+    try {
+      canPop = context.canPop();
+    } catch (_) {
+      try {
+        canPop = Navigator.of(context).canPop();
+      } catch (_) {}
+    }
+    if (canPop) {
+      try {
+        context.pop();
+        return;
+      } catch (_) {
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+          return;
+        }
+      }
+    }
+
+    // Fallback when navigation stack has no previous route
+    final extra = GoRouterState.of(context).extra;
+    final isFromPopular = (extra is Map && (extra['from_popular'] == true || extra['service'] != null)) || _isFromPopular;
+    final hasRealPet = _draft.pet != null &&
+        (_draft.pet?['id'] != null && _draft.pet?['id'] != 0);
+
+    if (isFromPopular && !hasRealPet) {
+      try {
+        context.goNamed(RouteNames.services);
+        return;
+      } catch (_) {}
+    }
+    try {
+      context.goNamed(RouteNames.petSelect);
+    } catch (_) {
+      context.goNamed(RouteNames.home);
+    }
+  }
+
   void _onContinue() {
     if (_draft.service == null) {
       ToastUtil.showErrorToast(context, 'Please select a service.');
@@ -109,7 +149,11 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
 
             if (state.status == ServiceStatus.loading ||
                 state.status == ServiceStatus.initial) {
-              return _LoadingScaffold(petName: petName, hasPet: hasRealPet);
+              return _LoadingScaffold(
+                petName: petName,
+                hasPet: hasRealPet,
+                onBack: () => _handleBack(context),
+              );
             }
 
             if (state.status == ServiceStatus.failure || bs == null) {
@@ -119,6 +163,7 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
                     context.read<ServiceBloc>().add(const InitializeServices()),
                 petName: petName,
                 hasPet : hasRealPet,
+                onBack: () => _handleBack(context),
               );
             }
 
@@ -151,18 +196,28 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
                 hasPet : hasRealPet,
                 onRetry: () =>
                     context.read<ServiceBloc>().add(const InitializeServices()),
+                onBack: () => _handleBack(context),
               );
             }
 
             final canContinue = _draft.service != null;
+            bool canPop = false;
+            try {
+              canPop = context.canPop();
+            } catch (_) {
+              try {
+                canPop = Navigator.of(context).canPop();
+              } catch (_) {}
+            }
+
             return DefaultTabController(
               key: ValueKey('tabs_${tabs.length}_${showBreedTab}_$hasRealPet'),
               length: tabs.length,
               child: PopScope(
-                canPop: context.canPop(),
+                canPop: canPop,
                 onPopInvokedWithResult: (didPop, result) {
                   if (didPop) return;
-                  context.goNamed(RouteNames.petSelect);
+                  _handleBack(context);
                 },
                 child: Scaffold(
                   backgroundColor: _kPageBg,
@@ -177,6 +232,7 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
                           subtitle: hasRealPet
                               ? 'Step 2 of 4 — Booking for $petName'
                               : 'Step 2 of 4 — Choose a Service',
+                          onBack  : () => _handleBack(context),
                         ),
 
                         // Pet strip (shown only when pet pre-selected from Step 1)
@@ -952,12 +1008,33 @@ class _BottomBar extends StatelessWidget {
 // State scaffolds
 // ─────────────────────────────────────────────────────────────────────────────
 class _LoadingScaffold extends StatelessWidget {
-  final String petName;
-  final bool   hasPet;
-  const _LoadingScaffold({required this.petName, required this.hasPet});
+  final String       petName;
+  final bool         hasPet;
+  final VoidCallback onBack;
+  const _LoadingScaffold({
+    required this.petName,
+    required this.hasPet,
+    required this.onBack,
+  });
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    bool canPop = false;
+    try {
+      canPop = context.canPop();
+    } catch (_) {
+      try {
+        canPop = Navigator.of(context).canPop();
+      } catch (_) {}
+    }
+
+    return PopScope(
+      canPop: canPop,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        onBack();
+      },
+      child: Scaffold(
         backgroundColor: _kPageBg,
         body: SafeArea(
           bottom: false,
@@ -969,6 +1046,7 @@ class _LoadingScaffold extends StatelessWidget {
                 subtitle: hasPet
                     ? 'Step 2 of 4 — Booking for $petName'
                     : 'Step 2 of 4 — Choose a Service',
+                onBack  : onBack,
               ),
               Expanded(
                 child: ListView(
@@ -989,7 +1067,9 @@ class _LoadingScaffold extends StatelessWidget {
             ],
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 class _ErrorScaffold extends StatelessWidget {
@@ -997,15 +1077,33 @@ class _ErrorScaffold extends StatelessWidget {
   final VoidCallback onRetry;
   final String       petName;
   final bool         hasPet;
+  final VoidCallback onBack;
   const _ErrorScaffold({
     required this.message,
     required this.onRetry,
     required this.petName,
     required this.hasPet,
+    required this.onBack,
   });
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    bool canPop = false;
+    try {
+      canPop = context.canPop();
+    } catch (_) {
+      try {
+        canPop = Navigator.of(context).canPop();
+      } catch (_) {}
+    }
+
+    return PopScope(
+      canPop: canPop,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        onBack();
+      },
+      child: Scaffold(
         backgroundColor: _kPageBg,
         body: SafeArea(
           bottom: false,
@@ -1017,6 +1115,7 @@ class _ErrorScaffold extends StatelessWidget {
                 subtitle: hasPet
                     ? 'Step 2 of 4 — Booking for $petName'
                     : 'Step 2 of 4 — Choose a Service',
+                onBack  : onBack,
               ),
               Expanded(
                 child: Center(
@@ -1074,21 +1173,41 @@ class _ErrorScaffold extends StatelessWidget {
             ],
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 class _EmptyScaffold extends StatelessWidget {
   final String       petName;
   final bool         hasPet;
   final VoidCallback onRetry;
+  final VoidCallback onBack;
   const _EmptyScaffold({
     required this.petName,
     required this.hasPet,
     required this.onRetry,
+    required this.onBack,
   });
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    bool canPop = false;
+    try {
+      canPop = context.canPop();
+    } catch (_) {
+      try {
+        canPop = Navigator.of(context).canPop();
+      } catch (_) {}
+    }
+
+    return PopScope(
+      canPop: canPop,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        onBack();
+      },
+      child: Scaffold(
         backgroundColor: _kPageBg,
         body: SafeArea(
           bottom: false,
@@ -1100,6 +1219,7 @@ class _EmptyScaffold extends StatelessWidget {
                 subtitle: hasPet
                     ? 'Step 2 of 4 — Booking for $petName'
                     : 'Step 2 of 4 — Choose a Service',
+                onBack  : onBack,
               ),
               Expanded(
                 child: Center(
@@ -1141,5 +1261,8 @@ class _EmptyScaffold extends StatelessWidget {
             ],
           ),
         ),
-      );
+      ),
+    );
+  }
 }
+

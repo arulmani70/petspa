@@ -1,15 +1,18 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:logger/logger.dart';
 import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/services/booking_calendar_service.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/services/booking_draft.dart';
 import 'package:shear_heaven_pet_spa/src/common/constants/constansts.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
+import 'package:shear_heaven_pet_spa/src/pets/bloc/pet_bloc.dart';
 
-class BookingDetailsPageMobile extends StatelessWidget {
+class BookingDetailsPageMobile extends StatefulWidget {
   final Map<String, dynamic>? bookingData;
 
   const BookingDetailsPageMobile({
@@ -18,48 +21,243 @@ class BookingDetailsPageMobile extends StatelessWidget {
   });
 
   @override
+  State<BookingDetailsPageMobile> createState() => _BookingDetailsPageMobileState();
+}
+
+class _BookingDetailsPageMobileState extends State<BookingDetailsPageMobile> {
+  final Logger _log = Logger();
+  Map<String, dynamic>? _fetchedPet;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchPetData();
+  }
+
+  int? _extractPetId(Map<String, dynamic> summary) {
+    final raw = summary['petId'] ??
+        summary['pet_id'] ??
+        summary['PetId'] ??
+        summary[Constants.database.COLUMN_PET_ID] ??
+        (summary['pet'] is Map
+            ? (summary['pet']['id'] ??
+               summary['pet']['petId'] ??
+               summary['pet']['pet_id'] ??
+               summary['pet']['_id'] ??
+               summary['pet'][Constants.database.COLUMN_ID])
+            : null) ??
+        (summary['Pet'] is Map
+            ? (summary['Pet']['id'] ??
+               summary['Pet']['petId'] ??
+               summary['Pet']['pet_id'] ??
+               summary['Pet']['_id'] ??
+               summary['Pet'][Constants.database.COLUMN_ID])
+            : null);
+    if (raw is int) return raw;
+    return int.tryParse(raw?.toString() ?? '');
+  }
+
+  String _extractRawPetName(Map<String, dynamic> summary) {
+    final embedded = (summary['pet'] is Map)
+        ? Map<String, dynamic>.from(summary['pet'] as Map)
+        : (summary['Pet'] is Map ? Map<String, dynamic>.from(summary['Pet'] as Map) : null);
+    final raw = embedded?[Constants.database.COLUMN_PET_NAME] ??
+        embedded?['name'] ??
+        embedded?['petName'] ??
+        embedded?['pet_name'] ??
+        summary['pet_name'] ??
+        summary['petName'] ??
+        summary['name'] ??
+        summary[Constants.database.COLUMN_PET_NAME];
+    return raw?.toString().trim() ?? '';
+  }
+
+  Future<void> _fetchPetData() async {
+    try {
+      context.read<PetBloc>().add(const GetAllPets());
+    } catch (_) {}
+
+    final summary = widget.bookingData ?? ServicesLocator.bookingDraft.lastBooking ?? const <String, dynamic>{};
+    final petId = _extractPetId(summary);
+    if (petId != null && petId > 0) {
+      try {
+        final pet = await ServicesLocator.petRepository.getPetById(petId);
+        if (mounted && pet != null && pet.isNotEmpty) {
+          setState(() {
+            _fetchedPet = pet;
+          });
+        }
+      } catch (e) {
+        _log.w("BookingDetailsPageMobile::_fetchPetData::Error: $e");
+      }
+    }
+  }
+
+  String? _resolvePetPhoto(
+    Map<String, dynamic>? matchedPet,
+    Map<String, dynamic>? embeddedPet,
+    Map<String, dynamic> summary,
+  ) {
+    final candidates = [
+      matchedPet?[Constants.database.COLUMN_PHOTO_URL],
+      matchedPet?['profilePictureUrl'],
+      matchedPet?['profilePicture'],
+      matchedPet?['profile_picture_url'],
+      matchedPet?['profile_picture'],
+      matchedPet?['photo_url'],
+      matchedPet?['photoUrl'],
+      matchedPet?['petPhotoUrl'],
+      matchedPet?['pet_photo_url'],
+      matchedPet?['petPhoto'],
+      matchedPet?['pet_photo'],
+      matchedPet?['image'],
+      matchedPet?['avatar'],
+      matchedPet?['petImage'],
+      matchedPet?['pet_image'],
+      embeddedPet?[Constants.database.COLUMN_PHOTO_URL],
+      embeddedPet?['profilePictureUrl'],
+      embeddedPet?['profilePicture'],
+      embeddedPet?['photo_url'],
+      embeddedPet?['photoUrl'],
+      embeddedPet?['pet_photo_url'],
+      embeddedPet?['petPhotoUrl'],
+      embeddedPet?['pet_photo'],
+      embeddedPet?['image'],
+      embeddedPet?['avatar'],
+      summary['pet_photo'],
+      summary['pet_photo_url'],
+      summary['petPhotoUrl'],
+      summary['petPhoto'],
+      summary['photo_url'],
+      summary['photoUrl'],
+      summary['profilePictureUrl'],
+      summary['profilePicture'],
+      summary['image'],
+      summary['avatar'],
+    ];
+
+    for (final c in candidates) {
+      if (c != null) {
+        final s = c.toString().trim();
+        if (s.isNotEmpty && s != 'null' && s != 'undefined') {
+          return s;
+        }
+      }
+    }
+    return null;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final BookingDraft draft = ServicesLocator.bookingDraft;
-    final summary = bookingData ?? draft.lastBooking ?? const <String, dynamic>{};
+    final summary = widget.bookingData ?? draft.lastBooking ?? const <String, dynamic>{};
 
     final rawStatus = summary['status']?.toString().toLowerCase() ?? 'confirmed';
     final statusDisplay = _formatStatusLabel(rawStatus);
 
-    final petMap = (summary['pet'] is Map)
+    final petId = _extractPetId(summary);
+
+    // Watch PetBloc state to react in real-time to any pet profile updates
+    List<Map<String, dynamic>> userPets = const [];
+    try {
+      userPets = context.watch<PetBloc>().state.pets;
+    } catch (_) {}
+
+    // Find saved pet profile by petId
+    Map<String, dynamic>? matchedPet;
+    if (petId != null && petId > 0 && userPets.isNotEmpty) {
+      for (final p in userPets) {
+        final pId = p[Constants.database.COLUMN_ID] ?? p['id'] ?? p['_id'] ?? p['petId'];
+        if (pId != null && (pId == petId || pId.toString() == petId.toString())) {
+          matchedPet = p;
+          break;
+        }
+      }
+    }
+
+    // Fallback to directly fetched pet from repository
+    matchedPet ??= _fetchedPet;
+
+    // Fallback by pet name from userPets if ID match wasn't found
+    if (matchedPet == null && userPets.isNotEmpty) {
+      final summaryName = _extractRawPetName(summary);
+      if (summaryName.isNotEmpty && summaryName != 'Teddy' && summaryName != 'Pet') {
+        for (final p in userPets) {
+          final pName = (p[Constants.database.COLUMN_PET_NAME] ?? p['name'] ?? p['petName'])?.toString();
+          if (pName != null && pName.toLowerCase() == summaryName.toLowerCase()) {
+            matchedPet = p;
+            break;
+          }
+        }
+      }
+    }
+
+    final embeddedPet = (summary['pet'] is Map)
         ? Map<String, dynamic>.from(summary['pet'] as Map)
-        : summary;
+        : (summary['Pet'] is Map ? Map<String, dynamic>.from(summary['Pet'] as Map) : null);
 
-    final petNameRaw = petMap['pet_name']?.toString().trim() ??
-        petMap['name']?.toString().trim() ??
+    final petNameRaw = matchedPet?[Constants.database.COLUMN_PET_NAME]?.toString().trim() ??
+        matchedPet?['name']?.toString().trim() ??
+        matchedPet?['petName']?.toString().trim() ??
+        embeddedPet?['pet_name']?.toString().trim() ??
+        embeddedPet?['petName']?.toString().trim() ??
+        embeddedPet?['name']?.toString().trim() ??
         summary['pet_name']?.toString().trim() ??
+        summary['petName']?.toString().trim() ??
+        summary['name']?.toString().trim() ??
         '';
-    final petName = petNameRaw.isNotEmpty ? petNameRaw : 'Teddy';
+    final petName = petNameRaw.isNotEmpty && petNameRaw != 'null' ? petNameRaw : 'Pet';
 
-    final petBreedRaw = petMap['pet_breed']?.toString().trim() ??
-        petMap['breed']?.toString().trim() ??
+    final petBreedRaw = matchedPet?[Constants.database.COLUMN_BREED]?.toString().trim() ??
+        matchedPet?['breed']?.toString().trim() ??
+        matchedPet?['petBreed']?.toString().trim() ??
+        embeddedPet?['pet_breed']?.toString().trim() ??
+        embeddedPet?['petBreed']?.toString().trim() ??
+        embeddedPet?['breed']?.toString().trim() ??
         summary['pet_breed']?.toString().trim() ??
+        summary['petBreed']?.toString().trim() ??
+        summary['breed']?.toString().trim() ??
         '';
-    final petBreed = (petBreedRaw.isNotEmpty && petBreedRaw != 'N/A') ? petBreedRaw : 'Shih Tzu';
+    final petBreed = (petBreedRaw.isNotEmpty && petBreedRaw != 'null' && petBreedRaw != 'N/A')
+        ? petBreedRaw
+        : 'Unknown';
 
-    final petWeightRaw = petMap['pet_weight']?.toString() ??
-        petMap['weight']?.toString() ??
-        summary['pet_weight']?.toString();
-    final petBirthDateRaw = petMap['pet_birth_date']?.toString() ??
-        petMap['birth_date']?.toString() ??
-        petMap['birthDate']?.toString() ??
-        summary['pet_birth_date']?.toString();
+    final petGenderRaw = matchedPet?['gender']?.toString().trim() ??
+        embeddedPet?['gender']?.toString().trim() ??
+        summary['gender']?.toString().trim() ??
+        '';
+    final petGender = (petGenderRaw.isNotEmpty && petGenderRaw != 'null')
+        ? (petGenderRaw.toLowerCase() == 'female'
+            ? 'Female'
+            : (petGenderRaw.toLowerCase() == 'male' ? 'Male' : petGenderRaw))
+        : '';
 
-    final petPhoto = petMap['pet_photo']?.toString() ??
-        petMap['pet_photo_url']?.toString() ??
-        petMap['photo_url']?.toString() ??
-        petMap['profilePictureUrl']?.toString() ??
-        petMap['profilePicture']?.toString() ??
-        petMap['avatar']?.toString() ??
-        petMap['image']?.toString() ??
-        petMap['photo']?.toString() ??
-        summary['pet_photo']?.toString() ??
-        summary['pet_photo_url']?.toString() ??
-        summary['photo_url']?.toString();
+    final petWeightRaw = matchedPet?[Constants.database.COLUMN_WEIGHT]?.toString() ??
+        matchedPet?['weight']?.toString() ??
+        matchedPet?['petWeight']?.toString() ??
+        embeddedPet?['pet_weight']?.toString() ??
+        embeddedPet?['weight']?.toString() ??
+        embeddedPet?['petWeight']?.toString() ??
+        summary['pet_weight']?.toString() ??
+        summary['petWeight']?.toString() ??
+        summary['weight']?.toString();
+
+    final petBirthDateRaw = matchedPet?[Constants.database.COLUMN_BIRTH_DATE]?.toString() ??
+        matchedPet?['dateOfBirth']?.toString() ??
+        matchedPet?['birth_date']?.toString() ??
+        matchedPet?['birthDate']?.toString() ??
+        embeddedPet?['pet_birth_date']?.toString() ??
+        embeddedPet?['birth_date']?.toString() ??
+        embeddedPet?['dateOfBirth']?.toString() ??
+        embeddedPet?['birthDate']?.toString() ??
+        summary['pet_birth_date']?.toString() ??
+        summary['birth_date']?.toString() ??
+        summary['dateOfBirth']?.toString() ??
+        summary['birthDate']?.toString();
+
+    final directAge = matchedPet?['age'] ?? embeddedPet?['age'] ?? summary['age'];
+
+    final petPhoto = _resolvePetPhoto(matchedPet, embeddedPet, summary);
 
     final rawServiceName = summary['service_name']?.toString().trim() ??
         summary['service']?['service_name']?.toString().trim() ??
@@ -83,7 +281,7 @@ class BookingDetailsPageMobile extends StatelessWidget {
         '';
 
     final formattedWeight = _formatWeight(petWeightRaw);
-    final formattedAge = _petAge(petBirthDateRaw);
+    final formattedAge = _petAge(petBirthDateRaw, directAge);
 
     final serviceDisplayText = hasAddOns ? '$serviceName + Add On Services' : serviceName;
     final dateTimeDisplayText = (dateLabel.isNotEmpty && timeLabel.isNotEmpty)
@@ -92,11 +290,22 @@ class BookingDetailsPageMobile extends StatelessWidget {
             ? dateLabel
             : (timeLabel.isNotEmpty ? timeLabel : 'Aug 4, 2026 · 10:30 AM'));
 
+    bool canPop = false;
+    try {
+      canPop = context.canPop();
+    } catch (_) {
+      try {
+        canPop = Navigator.canPop(context);
+      } catch (_) {}
+    }
+
     return PopScope(
-      canPop: context.canPop(),
+      canPop: canPop,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        context.goNamed(RouteNames.myBookings);
+        try {
+          context.goNamed(RouteNames.myBookings);
+        } catch (_) {}
       },
       child: Scaffold(
         body: Stack(
@@ -128,11 +337,20 @@ class BookingDetailsPageMobile extends StatelessWidget {
                             alignment: Alignment.centerLeft,
                             child: GestureDetector(
                               onTap: () {
-                                if (context.canPop()) {
-                                  context.pop();
-                                } else {
-                                  context.goNamed(RouteNames.myBookings);
+                                try {
+                                  if (context.canPop()) {
+                                    context.pop();
+                                    return;
+                                  }
+                                } catch (_) {
+                                  if (Navigator.canPop(context)) {
+                                    Navigator.pop(context);
+                                    return;
+                                  }
                                 }
+                                try {
+                                  context.goNamed(RouteNames.myBookings);
+                                } catch (_) {}
                               },
                               behavior: HitTestBehavior.opaque,
                               child: const Padding(
@@ -237,6 +455,14 @@ class BookingDetailsPageMobile extends StatelessWidget {
                                                     color: Colors.black,
                                                   ),
                                                 ),
+                                                if (petGender.isNotEmpty)
+                                                  TextSpan(
+                                                    text: ' · $petGender',
+                                                    style: const TextStyle(
+                                                      fontWeight: FontWeight.w600,
+                                                      color: Color(0xFF4B5563),
+                                                    ),
+                                                  ),
                                               ],
                                             ),
                                             maxLines: 1,
@@ -356,6 +582,71 @@ class BookingDetailsPageMobile extends StatelessWidget {
                               ),
                             ),
                           ),
+
+                          // Cancellation Reason Box
+                          if (rawStatus == 'cancelled' ||
+                              rawStatus == 'canceled' ||
+                              (summary['cancellationReason'] != null && summary['cancellationReason'].toString().isNotEmpty) ||
+                              (summary['cancellation_reason'] != null && summary['cancellation_reason'].toString().isNotEmpty)) ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEF2F2),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFFFECACA)),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(Icons.info_outline, size: 16, color: Color(0xFFDC2626)),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Cancellation Reason: ${summary['cancellationReason'] ?? summary['cancellation_reason'] ?? Constants.app.CANCELLATION_REASON_GROOMER_TIMEOUT}',
+                                      style: AppFonts.poppins(
+                                        size: 12.5,
+                                        weight: FontWeight.w500,
+                                        color: const Color(0xFFB91C1C),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+
+                          // Pending Acceptance Notice
+                          if (rawStatus == 'pending') ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFFBEB),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFFFDE68A)),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(Icons.timer_outlined, size: 16, color: Color(0xFFD97706)),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Awaiting groomer acceptance · Auto-cancels if not accepted by scheduled appointment time',
+                                      style: AppFonts.poppins(
+                                        size: 12,
+                                        weight: FontWeight.w500,
+                                        color: const Color(0xFFB45309),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
 
                           const SizedBox(height: 18),
 
@@ -675,84 +966,130 @@ class BookingDetailsPageMobile extends StatelessWidget {
   }
 
   String _formatWeight(String? weight) {
-    if (weight == null || weight.isEmpty || weight == 'null' || weight == 'N/A') return '16kg';
+    if (weight == null) return 'N/A';
     final trimmed = weight.trim();
-    if (trimmed.toLowerCase().endsWith('kg') ||
-        trimmed.toLowerCase().endsWith('lbs')) {
+    if (trimmed.isEmpty || trimmed == 'null' || trimmed == 'N/A') return 'N/A';
+    final lower = trimmed.toLowerCase();
+    if (lower.endsWith('kg') ||
+        lower.endsWith('lbs') ||
+        lower.endsWith('lb') ||
+        lower.contains('(')) {
       return trimmed;
     }
-    if (trimmed.toLowerCase() == 'standard') return '16kg';
-    return '${trimmed}kg';
+    if (double.tryParse(trimmed) != null) {
+      return '${trimmed}kg';
+    }
+    return trimmed;
   }
 
-  String _petAge(String? birthDate) {
-    if (birthDate == null || birthDate.isEmpty || birthDate == 'null' || birthDate == 'N/A') return '2yrs';
+  String _petAge(String? birthDate, [dynamic directAge]) {
+    if (directAge != null) {
+      final directStr = directAge.toString().trim();
+      if (directStr.isNotEmpty && directStr != 'null' && directStr != 'N/A') {
+        final parsedNum = num.tryParse(directStr);
+        if (parsedNum != null) {
+          return parsedNum == 1 ? '1yr' : '${parsedNum}yrs';
+        }
+        return directStr;
+      }
+    }
+    if (birthDate == null ||
+        birthDate.isEmpty ||
+        birthDate == 'null' ||
+        birthDate == 'N/A') {
+      return 'N/A';
+    }
     final parsed = DateTime.tryParse(birthDate);
-    if (parsed == null) return birthDate;
+    if (parsed == null) return birthDate.trim();
     final now = DateTime.now();
     var years = now.year - parsed.year;
     if (now.month < parsed.month ||
         (now.month == parsed.month && now.day < parsed.day)) {
       years--;
     }
-    return years <= 0
-        ? '${(now.difference(parsed).inDays / 30.4).round()}mos'
-        : '${years}yrs';
+    if (years <= 0) {
+      final months = (now.difference(parsed).inDays / 30.4).round();
+      return months <= 0 ? '< 1mo' : '${months}mos';
+    }
+    return '${years}yrs';
   }
 
   Widget _buildPetImage(String? photo) {
-    if (photo != null && photo.isNotEmpty) {
-      if (photo.startsWith('http')) {
-        return Image.network(
-          photo,
-          width: double.infinity,
-          height: double.infinity,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) =>
-              Image.asset('assets/images/pets/sample_pet.png', width: double.infinity, height: double.infinity, fit: BoxFit.cover, errorBuilder: (c, e, s) => const Icon(Icons.pets, color: Colors.black54, size: 32)),
-        );
-      } else if (photo.startsWith('/')) {
-        return Image.network(
-          '${Constants.app.BASE_URL}$photo',
-          width: double.infinity,
-          height: double.infinity,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) =>
-              Image.asset('assets/images/pets/sample_pet.png', width: double.infinity, height: double.infinity, fit: BoxFit.cover, errorBuilder: (c, e, s) => const Icon(Icons.pets, color: Colors.black54, size: 32)),
-        );
-      } else if (photo.startsWith('assets/')) {
-        return Image.asset(
-          photo,
-          width: double.infinity,
-          height: double.infinity,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) =>
-              const Icon(Icons.pets, color: Colors.black54, size: 32),
-        );
-      } else {
-        try {
-          final file = File(photo);
-          if (file.existsSync()) {
-            return Image.file(
-              file,
+    if (photo != null) {
+      final clean = photo.trim();
+      if (clean.isNotEmpty && clean != 'null' && clean != 'undefined') {
+        if (clean.startsWith('http://') || clean.startsWith('https://')) {
+          return Image.network(
+            clean,
+            width: double.infinity,
+            height: double.infinity,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+          );
+        } else if (clean.startsWith('assets/')) {
+          return Image.asset(
+            clean,
+            width: double.infinity,
+            height: double.infinity,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+          );
+        } else if (clean.startsWith('/') ||
+            clean.startsWith('uploads/') ||
+            clean.startsWith('images/')) {
+          final url = clean.startsWith('/')
+              ? '${Constants.app.BASE_URL}$clean'
+              : '${Constants.app.BASE_URL}/$clean';
+          return Image.network(
+            url,
+            width: double.infinity,
+            height: double.infinity,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+          );
+        } else {
+          try {
+            final file = File(clean);
+            if (file.existsSync()) {
+              return Image.file(
+                file,
+                width: double.infinity,
+                height: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) =>
+                    _buildPlaceholder(),
+              );
+            }
+          } catch (_) {}
+          if (clean.contains('/') && !clean.contains('\\')) {
+            return Image.network(
+              '${Constants.app.BASE_URL}/$clean',
               width: double.infinity,
               height: double.infinity,
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) =>
-                  const Icon(Icons.pets, color: Colors.black54, size: 32),
+              errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
             );
           }
-        } catch (_) {}
+        }
       }
     }
+    return _buildPlaceholder();
+  }
+
+  Widget _buildPlaceholder() {
     return Image.asset(
       'assets/images/pets/sample_pet.png',
       width: double.infinity,
       height: double.infinity,
       fit: BoxFit.cover,
-      errorBuilder: (c, e, s) => const Icon(Icons.pets, color: Colors.black54, size: 32),
+      errorBuilder: (c, e, s) => Container(
+        color: const Color(0xFFF3F4F6),
+        alignment: Alignment.center,
+        child: const Icon(Icons.pets, color: Colors.black45, size: 32),
+      ),
     );
   }
+
 
   Widget _detailRow({required Widget icon, required String label}) {
     return Row(

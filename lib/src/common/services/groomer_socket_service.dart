@@ -43,6 +43,12 @@ class GroomerSocketService {
     'groomer_notification',
     'booking_notification',
     'booking_confirmed',
+    'booking_accepted',
+    'booking_cancelled',
+    'booking_auto_cancelled',
+    'appointment_cancelled',
+    'booking_timeout',
+    'appointment_timeout',
     'booking_in_progress',
     'booking_started',
     'booking_completed',
@@ -53,6 +59,8 @@ class GroomerSocketService {
     'booking_updated',
     'booking_status_change',
     'cancellation_requested',
+    'cancellation_approved',
+    'cancellation_rejected',
     'customer_updated',
     'customer_created',
     'customer_registered',
@@ -244,6 +252,13 @@ class GroomerSocketService {
     disconnect();
     _notificationController.close();
     _connectionStatusController.close();
+  }
+
+  /// Dispatches a notification directly into the groomer notification stream.
+  void handleDirectNotification(AppNotification notification) {
+    if (!_notificationController.isClosed) {
+      _notificationController.add(notification);
+    }
   }
 
   /// Helper for testing to inject mock event payloads directly into the stream.

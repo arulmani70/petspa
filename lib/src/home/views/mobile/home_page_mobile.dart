@@ -763,7 +763,7 @@ class _HomePageMobileState extends State<HomePageMobile> {
                   ),
                   const SizedBox(height: 8),
                   GestureDetector(
-                    onTap: () => context.goNamed(RouteNames.petSelect),
+                    onTap: () => context.pushNamed(RouteNames.petSelect),
                     child: Container(
                       width: 170,
                       height: 36,
@@ -805,7 +805,7 @@ class _HomePageMobileState extends State<HomePageMobile> {
           iconWidth: 38,
           iconHeight: 38,
           label: 'Book Now',
-          onTap: () => context.goNamed(RouteNames.petSelect),
+          onTap: () => context.pushNamed(RouteNames.petSelect),
         ),
         _buildQuickActionTile(
           icon: 'assets/images/home/ic_cat_1.png',
@@ -1092,7 +1092,7 @@ class _HomePageMobileState extends State<HomePageMobile> {
           price: p.priceDisplay.isNotEmpty ? p.priceDisplay : '',
           imageUrl: p.imageUrl,
           dark: dark,
-          onBook: () => context.goNamed(RouteNames.petSelect),
+          onBook: () => context.pushNamed(RouteNames.petSelect),
           onDetail: () => context.pushNamed(
             RouteNames.serviceDetail,
             pathParameters: {'serviceId': p.id.toString()},
@@ -1728,7 +1728,7 @@ Widget _buildPetAvatar(
   return InkWell(
     onTap: () {
       context.read<PetBloc>().add(SelectPet(petId));
-      context.goNamed(RouteNames.petSelect);
+      context.pushNamed(RouteNames.petSelect);
     },
     child: Column(
       children: [

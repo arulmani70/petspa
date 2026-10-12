@@ -28,4 +28,9 @@ class AppConstants {
   final String CLIENT_ID_KEY = "shear_heaven_client_id";
   final String REGION_ID_KEY = "shear_heaven_region_id";
   final String STORE_ID_KEY = "shear_heaven_store_id";
+
+  final String CANCELLATION_REASON_GROOMER_TIMEOUT =
+      "Groomer did not accept booking before scheduled appointment time";
+  final String CANCELLATION_REASON_SCHEDULED_START_TIME_PASSED =
+      "Groomer did not accept booking before scheduled appointment time";
 }

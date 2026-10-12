@@ -620,6 +620,9 @@ class ApiRepository {
         log.w(
           "ApiRepository::postMultipart::DioException: ${error.message}, Response: ${error.response?.data}",
         );
+        if (error.response?.data is Map<String, dynamic>) {
+          return error.response!.data as Map<String, dynamic>;
+        }
       } else {
         log.w("ApiRepository::postMultipart::Error: $error");
       }

@@ -68,6 +68,8 @@ class SessionService {
     return session != null && session.isNotEmpty;
   }
 
+  bool get isAuthenticated => isLoggedIn;
+
   String? get currentUserId => _prefs?.getString(Constants.app.SESSION_KEY);
 
   Future<void> saveOtpVerification(Map<String, dynamic> verification) async {

@@ -15,15 +15,17 @@ class SaveProfileEvent extends ProfileEvent {
   final String name;
   final String mobile;
   final String? photoPath;
+  final String? gender;
 
   const SaveProfileEvent({
     required this.name,
     required this.mobile,
     this.photoPath,
+    this.gender,
   });
 
   @override
-  List<Object?> get props => [name, mobile, photoPath];
+  List<Object?> get props => [name, mobile, photoPath, gender];
 }
 
 class ChangePasswordEvent extends ProfileEvent {
