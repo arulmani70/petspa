@@ -60,11 +60,7 @@ void main() {
   late AuthRepository authRepository;
   late GroomerLoginRepository groomerLoginRepository;
 
-  setUpAll(() async {
-    FlutterSecureStorage.setMockInitialValues({});
-    SharedPreferences.setMockInitialValues({});
-    await ServicesLocator.initialize();
-  });
+
 
   setUp(() async {
     FlutterSecureStorage.setMockInitialValues({});
@@ -75,18 +71,19 @@ void main() {
     await sessionService.initialize();
 
     deviceIdService = DeviceIdService();
-    groomerLoginRepository = GroomerLoginRepository();
-    await groomerLoginRepository.initialize();
-
-    authRepository = AuthRepository();
-    await authRepository.initialize();
 
     GetIt.I.allowReassignment = true;
     GetIt.I.registerSingleton<ApiRepository>(mockApi);
     GetIt.I.registerSingleton<SessionService>(sessionService);
     GetIt.I.registerSingleton<DeviceIdService>(deviceIdService);
-    GetIt.I.registerSingleton<AuthRepository>(authRepository);
+
+    groomerLoginRepository = GroomerLoginRepository();
+    await groomerLoginRepository.initialize();
     GetIt.I.registerSingleton<GroomerLoginRepository>(groomerLoginRepository);
+
+    authRepository = AuthRepository();
+    await authRepository.initialize();
+    GetIt.I.registerSingleton<AuthRepository>(authRepository);
   });
 
   group('Login Screen Keyboard and Back Button Behavior Tests', () {
@@ -104,7 +101,7 @@ void main() {
             ),
           ),
         );
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 100));
 
         // Verify Login Page is rendered
         expect(find.text('Login'), findsWidgets);
@@ -154,7 +151,7 @@ void main() {
             ),
           ),
         );
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 100));
 
         // Ensure keyboard is closed
         tester.view.resetViewInsets();
@@ -162,7 +159,7 @@ void main() {
 
         // Press device Back button
         await tester.binding.handlePopRoute();
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 100));
 
         // Exit Confirmation Dialog MUST appear
         expect(find.text('Exit App?'), findsOneWidget);
@@ -175,7 +172,7 @@ void main() {
 
         // Tap Cancel: dialog disappears, user stays on Login Page
         await tester.tap(find.text('Cancel'));
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 100));
 
         expect(find.text('Exit App?'), findsNothing);
         expect(find.text('Login'), findsWidgets);
@@ -198,7 +195,7 @@ void main() {
             ),
           ),
         );
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 100));
 
         // Step 1: Open keyboard
         tester.view.viewInsets = const FakeViewPadding(bottom: 300);
@@ -217,7 +214,7 @@ void main() {
 
         // Step 3: Press Back a second time -> displays Exit confirmation dialog
         await tester.binding.handlePopRoute();
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 100));
 
         expect(find.text('Exit App?'), findsOneWidget);
         expect(find.text('Cancel'), findsOneWidget);
@@ -225,7 +222,7 @@ void main() {
 
         // Cancel dialog
         await tester.tap(find.text('Cancel'));
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 100));
         expect(find.text('Exit App?'), findsNothing);
 
         await authBloc.close();
@@ -256,20 +253,20 @@ void main() {
             ),
           ),
         );
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 100));
 
         tester.view.resetViewInsets();
         await tester.pump();
 
         // Press Back to open exit dialog
         await tester.binding.handlePopRoute();
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 100));
 
         expect(find.text('Exit App?'), findsOneWidget);
 
         // Tap Exit
         await tester.tap(find.text('Exit'));
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 100));
 
         // Verify SystemNavigator.pop was called
         expect(
@@ -312,7 +309,7 @@ void main() {
             routerConfig: testRouter,
           ),
         );
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 100));
 
         // Open keyboard
         tester.view.viewInsets = const FakeViewPadding(bottom: 280);
@@ -332,7 +329,7 @@ void main() {
 
         // Press Back again -> navigates to login
         await tester.binding.handlePopRoute();
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 100));
         expect(navigatedRoute, equals(RouteNames.login));
       },
     );
@@ -371,7 +368,7 @@ void main() {
             routerConfig: testRouter,
           ),
         );
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 100));
 
         // Open keyboard
         tester.view.viewInsets = const FakeViewPadding(bottom: 280);
@@ -391,7 +388,7 @@ void main() {
 
         // Press Back again -> navigates to login
         await tester.binding.handlePopRoute();
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 100));
         expect(navigatedRoute, equals(RouteNames.login));
 
         await authBloc.close();
@@ -412,7 +409,7 @@ void main() {
             ),
           ),
         );
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 100));
 
         // Verify Forgot Password screen is mounted
         expect(find.byType(ForgotPasswordPageMobile), findsOneWidget);
@@ -469,7 +466,7 @@ void main() {
             routerConfig: testRouter,
           ),
         );
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 100));
 
         // Open keyboard
         tester.view.viewInsets = const FakeViewPadding(bottom: 280);
@@ -489,7 +486,7 @@ void main() {
 
         // Press Back again -> navigates to signup
         await tester.binding.handlePopRoute();
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 100));
         expect(navigatedRoute, equals(RouteNames.signup));
 
         await authBloc.close();

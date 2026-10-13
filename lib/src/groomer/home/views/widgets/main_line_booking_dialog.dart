@@ -9,6 +9,7 @@ import 'package:shear_heaven_pet_spa/src/common/constants/constansts.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/toast_util.dart';
+import 'package:shear_heaven_pet_spa/src/common/widgets/shared_calendar.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/bloc/groomer_home_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/customer_summary.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_user.dart';
@@ -118,6 +119,7 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
     if (_bloc.state.bookingServices.isEmpty && _bloc.state.bookingPackages.isEmpty) {
       _bloc.add(const GroomerHomeGetBookingServicesEvent());
     }
+    _loadSchedule();
   }
 
   @override
@@ -182,32 +184,111 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
     return '\$${amount.toStringAsFixed(2)}';
   }
 
-  Widget _buildLegendItem(Color bg, Color fg, String label, {Color? borderColor}) {
+  Future<void> _loadSchedule() async {
+    try {
+      await Future.wait([
+        ServicesLocator.storeRepository.getStoreSchedule(),
+        ServicesLocator.storeRepository.getHolidays(),
+      ]);
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (_) {}
+  }
+
+  bool _isDateUnavailable(DateTime d) {
+    if (!BookingDateUtils.isDateAllowed(d)) return true;
+    try {
+      if (ServicesLocator.storeRepository.isHoliday(d)) return true;
+      if (ServicesLocator.storeRepository.isStoreClosedDay(d)) return true;
+    } catch (_) {}
+    return false;
+  }
+
+  Widget _buildLegend() {
+    return Wrap(
+      spacing: 16,
+      runSpacing: 8,
+      children: [
+        _legendItem(Colors.white, Colors.black, 'Available', borderColor: Colors.black),
+        _legendItem(Colors.black, Colors.white, 'Selected', borderColor: Colors.black),
+        _legendItem(const Color(0xFFF3F4F6), const Color(0xFFAFAFAF), 'Already Booked', borderColor: const Color(0xFFE5E7EB)),
+      ],
+    );
+  }
+
+  Widget _legendItem(Color bg, Color fg, String label, {Color? borderColor}) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 20,
-          height: 14,
+          width: 26,
+          height: 18,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: bg,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: borderColor ?? const Color(0xFFE5E7EB)),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: borderColor ?? const Color(0xFFE5E7EB), width: 1.2),
           ),
           child: Text(
             '–',
             style: AppFonts.poppins(
-              size: 8,
-              weight: FontWeight.w600,
+              size: 10,
+              weight: FontWeight.w700,
               color: fg,
             ),
           ),
         ),
-        const SizedBox(width: 4),
+        const SizedBox(width: 6),
         Text(
           label,
-          style: AppFonts.poppins(size: 10.5, color: const Color(0xFF6B7280)),
+          style: AppFonts.poppins(
+            size: 12,
+            weight: FontWeight.w500,
+            color: Colors.black,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBookedSlotsInfo(List<Map<String, dynamic>> bookedSlots) {
+    if (bookedSlots.isEmpty) return const SizedBox.shrink();
+    final seen = <String>{};
+    final labels = bookedSlots.map((b) {
+      final st = BookingDateUtils.normalizeTimeString(b['startTime']) ?? b['startTime']?.toString() ?? '';
+      final et = BookingDateUtils.normalizeTimeString(b['endTime']) ?? b['endTime']?.toString() ?? '';
+      final key = st.isNotEmpty && et.isNotEmpty
+          ? '${_fmt12(st)} – ${_fmt12(et)}'
+          : (st.isNotEmpty ? _fmt12(st) : '');
+      if (key.isEmpty || seen.contains(key)) return '';
+      seen.add(key);
+      return key;
+    }).where((s) => s.isNotEmpty).join('   ');
+
+    return Row(
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF3F4F6),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'Already booked: $labels',
+            style: AppFonts.poppins(
+              size: 11,
+              weight: FontWeight.w400,
+              color: const Color(0xFFAFAFAF),
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
       ],
     );
@@ -417,12 +498,12 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
 
           if (validSlots.isNotEmpty) {
             final match = validSlots.firstWhere(
-              (s) => s['startTime'] == _selectedStartTime,
+              (s) => BookingDateUtils.isSameTimeSlot(s['startTime'], _selectedStartTime),
               orElse: () => validSlots.first,
             );
-            final start = match['startTime']?.toString();
-            final end = match['endTime']?.toString();
-            if (_selectedStartTime != start || _selectedEndTime != end) {
+            final start = BookingDateUtils.normalizeTimeString(match['startTime']) ?? match['startTime']?.toString();
+            final end = BookingDateUtils.normalizeTimeString(match['endTime']) ?? match['endTime']?.toString();
+            if (!BookingDateUtils.isSameTimeSlot(_selectedStartTime, start) || _selectedEndTime != end) {
               setState(() {
                 _selectedStartTime = start;
                 _selectedEndTime = end;
@@ -479,7 +560,8 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
         final services = state.bookingServices;
         final packages = state.bookingPackages;
         final addOns = state.bookingAddOns;
-        final slots = state.availableTimeSlots;
+        final groomerIdInt = _selectedGroomerId == 'any' ? null : int.tryParse(_selectedGroomerId);
+        final slots = BookingDateUtils.deduplicateSlots(state.availableTimeSlots, specificGroomerId: groomerIdInt);
 
         final baseItem = _isPackageMode ? _selectedPackage : _selectedService;
         final double basePrice = baseItem?.price ?? 0.0;
@@ -1881,74 +1963,53 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                           ),
                         const SizedBox(height: 16),
 
-                        // ── Section 5: Date Selector (Dynamic) ──────────
+                        // ── Section 5: Date Selector (SharedCalendar matching Customer Portal) ──
                         _buildSectionTitle('5. Appointment Date'),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                                icon: const Icon(Icons.calendar_today_outlined, size: 16),
-                                label: Text(
-                                  _formatSelectedDateDisplay(),
-                                  style: AppFonts.poppins(size: 13, weight: FontWeight.w500),
-                                ),
-                                onPressed: () async {
-                                  final now = DateTime.now();
-                                  final today = DateTime(now.year, now.month, now.day);
-                                  final picked = await showDatePicker(
-                                    context: context,
-                                    initialDate: _selectedDate,
-                                    firstDate: today,
-                                    lastDate: today.add(const Duration(days: 14)),
-                                  );
-                                  if (picked != null) {
-                                    setState(() {
-                                      _selectedDate = BookingDateUtils.normalize(picked);
-                                    });
-                                    _triggerAvailabilityCheck();
-                                  }
-                                },
-                              ),
+                        const SizedBox(height: 10),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: const Color(0xFFE5E7EB)),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: SharedCalendar(
+                              initialDate: _selectedDate,
+                              minDate: BookingDateUtils.minAllowedDate,
+                              maxDate: BookingDateUtils.maxAllowedDate,
+                              isDateUnavailable: _isDateUnavailable,
+                              onDateSelected: (picked) {
+                                setState(() {
+                                  _selectedDate = BookingDateUtils.normalize(picked);
+                                });
+                                _triggerAvailabilityCheck();
+                              },
                             ),
-                          ],
+                          ),
                         ),
-                        const SizedBox(height: 18),
+                        const SizedBox(height: 24),
 
-                        // ── Section 6: Available Time Slots (REAL API POST /api/availability) ──
+                        // ── Section 6: Available Time Slots (Customer Portal Exact Matching) ──
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Expanded(
-                              child: Row(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Flexible(
-                                    child: _buildSectionTitle(
-                                      '6. Time Slot (${_selectedGroomerId != 'any' && _selectedGroomer != null ? _selectedGroomer!.name : 'Any Groomer'})',
-                                    ),
+                                  _buildSectionTitle(
+                                    '6. Time Slot (${_selectedGroomerId != 'any' && _selectedGroomer != null ? _selectedGroomer!.name : 'Any Groomer'})',
                                   ),
                                   if (state.slotDurationMinutes != null && state.slotDurationMinutes! > 0) ...[
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF0F766E).withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(color: const Color(0xFF0F766E).withValues(alpha: 0.3)),
-                                      ),
-                                      child: Text(
-                                        '${state.slotDurationMinutes}m${state.slotTotalPrice != null ? " · \$${state.slotTotalPrice!.toStringAsFixed(0)}" : ""}',
-                                        style: AppFonts.poppins(
-                                          size: 11,
-                                          weight: FontWeight.w600,
-                                          color: const Color(0xFF0F766E),
-                                        ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Service duration: ${state.slotDurationMinutes} min'
+                                      '${state.slotTotalPrice != null ? "  ·  Est. \$${state.slotTotalPrice!.toStringAsFixed(0)}" : ""}',
+                                      style: AppFonts.poppins(
+                                        size: 12,
+                                        weight: FontWeight.w500,
+                                        color: const Color(0xFF0F766E),
                                       ),
                                     ),
                                   ],
@@ -1957,13 +2018,13 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                             ),
                             if (state.isCheckingAvailability)
                               const SizedBox(
-                                width: 15,
-                                height: 15,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F766E)),
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2.2, color: Color(0xFF111827)),
                               )
                             else
                               IconButton(
-                                icon: const Icon(Icons.refresh, size: 18, color: Color(0xFF6B7280)),
+                                icon: const Icon(Icons.refresh, size: 20, color: Color(0xFF6B7280)),
                                 tooltip: 'Re-check availability',
                                 onPressed: _triggerAvailabilityCheck,
                                 constraints: const BoxConstraints(),
@@ -1973,281 +2034,254 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                         ),
                         const SizedBox(height: 10),
 
-                        // Booked slots info strip
-                        if (state.bookedTimeSlots.isNotEmpty) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF3F4F6),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: const Color(0xFFE5E7EB)),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFAFAFAF),
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    'Already booked: ${state.bookedTimeSlots.map((b) {
-                                      final st = b['startTime']?.toString() ?? '';
-                                      final et = b['endTime']?.toString() ?? '';
-                                      return st.isNotEmpty && et.isNotEmpty
-                                          ? '${_fmt12(st)} – ${_fmt12(et)}'
-                                          : (st.isNotEmpty ? _fmt12(st) : '');
-                                    }).where((s) => s.isNotEmpty).join('   ')}',
-                                    style: AppFonts.poppins(
-                                      size: 11,
-                                      color: const Color(0xFF6B7280),
-                                      weight: FontWeight.w400,
-                                    ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                        ],
-
+                        // Time slot states matching Customer Portal
                         if (state.isCheckingAvailability)
                           Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                            height: 130,
+                            alignment: Alignment.center,
                             decoration: BoxDecoration(
                               color: Colors.white,
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(16),
                               border: Border.all(color: const Color(0xFFE5E7EB)),
                             ),
                             child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(strokeWidth: 2.2, color: Color(0xFF0F766E)),
+                                  width: 26,
+                                  height: 26,
+                                  child: CircularProgressIndicator(
+                                    color: Color(0xFF111827),
+                                    strokeWidth: 2.2,
+                                  ),
                                 ),
-                                const SizedBox(height: 10),
+                                const SizedBox(height: 12),
                                 Text(
-                                  'Checking real-time slot availability...',
+                                  'Loading available slots…',
                                   textAlign: TextAlign.center,
-                                  style: AppFonts.poppins(size: 12, color: const Color(0xFF6B7280)),
+                                  style: AppFonts.poppins(
+                                    size: 13,
+                                    weight: FontWeight.w400,
+                                    color: const Color(0xFF6B7280),
+                                  ),
                                 ),
                               ],
                             ),
                           )
-                        else if (slots.isNotEmpty) ...[
-                          LayoutBuilder(
-                            builder: (context, constraints) {
-                              final isToday = _isSameDay(_selectedDate, DateTime.now());
-                              final nowMinutes = DateTime.now().hour * 60 + DateTime.now().minute;
-                              const kBuffer = 5;
-
-                              // Responsive column count
-                              final crossAxisCount = constraints.maxWidth > 420 ? 4 : 3;
-
-                              return GridView.builder(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                itemCount: slots.length,
-                                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: crossAxisCount,
-                                  mainAxisSpacing: 8,
-                                  crossAxisSpacing: 8,
-                                  mainAxisExtent: 36,
-                                ),
-                                itemBuilder: (context, index) {
-                                  final slot = slots[index];
-                                  final start = slot['startTime']?.toString() ?? '';
-                                  final end = slot['endTime']?.toString() ?? '';
-                                  final isPast = isToday && _toMinutes(start) <= nowMinutes + kBuffer;
-
-                                  final isSelected = _selectedStartTime == start;
-                                  final isAvailable = slot['isAvailable'] != false;
-                                  final remaining = slot['remaining'] is num
-                                      ? (slot['remaining'] as num).toInt()
-                                      : int.tryParse(slot['remaining']?.toString() ?? '1') ?? 1;
-                                  final bookingCount = slot['bookingCount'] is num
-                                      ? (slot['bookingCount'] as num).toInt()
-                                      : int.tryParse(slot['bookingCount']?.toString() ?? '0') ?? 0;
-                                  final maxBookings = slot['maxBookings'] is num
-                                      ? (slot['maxBookings'] as num).toInt()
-                                      : int.tryParse(slot['maxBookings']?.toString() ?? '1') ?? 1;
-
-                                  final isAtCapacity = (maxBookings > 1 || (slot['multiBookingEnabled'] == true)) &&
-                                      (bookingCount >= maxBookings || remaining <= 0);
-                                  final isBooked = (!isAvailable || remaining <= 0 || isPast) && !isAtCapacity;
-                                  final isSelectable = isAvailable && remaining > 0 && !isPast && !isAtCapacity;
-
-                                  Color bg, fg, borderColor;
-                                  if (isSelected) {
-                                    bg = const Color(0xFF0F766E); // teal
-                                    fg = Colors.white;
-                                    borderColor = const Color(0xFF0F766E);
-                                  } else if (isAtCapacity) {
-                                    bg = const Color(0xFFFFF7ED); // amber light
-                                    fg = const Color(0xFFB45309);
-                                    borderColor = const Color(0xFFFED7AA);
-                                  } else if (isBooked) {
-                                    bg = const Color(0xFFF3F4F6); // light gray
-                                    fg = const Color(0xFFAFAFAF);
-                                    borderColor = const Color(0xFFE5E7EB);
-                                  } else {
-                                    // Available
-                                    bg = const Color(0xFF111827); // charcoal
-                                    fg = Colors.white;
-                                    borderColor = const Color(0xFF111827);
-                                  }
-
-                                  return GestureDetector(
-                                    onTap: isSelectable
-                                        ? () {
-                                            setState(() {
-                                              _selectedStartTime = start;
-                                              _selectedEndTime = end;
-                                            });
-                                          }
-                                        : () {
-                                            if (isPast) {
-                                              ToastUtil.showErrorToast(
-                                                context,
-                                                'This time slot is in the past for today.',
-                                              );
-                                            } else if (isAtCapacity) {
-                                              ToastUtil.showErrorToast(
-                                                context,
-                                                'This time slot is fully booked ($bookingCount/$maxBookings).',
-                                              );
-                                            } else {
-                                              ToastUtil.showErrorToast(
-                                                context,
-                                                'This time slot is unavailable. Please select another slot.',
-                                              );
-                                            }
-                                          },
-                                    child: AnimatedContainer(
-                                      duration: const Duration(milliseconds: 150),
-                                      alignment: Alignment.center,
-                                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                                      decoration: BoxDecoration(
-                                        color: bg,
-                                        borderRadius: BorderRadius.circular(18),
-                                        border: Border.all(color: borderColor, width: 1.2),
-                                      ),
-                                      child: Text(
-                                        _fmt12(start),
-                                        textAlign: TextAlign.center,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: AppFonts.poppins(
-                                          size: 11.5,
-                                          weight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                                          color: fg,
-                                          decoration: (isBooked || isPast) ? TextDecoration.lineThrough : null,
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          // Legend
-                          Wrap(
-                            spacing: 12,
-                            runSpacing: 6,
-                            children: [
-                              _buildLegendItem(const Color(0xFF111827), Colors.white, 'Available'),
-                              _buildLegendItem(const Color(0xFF0F766E), Colors.white, 'Selected'),
-                              _buildLegendItem(const Color(0xFFF3F4F6), const Color(0xFFAFAFAF), 'Booked / Unavailable'),
-                              _buildLegendItem(
-                                const Color(0xFFFFF7ED),
-                                const Color(0xFFB45309),
-                                'Full',
-                                borderColor: const Color(0xFFFED7AA),
-                              ),
-                            ],
-                          ),
-                          if (state.availabilityMessage != null) ...[
-                            const SizedBox(height: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: state.isSlotAvailable
-                                    ? const Color(0xFFDCFCE7)
-                                    : const Color(0xFFFEE2E2),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: state.isSlotAvailable
-                                      ? const Color(0xFF86EFAC)
-                                      : const Color(0xFFFCA5A5),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    state.isSlotAvailable
-                                        ? Icons.check_circle_outline
-                                        : Icons.warning_amber_rounded,
-                                    size: 15,
-                                    color: state.isSlotAvailable
-                                        ? const Color(0xFF15803D)
-                                        : const Color(0xFFDC2626),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      state.availabilityMessage!,
-                                      style: AppFonts.poppins(
-                                        size: 11.5,
-                                        color: state.isSlotAvailable
-                                            ? const Color(0xFF15803D)
-                                            : const Color(0xFFDC2626),
-                                        weight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ] else
+                        else if (state.isSlotAvailable == false && slots.isEmpty && state.availabilityMessage != null)
                           Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+                            alignment: Alignment.center,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFFFFBEB),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFFFDE68A)),
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: const Color(0xFFE5E7EB)),
                             ),
-                            child: Row(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                const Icon(Icons.event_busy, size: 20, color: Color(0xFFD97706)),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    state.availabilityMessage ??
-                                        (_selectedGroomerId == 'any'
-                                            ? 'No available time slots on this date. Please select another date.'
-                                            : 'No available slots for ${_selectedGroomer?.name ?? "this groomer"} on this date.'),
-                                    style: AppFonts.poppins(size: 11.5, color: const Color(0xFF92400E)),
+                                Container(
+                                  width: 56,
+                                  height: 56,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF3F4F6),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: const Icon(
+                                    Icons.wifi_off_rounded,
+                                    size: 26,
+                                    color: Color(0xFF111827),
                                   ),
                                 ),
-                                IconButton(
-                                  icon: const Icon(Icons.refresh, size: 18, color: Color(0xFFD97706)),
-                                  tooltip: 'Re-check availability',
+                                const SizedBox(height: 14),
+                                Text(
+                                  'Unable to Load Availability',
+                                  textAlign: TextAlign.center,
+                                  style: AppFonts.parkinsans(
+                                    size: 15,
+                                    weight: FontWeight.w600,
+                                    color: const Color(0xFF111827),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  state.availabilityMessage ?? 'Please check your connection and try again.',
+                                  textAlign: TextAlign.center,
+                                  style: AppFonts.poppins(
+                                    size: 13,
+                                    weight: FontWeight.w400,
+                                    color: const Color(0xFF6B7280),
+                                  ),
+                                ),
+                                const SizedBox(height: 18),
+                                ElevatedButton.icon(
                                   onPressed: _triggerAvailabilityCheck,
+                                  icon: const Icon(Icons.refresh_rounded, size: 16, color: Colors.white),
+                                  label: Text(
+                                    'Retry',
+                                    style: AppFonts.poppins(
+                                      size: 13,
+                                      weight: FontWeight.w600,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF111827),
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    shadowColor: Colors.transparent,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(24),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                      vertical: 11,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else if (slots.isEmpty)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: const Color(0xFFE5E7EB)),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 56,
+                                  height: 56,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF3F4F6),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: const Icon(
+                                    Icons.event_busy_rounded,
+                                    size: 26,
+                                    color: Color(0xFF6B7280),
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                                Text(
+                                  'No Available Slots',
+                                  textAlign: TextAlign.center,
+                                  style: AppFonts.parkinsans(
+                                    size: 15,
+                                    weight: FontWeight.w600,
+                                    color: const Color(0xFF111827),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  _selectedGroomerId == 'any'
+                                      ? 'No slots available on this date. Please select another date.'
+                                      : 'No available slots for ${_selectedGroomer?.name ?? "this groomer"} on this date.',
+                                  textAlign: TextAlign.center,
+                                  style: AppFonts.poppins(
+                                    size: 13,
+                                    weight: FontWeight.w400,
+                                    color: const Color(0xFF6B7280),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else ...[
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: const Color(0xFFE5E7EB)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (state.bookedTimeSlots.isNotEmpty) ...[
+                                  _buildBookedSlotsInfo(state.bookedTimeSlots),
+                                  const SizedBox(height: 12),
+                                  const Divider(color: Color(0xFFE5E7EB), height: 1),
+                                  const SizedBox(height: 12),
+                                ],
+                                GridView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  itemCount: slots.length,
+                                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 4,
+                                    mainAxisSpacing: 10,
+                                    crossAxisSpacing: 8,
+                                    mainAxisExtent: 40,
+                                  ),
+                                  itemBuilder: (context, index) {
+                                    final slot = slots[index];
+                                    final start = slot['startTime']?.toString() ?? '';
+                                    final end = slot['endTime']?.toString() ?? '';
+                                    final isToday = _isSameDay(_selectedDate, DateTime.now());
+                                    final nowMinutes = DateTime.now().hour * 60 + DateTime.now().minute;
+                                    const kBuffer = 5;
+                                    final isPast = isToday && _toMinutes(start) <= nowMinutes + kBuffer;
+
+                                    final isSelected = BookingDateUtils.isSameTimeSlot(_selectedStartTime, start);
+                                    final isAvailable = slot['isAvailable'] != false;
+                                    final remaining = slot['remaining'] is num
+                                        ? (slot['remaining'] as num).toInt()
+                                        : int.tryParse(slot['remaining']?.toString() ?? '1') ?? 1;
+                                    final bookingCount = slot['bookingCount'] is num
+                                        ? (slot['bookingCount'] as num).toInt()
+                                        : int.tryParse(slot['bookingCount']?.toString() ?? '0') ?? 0;
+                                    final maxBookings = slot['maxBookings'] is num
+                                        ? (slot['maxBookings'] as num).toInt()
+                                        : int.tryParse(slot['maxBookings']?.toString() ?? '1') ?? 1;
+
+                                    final isAtCapacity = (maxBookings > 1 || (slot['multiBookingEnabled'] == true)) &&
+                                        (bookingCount >= maxBookings || remaining <= 0);
+                                    final isBooked = (!isAvailable || remaining <= 0 || isPast) && !isAtCapacity;
+                                    final isUnavailable = isBooked || isAtCapacity || isPast;
+
+                                    return _GroomerSlotButton(
+                                      startTime: start,
+                                      isSelected: isSelected,
+                                      isUnavailable: isUnavailable,
+                                      isPast: isPast,
+                                      isAtCapacity: isAtCapacity,
+                                      bookingCount: bookingCount,
+                                      maxBookings: maxBookings,
+                                      fmt12: _fmt12,
+                                      onTap: () {
+                                        setState(() {
+                                          _selectedStartTime = BookingDateUtils.normalizeTimeString(start) ?? start;
+                                          _selectedEndTime = BookingDateUtils.normalizeTimeString(end) ?? end;
+                                        });
+                                      },
+                                    );
+                                  },
                                 ),
                               ],
                             ),
                           ),
+                          const SizedBox(height: 16),
+                          // Legend
+                          _buildLegend(),
+                        ],
                         const SizedBox(height: 24),
 
                         // ── Booking Summary Box ─────────────────────────
@@ -2459,6 +2493,97 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Groomer Slot Button widget (Matching Customer Portal _SlotButton Exactly)
+// ─────────────────────────────────────────────────────────────────────────────
+class _GroomerSlotButton extends StatelessWidget {
+  final String startTime;
+  final bool isSelected;
+  final bool isUnavailable;
+  final bool isPast;
+  final bool isAtCapacity;
+  final int bookingCount;
+  final int maxBookings;
+  final String Function(String) fmt12;
+  final VoidCallback onTap;
+
+  const _GroomerSlotButton({
+    required this.startTime,
+    required this.isSelected,
+    required this.isUnavailable,
+    required this.isPast,
+    required this.isAtCapacity,
+    required this.bookingCount,
+    required this.maxBookings,
+    required this.fmt12,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    Color bg, fg, borderColor;
+    if (isSelected) {
+      bg = Colors.black;
+      fg = Colors.white;
+      borderColor = Colors.black;
+    } else if (isUnavailable) {
+      bg = const Color(0xFFF3F4F6);
+      fg = const Color(0xFFAFAFAF);
+      borderColor = const Color(0xFFE5E7EB);
+    } else {
+      // available: white background, sharp black border, black text
+      bg = Colors.white;
+      fg = Colors.black;
+      borderColor = Colors.black;
+    }
+
+    return GestureDetector(
+      onTap: isUnavailable
+          ? () {
+              if (isPast) {
+                ToastUtil.showErrorToast(
+                  context,
+                  'This time slot is in the past for today.',
+                );
+              } else if (isAtCapacity) {
+                ToastUtil.showErrorToast(
+                  context,
+                  'This time slot is fully booked ($bookingCount/$maxBookings).',
+                );
+              } else {
+                ToastUtil.showErrorToast(
+                  context,
+                  'This time slot is unavailable. Please select another slot.',
+                );
+              }
+            }
+          : onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        height: 40,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: borderColor, width: 1.4),
+        ),
+        child: Text(
+          fmt12(startTime),
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 13,
+            fontWeight: (isSelected || !isUnavailable) ? FontWeight.w600 : FontWeight.w400,
+            color: fg,
+            decoration: isUnavailable ? TextDecoration.lineThrough : null,
+            decorationColor: fg,
+          ),
+        ),
+      ),
     );
   }
 }

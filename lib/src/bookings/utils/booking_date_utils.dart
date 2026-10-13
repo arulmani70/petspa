@@ -267,6 +267,98 @@ class BookingDateUtils {
     return h * 60 + m;
   }
 
+  /// Returns true if two time representations point to the exact same hour and minute.
+  static bool isSameTimeSlot(dynamic a, dynamic b) {
+    if (a == null || b == null) return false;
+    final normA = normalizeTimeString(a);
+    final normB = normalizeTimeString(b);
+    if (normA == null || normB == null) return false;
+    return normA == normB;
+  }
+
+  /// Formats any time representation to 12-hour display, e.g. "09:00" → "9:00 AM".
+  static String format12Hour(dynamic time) {
+    if (time == null) return '';
+    final norm = normalizeTimeString(time);
+    if (norm == null) return time.toString();
+    final parts = norm.split(':');
+    if (parts.length < 2) return norm;
+    final h = int.tryParse(parts[0]) ?? 0;
+    final m = int.tryParse(parts[1]) ?? 0;
+    final period = h < 12 ? 'AM' : 'PM';
+    final displayH = h == 0 ? 12 : (h > 12 ? h - 12 : h);
+    return '$displayH:${m.toString().padLeft(2, '0')} $period';
+  }
+
+  /// Safely deduplicates a list of time slot maps while preserving original order and capacity rules.
+  ///
+  /// - Normalizes all startTime and endTime values to standard 'HH:mm'.
+  /// - In "all/any groomers" context ([specificGroomerId] is null or <= 0), distinct start times appear exactly once.
+  ///   If multiple groomers provide the same slot, availability is merged (available if ANY groomer is available,
+  ///   maximum remaining capacity).
+  /// - In specific groomer context ([specificGroomerId] > 0), deduplicates identical slots for that groomer.
+  static List<Map<String, dynamic>> deduplicateSlots(
+    List<dynamic> rawSlots, {
+    int? specificGroomerId,
+  }) {
+    final Map<String, Map<String, dynamic>> deduped = {};
+
+    for (final raw in rawSlots) {
+      if (raw is! Map) continue;
+      final map = Map<String, dynamic>.from(raw);
+      final rawStart = map['startTime']?.toString() ?? '';
+      final normStart = normalizeTimeString(rawStart);
+      if (normStart == null) continue;
+
+      final rawEnd = map['endTime']?.toString() ?? '';
+      final normEnd = normalizeTimeString(rawEnd) ?? rawEnd;
+
+      map['startTime'] = normStart;
+      map['endTime'] = normEnd;
+
+      final slotGroomId = map['groomerId']?.toString() ?? '';
+      final String key = (specificGroomerId != null && specificGroomerId > 0)
+          ? '$normStart-$slotGroomId'
+          : normStart;
+
+      if (!deduped.containsKey(key)) {
+        deduped[key] = map;
+      } else {
+        final existing = deduped[key]!;
+        final bool existingAvail = existing['isAvailable'] != false;
+        final bool newAvail = map['isAvailable'] != false;
+
+        final int existingRem = existing['remaining'] is num
+            ? (existing['remaining'] as num).toInt()
+            : (int.tryParse(existing['remaining']?.toString() ?? '1') ?? 1);
+        final int newRem = map['remaining'] is num
+            ? (map['remaining'] as num).toInt()
+            : (int.tryParse(map['remaining']?.toString() ?? '1') ?? 1);
+
+        if (specificGroomerId == null || specificGroomerId <= 0) {
+          // Salon-wide ("Any Groomer") aggregation
+          final bool mergedAvail = existingAvail || newAvail;
+          final int mergedRem = existingRem > newRem ? existingRem : newRem;
+
+          if (!existingAvail && newAvail) {
+            deduped[key] = map;
+          }
+          deduped[key]!['isAvailable'] = mergedAvail;
+          deduped[key]!['remaining'] = mergedRem;
+        } else {
+          // Specific groomer duplicate from API
+          if (!existingAvail && newAvail) {
+            deduped[key] = map;
+          } else if (newRem > existingRem) {
+            deduped[key] = map;
+          }
+        }
+      }
+    }
+
+    return deduped.values.toList();
+  }
+
   /// Checks whether a booking status from the user's booking history is considered
   /// an active / slot-occupying booking.
   ///

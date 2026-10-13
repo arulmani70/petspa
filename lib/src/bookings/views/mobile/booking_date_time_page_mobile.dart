@@ -348,12 +348,26 @@ class _BookingDateTimePageMobileState
         for (final s in rawAvailSlots) {
           if (s is Map) {
             final st = s['startTime']?.toString() ?? '';
-            if (st.isNotEmpty) {
+            final normSt = BookingDateUtils.normalizeTimeString(st);
+            if (normSt != null && normSt.isNotEmpty) {
               final map = Map<String, dynamic>.from(s);
-              slotMap[st] = map;
+              map['startTime'] = normSt;
+              if (map['endTime'] != null) {
+                map['endTime'] = BookingDateUtils.normalizeTimeString(map['endTime']) ?? map['endTime'];
+              }
               final bCount = map['bookingCount'];
               if (bCount is num) {
-                countMap[st] = bCount.toInt();
+                countMap[normSt] = bCount.toInt();
+              }
+              if (!slotMap.containsKey(normSt)) {
+                slotMap[normSt] = map;
+              } else {
+                final existing = slotMap[normSt]!;
+                final existingAvail = existing['isAvailable'] != false;
+                final newAvail = map['isAvailable'] != false;
+                if (!existingAvail && newAvail) {
+                  slotMap[normSt] = map;
+                }
               }
             }
           }
@@ -567,19 +581,39 @@ class _BookingDateTimePageMobileState
     for (final s in rawAvail) {
       if (s is Map) {
         final st = s['startTime']?.toString() ?? '';
-        if (st.isNotEmpty) {
-          availSlotMap[st] = Map<String, dynamic>.from(s);
+        final normSt = BookingDateUtils.normalizeTimeString(st);
+        if (normSt != null && normSt.isNotEmpty) {
+          final sMap = Map<String, dynamic>.from(s);
+          sMap['startTime'] = normSt;
+          if (sMap['endTime'] != null) {
+            sMap['endTime'] = BookingDateUtils.normalizeTimeString(sMap['endTime']) ?? sMap['endTime'];
+          }
+          if (!availSlotMap.containsKey(normSt)) {
+            availSlotMap[normSt] = sMap;
+          } else {
+            final existingAvail = availSlotMap[normSt]!['isAvailable'] != false;
+            final newAvail = sMap['isAvailable'] != false;
+            if (!existingAvail && newAvail) {
+              availSlotMap[normSt] = sMap;
+            }
+          }
         }
       }
     }
     if (slotDataByStartTime != null) {
       for (final entry in slotDataByStartTime.entries) {
-        final st = entry.key;
+        final normSt = BookingDateUtils.normalizeTimeString(entry.key);
+        if (normSt == null || normSt.isEmpty) continue;
         final sData = entry.value;
         final sGroomId = sData['groomerId']?.toString();
         if (sGroomId == null || sGroomId.isEmpty || sGroomId == groomerId?.toString() || sGroomId == 'any') {
-          if (!availSlotMap.containsKey(st)) {
-            availSlotMap[st] = Map<String, dynamic>.from(sData);
+          if (!availSlotMap.containsKey(normSt)) {
+            final sMap = Map<String, dynamic>.from(sData);
+            sMap['startTime'] = normSt;
+            if (sMap['endTime'] != null) {
+              sMap['endTime'] = BookingDateUtils.normalizeTimeString(sMap['endTime']) ?? sMap['endTime'];
+            }
+            availSlotMap[normSt] = sMap;
           }
         }
       }
@@ -648,7 +682,7 @@ class _BookingDateTimePageMobileState
 
     // Direct ingestion of any explicit slots from API that weren't inside the window loop
     for (final entry in availSlotMap.entries) {
-      final st = entry.key;
+      final st = BookingDateUtils.normalizeTimeString(entry.key) ?? entry.key;
       if (!addedKeys.contains(st)) {
         final slotApiData = entry.value;
         final slotDataWithCount = Map<String, dynamic>.from(slotApiData);
@@ -658,11 +692,14 @@ class _BookingDateTimePageMobileState
         }
         final capacity = SlotCapacity.fromSlotData(slotDataWithCount, groomerData: groomer);
 
+        final rawEnd = slotApiData['endTime']?.toString();
+        final normEnd = (rawEnd != null && rawEnd.isNotEmpty)
+            ? (BookingDateUtils.normalizeTimeString(rawEnd) ?? rawEnd)
+            : _fromMinutes(_toMinutes(st) + durationMin);
+
         slots.add({
           'startTime'   : st,
-          'endTime'     : (slotApiData['endTime'] != null && slotApiData['endTime'].toString().isNotEmpty)
-              ? slotApiData['endTime'].toString()
-              : _fromMinutes(_toMinutes(st) + durationMin),
+          'endTime'     : normEnd,
           'groomerId'   : slotApiData['groomerId'] ?? groomerId,
           'groomerName' : slotApiData['groomerName']?.toString() ?? groomerName,
           'bookingCount': capacity.bookingCount,
@@ -705,8 +742,13 @@ class _BookingDateTimePageMobileState
           slotDataByStartTime: slotDataByStartTime,
         );
         for (final s in generated) {
-          final st = s['startTime']?.toString() ?? '';
-          if (st.isNotEmpty) {
+          final rawSt = s['startTime']?.toString() ?? '';
+          final st = BookingDateUtils.normalizeTimeString(rawSt);
+          if (st != null && st.isNotEmpty) {
+            s['startTime'] = st;
+            if (s['endTime'] != null) {
+              s['endTime'] = BookingDateUtils.normalizeTimeString(s['endTime']) ?? s['endTime'];
+            }
             if (!availMap.containsKey(st)) {
               availMap[st] = s;
             } else {
@@ -735,8 +777,27 @@ class _BookingDateTimePageMobileState
           bookingCountsByStartTime: bookingCountsByStartTime,
           slotDataByStartTime: slotDataByStartTime,
         )) {
-          final st = s['startTime']?.toString() ?? '';
-          if (st.isNotEmpty) availMap[st] = s;
+          final rawSt = s['startTime']?.toString() ?? '';
+          final st = BookingDateUtils.normalizeTimeString(rawSt);
+          if (st != null && st.isNotEmpty) {
+            s['startTime'] = st;
+            if (s['endTime'] != null) {
+              s['endTime'] = BookingDateUtils.normalizeTimeString(s['endTime']) ?? s['endTime'];
+            }
+            if (!availMap.containsKey(st)) {
+              availMap[st] = s;
+            } else {
+              final existingCap = availMap[st]!['_capacity'] as SlotCapacity?;
+              final newCap = s['_capacity'] as SlotCapacity?;
+              if (existingCap != null && newCap != null) {
+                if (!existingCap.isAvailable && newCap.isAvailable) {
+                  availMap[st] = s;
+                } else if (newCap.remaining > existingCap.remaining) {
+                  availMap[st] = s;
+                }
+              }
+            }
+          }
         }
       }
     }
@@ -744,7 +805,8 @@ class _BookingDateTimePageMobileState
     // Direct ingestion of any remaining available slots from slotDataByStartTime (POST /api/availability)
     if (slotDataByStartTime != null) {
       for (final entry in slotDataByStartTime.entries) {
-        final st = entry.key;
+        final st = BookingDateUtils.normalizeTimeString(entry.key);
+        if (st == null || st.isEmpty) continue;
         final slotData = entry.value;
         if (selectedId != 'any') {
           final sGroomerId = (slotData['groomerId'] ?? '').toString();
@@ -759,11 +821,14 @@ class _BookingDateTimePageMobileState
           );
           final cap = SlotCapacity.fromSlotData(slotData, groomerData: matchedGroomer.isNotEmpty ? matchedGroomer : null);
 
+          final rawEnd = slotData['endTime']?.toString();
+          final normEnd = (rawEnd != null && rawEnd.isNotEmpty)
+              ? (BookingDateUtils.normalizeTimeString(rawEnd) ?? rawEnd)
+              : _fromMinutes(_toMinutes(st) + durationMin);
+
           availMap[st] = {
             'startTime'   : st,
-            'endTime'     : (slotData['endTime'] != null && slotData['endTime'].toString().isNotEmpty)
-                ? slotData['endTime'].toString()
-                : _fromMinutes(_toMinutes(st) + durationMin),
+            'endTime'     : normEnd,
             'groomerId'   : slotData['groomerId'],
             'groomerName' : slotData['groomerName']?.toString() ?? '',
             'bookingCount': cap.bookingCount,
@@ -794,7 +859,7 @@ class _BookingDateTimePageMobileState
     return filteredKeys.map((st) {
       final raw        = availMap[st]!;
       final capacity   = raw['_capacity'] as SlotCapacity? ?? const SlotCapacity.singleBooking();
-      final isSelected = st == selectedStartTime;
+      final isSelected = BookingDateUtils.isSameTimeSlot(st, selectedStartTime);
       final rawGroomId = raw['groomerId'];
       final int? gId   = rawGroomId is int ? rawGroomId : int.tryParse(rawGroomId?.toString() ?? '');
 
@@ -870,11 +935,25 @@ class _BookingDateTimePageMobileState
   List<Map<String, dynamic>> _buildBookedSlots(
       List<dynamic> rawGroomers, String selectedId) {
     final result = <Map<String, dynamic>>[];
+    final seen = <String>{};
+    void addSlot(Map b) {
+      final st = BookingDateUtils.normalizeTimeString(b['startTime']) ?? b['startTime']?.toString() ?? '';
+      final et = BookingDateUtils.normalizeTimeString(b['endTime']) ?? b['endTime']?.toString() ?? '';
+      final key = '$st-$et';
+      if (key.isNotEmpty && key != '-' && !seen.contains(key)) {
+        seen.add(key);
+        final copy = Map<String, dynamic>.from(b);
+        copy['startTime'] = st;
+        copy['endTime'] = et;
+        result.add(copy);
+      }
+    }
+
     if (selectedId == 'any') {
       for (final g in rawGroomers.whereType<Map>()) {
         final bs = g['bookedSlots'] as List<dynamic>? ?? [];
         for (final b in bs.whereType<Map>()) {
-          result.add(Map<String, dynamic>.from(b));
+          addSlot(b);
         }
       }
     } else {
@@ -884,7 +963,7 @@ class _BookingDateTimePageMobileState
       );
       final bs = g['bookedSlots'] as List<dynamic>? ?? [];
       for (final b in bs.whereType<Map>()) {
-        result.add(Map<String, dynamic>.from(b));
+        addSlot(b);
       }
     }
     return result;
@@ -992,7 +1071,7 @@ class _BookingDateTimePageMobileState
   void _validateSelectedSlot() {
     if (_draft.timeSlot == null) return;
     final stillAvailable = _slots.any(
-        (s) => s.startTime == _draft.timeSlot &&
+        (s) => BookingDateUtils.isSameTimeSlot(s.startTime, _draft.timeSlot) &&
                s.status != _SlotStatus.booked &&
                s.status != _SlotStatus.atCapacity &&
                s.status != _SlotStatus.alreadyBooked &&

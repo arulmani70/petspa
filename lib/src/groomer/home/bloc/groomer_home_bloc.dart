@@ -4,12 +4,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:logger/logger.dart';
 import 'package:shear_heaven_pet_spa/src/account/models/app_notification.dart';
-import 'package:shear_heaven_pet_spa/src/app/routes.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/utils/booking_date_utils.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/customer_summary.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_booking.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_schedule_models.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_user.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/salon_groomer.dart';
+import 'package:shear_heaven_pet_spa/src/app/routes.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/repo/groomer_home_repository.dart';
 import 'package:shear_heaven_pet_spa/src/services/repo/service_repository.dart';
 
@@ -723,25 +724,43 @@ class GroomerHomeBloc extends Bloc<GroomerHomeEvent, GroomerHomeState> {
             ? apiPrice.toDouble()
             : (apiPrice is String ? double.tryParse(apiPrice.replaceAll(RegExp(r'[^0-9.]'), '')) : null);
 
-        final parsedSlots = <Map<String, dynamic>>[];
-        for (final s in rawSlots) {
-          if (s is Map) {
-            parsedSlots.add(Map<String, dynamic>.from(s));
-          }
-        }
+        // Deduplicate slots reliably using canonical normalized time and groomer context
+        final parsedSlots = BookingDateUtils.deduplicateSlots(
+          rawSlots,
+          specificGroomerId: event.groomerId,
+        );
 
+        // Deduplicate booked slots
         final parsedBooked = <Map<String, dynamic>>[];
+        final seenBooked = <String>{};
         for (final b in rawBooked) {
-          if (b is Map) {
-            parsedBooked.add(Map<String, dynamic>.from(b));
+          if (b is! Map) continue;
+          final map = Map<String, dynamic>.from(b);
+          final rawSt = map['startTime']?.toString() ?? '';
+          final rawEt = map['endTime']?.toString() ?? '';
+          final st = BookingDateUtils.normalizeTimeString(rawSt) ?? rawSt;
+          final et = BookingDateUtils.normalizeTimeString(rawEt) ?? rawEt;
+          final gId = map['groomerId']?.toString() ?? '';
+          final key = '$st-$et-$gId';
+          if (!seenBooked.contains(key)) {
+            seenBooked.add(key);
+            map['startTime'] = st;
+            map['endTime'] = et;
+            parsedBooked.add(map);
           }
         }
 
         // Sort slots chronologically
         parsedSlots.sort((a, b) {
-          final aStart = a['startTime']?.toString() ?? '';
-          final bStart = b['startTime']?.toString() ?? '';
-          return aStart.compareTo(bStart);
+          final aMin = BookingDateUtils.timeToMinutes(a['startTime']) ?? 0;
+          final bMin = BookingDateUtils.timeToMinutes(b['startTime']) ?? 0;
+          return aMin.compareTo(bMin);
+        });
+
+        parsedBooked.sort((a, b) {
+          final aMin = BookingDateUtils.timeToMinutes(a['startTime']) ?? 0;
+          final bMin = BookingDateUtils.timeToMinutes(b['startTime']) ?? 0;
+          return aMin.compareTo(bMin);
         });
 
         final hasAvailableSlots = parsedSlots.any((s) {

@@ -660,7 +660,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
         _log.d("BookingReviewPage::_confirmBooking::Validating selected slot capacity");
 
         final matchingSlot = availSlots.whereType<Map>().firstWhere(
-          (s) => s['startTime']?.toString() == startTime,
+          (s) => BookingDateUtils.isSameTimeSlot(s['startTime'], startTime),
           orElse: () => <String, dynamic>{},
         );
 
