@@ -16,6 +16,7 @@ class PetCard extends StatelessWidget {
   final String breed;
   final String weight;
   final String age;
+  final String? gender;
   final String? photoUrl;
   final String? assetFallback;
   final bool selected;
@@ -29,6 +30,7 @@ class PetCard extends StatelessWidget {
     required this.breed,
     required this.weight,
     required this.age,
+    this.gender,
     this.photoUrl,
     this.assetFallback,
     this.selected = false,
@@ -216,6 +218,46 @@ class PetCard extends StatelessWidget {
                             ),
                           ],
                         ),
+                        if (gender != null &&
+                            gender!.trim().isNotEmpty &&
+                            gender!.trim().toLowerCase() != 'null') ...[
+                          const SizedBox(width: 12),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                gender!.trim().toLowerCase() == 'female'
+                                    ? Icons.female
+                                    : Icons.male,
+                                size: 15,
+                                color: const Color(0xFF111827),
+                              ),
+                              const SizedBox(width: 2),
+                              RichText(
+                                text: TextSpan(
+                                  style: AppFonts.poppins(
+                                    size: 13,
+                                    color: const Color(0xFF111827),
+                                  ),
+                                  children: [
+                                    const TextSpan(
+                                      text: 'Gender: ',
+                                      style: TextStyle(fontWeight: FontWeight.w400),
+                                    ),
+                                    TextSpan(
+                                      text: gender!.trim().toLowerCase() == 'female'
+                                          ? 'Female'
+                                          : (gender!.trim().toLowerCase() == 'male'
+                                              ? 'Male'
+                                              : gender!.trim()),
+                                      style: const TextStyle(fontWeight: FontWeight.w600),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),

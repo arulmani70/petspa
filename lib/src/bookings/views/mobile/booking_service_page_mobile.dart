@@ -3,7 +3,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/services/booking_draft.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/utils/booking_date_utils.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/views/mobile/widgets/booking_header.dart';
+import 'package:shear_heaven_pet_spa/src/common/common.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/toast_util.dart';
@@ -54,7 +56,8 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
         if (extra['service'] != null) {
           final svc = extra['service'] as Map<String, dynamic>;
           _draft.setService(svc);
-          if (_draft.pet == null || _draft.pet?['id'] == null) {
+          final existingPetId = BookingDateUtils.parsePetIdFromPet(_draft.pet);
+          if (_draft.pet == null || existingPetId == null || existingPetId == 0) {
             final svcName = svc['service_name']?.toString() ?? svc['name']?.toString() ?? '';
             final breedName = svcName.contains(' — ') ? svcName.split(' — ').first.trim() : 'My Pet';
             _draft.setPet({
@@ -95,7 +98,8 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
     final extra = GoRouterState.of(context).extra;
     final isFromPopular = (extra is Map && (extra['from_popular'] == true || extra['service'] != null)) || _isFromPopular;
     final hasRealPet = _draft.pet != null &&
-        (_draft.pet?['id'] != null && _draft.pet?['id'] != 0);
+        (BookingDateUtils.parsePetIdFromPet(_draft.pet) != null &&
+            BookingDateUtils.parsePetIdFromPet(_draft.pet)! > 0);
 
     if (canPop) {
       try {
@@ -163,8 +167,13 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
             final extra   = GoRouterState.of(context).extra;
             final isFromPopular = (extra is Map && (extra['from_popular'] == true || extra['service'] != null)) || _isFromPopular;
             final hasRealPet = _draft.pet != null &&
-                (_draft.pet?['id'] != null && _draft.pet?['id'] != 0);
-            final petName = _draft.pet?['pet_name']?.toString() ?? 'your pet';
+                (BookingDateUtils.parsePetIdFromPet(_draft.pet) != null &&
+                    BookingDateUtils.parsePetIdFromPet(_draft.pet)! > 0);
+            final petName = _draft.pet?['pet_name']?.toString() ??
+                _draft.pet?[Constants.database.COLUMN_PET_NAME]?.toString() ??
+                _draft.pet?['name']?.toString() ??
+                _draft.pet?['petName']?.toString() ??
+                'your pet';
 
             if (state.status == ServiceStatus.loading ||
                 state.status == ServiceStatus.initial) {
@@ -336,10 +345,21 @@ class _PetStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name   = draft.pet?['pet_name']?.toString() ?? '';
-    final breed  = draft.pet?['breed']?.toString()    ?? '';
-    final weight = draft.pet?['weight']?.toString()   ?? '';
-    final photo  = draft.pet?['photo_url']?.toString();
+    final name = draft.pet?['pet_name']?.toString() ??
+        draft.pet?[Constants.database.COLUMN_PET_NAME]?.toString() ??
+        draft.pet?['name']?.toString() ??
+        draft.pet?['petName']?.toString() ??
+        '';
+    final breed = draft.pet?['breed']?.toString() ??
+        draft.pet?[Constants.database.COLUMN_BREED]?.toString() ??
+        '';
+    final weight = draft.pet?['weight']?.toString() ??
+        draft.pet?[Constants.database.COLUMN_WEIGHT]?.toString() ??
+        '';
+    final photo = draft.pet?['photo_url']?.toString() ??
+        draft.pet?[Constants.database.COLUMN_PHOTO_URL]?.toString() ??
+        draft.pet?['profilePictureUrl']?.toString() ??
+        draft.pet?['profilePicture']?.toString();
 
     return Container(
       color  : Colors.white,

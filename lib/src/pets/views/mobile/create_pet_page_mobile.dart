@@ -10,10 +10,12 @@ import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
 import 'package:shear_heaven_pet_spa/src/common/common.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/toast_util.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/utils/booking_date_utils.dart';
 import 'package:shear_heaven_pet_spa/src/pets/bloc/pet_bloc.dart';
 
 class CreatePetPageMobile extends StatefulWidget {
-  const CreatePetPageMobile({super.key});
+  final Map<String, dynamic>? initialPetData;
+  const CreatePetPageMobile({super.key, this.initialPetData});
 
   @override
   State<CreatePetPageMobile> createState() => _CreatePetPageMobileState();
@@ -88,30 +90,67 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
     }
   }
 
+  void _initFromData(dynamic extra) {
+    if (extra is! Map) return;
+    Map<String, dynamic>? targetPet;
+    if (extra['pet'] != null && extra['pet'] is Map) {
+      targetPet = Map<String, dynamic>.from(extra['pet'] as Map);
+    } else if (extra.containsKey(Constants.database.COLUMN_PET_NAME) ||
+        extra.containsKey('petName') ||
+        extra.containsKey('name') ||
+        extra.containsKey(Constants.database.COLUMN_ID) ||
+        extra.containsKey('id') ||
+        extra.containsKey('_id') ||
+        extra.containsKey('petId')) {
+      targetPet = Map<String, dynamic>.from(extra);
+    }
+
+    final targetId = BookingDateUtils.parsePetIdFromPet(targetPet) ??
+        BookingDateUtils.parsePetIdFromPet(extra) ??
+        int.tryParse(extra['petId']?.toString() ?? extra['id']?.toString() ?? '');
+
+    if (targetId != null && targetId > 0) {
+      try {
+        final pets = context.read<PetBloc>().state.pets;
+        final match = pets.cast<Map<String, dynamic>?>().firstWhere(
+          (p) =>
+              p != null &&
+              (BookingDateUtils.parsePetIdFromPet(p) == targetId ||
+                  p['id']?.toString() == targetId.toString()),
+          orElse: () => null,
+        );
+        if (match != null) {
+          final merged = Map<String, dynamic>.from(match);
+          if (targetPet != null) merged.addAll(targetPet);
+          targetPet = merged;
+        }
+      } catch (_) {}
+    }
+
+    if (targetPet != null) {
+      _editingPet = targetPet;
+      _isEdit = true;
+      _populateForm(_editingPet!);
+    }
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_initialized) return;
     _initialized = true;
     try {
-      final extra = GoRouterState.of(context).extra;
-      if (extra is Map) {
-        if (extra['pet'] != null && extra['pet'] is Map) {
-          _editingPet = Map<String, dynamic>.from(extra['pet'] as Map);
-          _isEdit = true;
-          _populateForm(_editingPet!);
-        } else if (extra.containsKey(Constants.database.COLUMN_PET_NAME) ||
-            extra.containsKey('petName') ||
-            extra.containsKey('name') ||
-            extra.containsKey(Constants.database.COLUMN_ID) ||
-            extra.containsKey('id') ||
-            extra.containsKey('_id')) {
-          _editingPet = Map<String, dynamic>.from(extra);
-          _isEdit = true;
-          _populateForm(_editingPet!);
-        }
-      }
+      final extra = widget.initialPetData ?? GoRouterState.of(context).extra;
+      _initFromData(extra);
     } catch (_) {}
+  }
+
+  @override
+  void didUpdateWidget(covariant CreatePetPageMobile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialPetData != oldWidget.initialPetData && widget.initialPetData != null) {
+      _initFromData(widget.initialPetData);
+    }
   }
 
   void _populateForm(Map<String, dynamic> pet) {
@@ -512,13 +551,12 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
     };
 
     if (_isEdit && _editingPet != null) {
-      final petIdRaw = _editingPet![Constants.database.COLUMN_ID] ??
-          _editingPet!['id'] ??
-          _editingPet!['_id'];
-      final petId = petIdRaw is int
-          ? petIdRaw
-          : (int.tryParse(petIdRaw?.toString() ?? '') ?? 1);
-      bloc.add(UpdatePet(petId: petId, pet: petData));
+      final petId = BookingDateUtils.parsePetIdFromPet(_editingPet);
+      if (petId != null && petId > 0) {
+        bloc.add(UpdatePet(petId: petId, pet: petData));
+      } else {
+        bloc.add(CreatePet(pet: petData));
+      }
     } else {
       bloc.add(CreatePet(pet: petData));
     }

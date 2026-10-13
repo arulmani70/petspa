@@ -295,7 +295,12 @@ class Routes {
       GoRoute(
         name: RouteNames.petSelect,
         path: '/${RouteNames.petSelect}',
-        builder: (context, state) => const PetSelectPage(),
+        builder: (context, state) {
+          final extra = state.extra is Map<String, dynamic>
+              ? state.extra as Map<String, dynamic>
+              : (state.extra is Map ? Map<String, dynamic>.from(state.extra as Map) : null);
+          return PetSelectPage(initialBookingData: extra);
+        },
       ),
 
       GoRoute(
@@ -307,7 +312,12 @@ class Routes {
       GoRoute(
         name: RouteNames.createPet,
         path: '/${RouteNames.createPet}',
-        builder: (context, state) => const CreatePetPage(),
+        builder: (context, state) {
+          final extra = state.extra is Map<String, dynamic>
+              ? state.extra as Map<String, dynamic>
+              : (state.extra is Map ? Map<String, dynamic>.from(state.extra as Map) : null);
+          return CreatePetPage(initialPetData: extra);
+        },
       ),
 
       GoRoute(

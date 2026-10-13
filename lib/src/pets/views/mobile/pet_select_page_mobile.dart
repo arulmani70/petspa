@@ -7,6 +7,7 @@ import 'package:shear_heaven_pet_spa/src/common/common.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/utils.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/shimmer_loading.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/utils/booking_date_utils.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/offers/bloc/offer_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/pets/bloc/pet_bloc.dart';
@@ -30,17 +31,63 @@ class _PetSelectPageMobileState extends State<PetSelectPageMobile> {
       // Clear stale offers from any previous booking attempt
       ServicesLocator.bookingDraft.removeOffer();
     }
-    // Prioritize the PetBloc selectedPetId as requested
-    final selectedPetId = context.read<PetBloc>().state.selectedPetId;
-    if (selectedPetId != null) {
-      _selectedPetId = selectedPetId;
-    } else if (ServicesLocator.bookingDraft.pet != null) {
-      _selectedPetId = ServicesLocator.bookingDraft.pet?[Constants.database.COLUMN_ID] as int?;
+    _resolveInitialPetId();
+  }
+
+  void _resolveInitialPetId() {
+    int? resolvedId;
+    final extra = widget.initialBookingData;
+    if (extra != null) {
+      resolvedId = BookingDateUtils.parsePetIdFromPet(extra['pet'] is Map ? extra['pet'] as Map : null) ??
+          BookingDateUtils.parsePetIdFromPet(extra) ??
+          int.tryParse(extra['petId']?.toString() ?? extra['selectedPetId']?.toString() ?? '');
+      if (extra['pet'] is Map) {
+        ServicesLocator.bookingDraft.setPet(Map<String, dynamic>.from(extra['pet'] as Map));
+      }
+    }
+
+    if (resolvedId == null || resolvedId == 0) {
+      final blocPetId = context.read<PetBloc>().state.selectedPetId;
+      if (blocPetId != null && blocPetId > 0) {
+        resolvedId = blocPetId;
+      }
+    }
+
+    if (resolvedId == null || resolvedId == 0) {
+      final draftPetId = BookingDateUtils.parsePetIdFromPet(ServicesLocator.bookingDraft.pet);
+      if (draftPetId != null && draftPetId > 0) {
+        resolvedId = draftPetId;
+      }
+    }
+
+    if (resolvedId != null && resolvedId > 0) {
+      _selectedPetId = resolvedId;
     }
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    try {
+      final extra = GoRouterState.of(context).extra;
+      if (extra is Map) {
+        final id = BookingDateUtils.parsePetIdFromPet(extra['pet'] is Map ? extra['pet'] as Map : null) ??
+            BookingDateUtils.parsePetIdFromPet(extra) ??
+            int.tryParse(extra['petId']?.toString() ?? extra['selectedPetId']?.toString() ?? '');
+        if (id != null && id > 0 && id != _selectedPetId) {
+          setState(() {
+            _selectedPetId = id;
+          });
+          if (extra['pet'] is Map) {
+            ServicesLocator.bookingDraft.setPet(Map<String, dynamic>.from(extra['pet'] as Map));
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
   void _onSelectAndContinue(Map<String, dynamic> pet) {
-    if (_selectedPetId == null) return;
+    if (_selectedPetId == null || _selectedPetId == 0) return;
     
     // 1. Update the global selected pet in PetBloc
     context.read<PetBloc>().add(SelectPet(_selectedPetId!));
@@ -122,7 +169,26 @@ class _PetSelectPageMobileState extends State<PetSelectPageMobile> {
         ),
         body: SafeArea(
           bottom: false,
-          child: BlocBuilder<PetBloc, PetState>(
+          child: BlocConsumer<PetBloc, PetState>(
+            listener: (context, state) {
+              if (state.selectedPetId != null &&
+                  state.selectedPetId! > 0 &&
+                  state.selectedPetId != _selectedPetId) {
+                setState(() {
+                  _selectedPetId = state.selectedPetId;
+                });
+                final match = state.pets.cast<Map<String, dynamic>?>().firstWhere(
+                  (p) =>
+                      p != null &&
+                      (BookingDateUtils.parsePetIdFromPet(p) == state.selectedPetId ||
+                          p[Constants.database.COLUMN_ID]?.toString() == state.selectedPetId.toString()),
+                  orElse: () => null,
+                );
+                if (match != null) {
+                  ServicesLocator.bookingDraft.setPet(match);
+                }
+              }
+            },
             builder: (context, state) {
               if (state.status == PetStatus.loading && state.pets.isEmpty) {
                 return ListView(
@@ -231,14 +297,25 @@ class _PetSelectPageMobileState extends State<PetSelectPageMobile> {
                 return _buildAddPetBlock(context);
               }
               final pet = state.pets[index];
-              final id = pet[Constants.database.COLUMN_ID] as int;
-              final name =
-                  pet[Constants.database.COLUMN_PET_NAME]?.toString() ?? '';
-              final breed =
-                  pet[Constants.database.COLUMN_BREED]?.toString() ?? '';
-              final weight =
-                  pet[Constants.database.COLUMN_WEIGHT]?.toString() ?? '0';
+              final id = BookingDateUtils.parsePetIdFromPet(pet) ??
+                  (pet[Constants.database.COLUMN_ID] is int
+                      ? pet[Constants.database.COLUMN_ID] as int
+                      : int.tryParse(pet[Constants.database.COLUMN_ID]?.toString() ?? '') ?? 0);
+              final name = pet[Constants.database.COLUMN_PET_NAME]?.toString() ??
+                  pet['petName']?.toString() ??
+                  pet['name']?.toString() ??
+                  '';
+              final breed = pet[Constants.database.COLUMN_BREED]?.toString() ??
+                  pet['breed']?.toString() ??
+                  '';
+              final weight = pet[Constants.database.COLUMN_WEIGHT]?.toString() ??
+                  pet['weight']?.toString() ??
+                  '0';
               final age = PetAgeFormatter.formatPetCardAge(pet);
+              final gender = pet['gender']?.toString();
+              final isSelected = _selectedPetId != null &&
+                  _selectedPetId! > 0 &&
+                  (id == _selectedPetId || id.toString() == _selectedPetId.toString());
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),
@@ -250,19 +327,23 @@ class _PetSelectPageMobileState extends State<PetSelectPageMobile> {
                       breed: breed,
                       weight: weight,
                       age: age,
-                      photoUrl: pet[Constants.database.COLUMN_PHOTO_URL]?.toString(),
+                      gender: gender,
+                      photoUrl: pet[Constants.database.COLUMN_PHOTO_URL]?.toString() ??
+                          pet['profilePictureUrl']?.toString() ??
+                          pet['photo_url']?.toString(),
                       assetFallback: index.isEven
                           ? 'assets/images/common/pet_1.png'
                           : 'assets/images/common/pet_2.png',
-                      selected: _selectedPetId == id,
+                      selected: isSelected,
                       onTap: () {
                         context.read<PetBloc>().add(SelectPet(id));
+                        ServicesLocator.bookingDraft.setPet(pet);
                         setState(() {
                           _selectedPetId = id;
                         });
                       },
                     ),
-                    if (_selectedPetId == id)
+                    if (isSelected)
                       Positioned(
                         right: 18,
                         top: -9,
@@ -330,12 +411,17 @@ class _PetSelectPageMobileState extends State<PetSelectPageMobile> {
           const SizedBox(height: 12),
           GestureDetector(
             onTap: () {
-              if (_selectedPetId != null) {
-                final pet = state.pets.firstWhere(
-                  (p) => p[Constants.database.COLUMN_ID] == _selectedPetId,
-                  orElse: () => state.pets.first,
+              if (_selectedPetId != null && _selectedPetId! > 0) {
+                final pet = state.pets.cast<Map<String, dynamic>?>().firstWhere(
+                  (p) =>
+                      p != null &&
+                      (BookingDateUtils.parsePetIdFromPet(p) == _selectedPetId ||
+                          p[Constants.database.COLUMN_ID]?.toString() == _selectedPetId.toString()),
+                  orElse: () => null,
                 );
-                _onSelectAndContinue(pet);
+                if (pet != null) {
+                  _onSelectAndContinue(pet);
+                }
               }
             },
             child: Container(

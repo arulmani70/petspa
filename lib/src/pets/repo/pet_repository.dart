@@ -38,13 +38,17 @@ class PetRepository {
         map['petImage'] ??
         map['pet_image'];
 
-    final id = map['id'] ?? map['_id'];
+    final rawId = map['id'] ?? map['_id'] ?? map['petId'] ?? map['pet_id'];
+    final int? intId = rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
+    final id = intId ?? rawId;
     final name = map['petName'] ?? map['name'];
 
     return {
       Constants.database.COLUMN_ID: id,
       'id': id,
       '_id': id,
+      'petId': id,
+      'pet_id': id,
       Constants.database.COLUMN_PET_NAME: name,
       'petName': name,
       'name': name,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/utils/booking_date_utils.dart';
 import 'package:shear_heaven_pet_spa/src/common/common.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
@@ -97,13 +98,22 @@ class MyPetsPageMobile extends StatelessWidget {
                 return _buildAddPetBlock(context);
               }
               final pet = state.pets[index];
-              final name =
-                  pet[Constants.database.COLUMN_PET_NAME]?.toString() ?? '';
-              final breed =
-                  pet[Constants.database.COLUMN_BREED]?.toString() ?? '';
-              final weight =
-                  pet[Constants.database.COLUMN_WEIGHT]?.toString() ?? '0';
+              final id = BookingDateUtils.parsePetIdFromPet(pet) ??
+                  (pet[Constants.database.COLUMN_ID] is int
+                      ? pet[Constants.database.COLUMN_ID] as int
+                      : int.tryParse(pet[Constants.database.COLUMN_ID]?.toString() ?? '') ?? 0);
+              final name = pet[Constants.database.COLUMN_PET_NAME]?.toString() ??
+                  pet['petName']?.toString() ??
+                  pet['name']?.toString() ??
+                  '';
+              final breed = pet[Constants.database.COLUMN_BREED]?.toString() ??
+                  pet['breed']?.toString() ??
+                  '';
+              final weight = pet[Constants.database.COLUMN_WEIGHT]?.toString() ??
+                  pet['weight']?.toString() ??
+                  '0';
               final age = PetAgeFormatter.formatPetCardAge(pet);
+              final gender = pet['gender']?.toString();
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),
@@ -112,14 +122,17 @@ class MyPetsPageMobile extends StatelessWidget {
                   breed: breed,
                   weight: weight,
                   age: age,
-                  photoUrl: pet[Constants.database.COLUMN_PHOTO_URL]?.toString(),
+                  gender: gender,
+                  photoUrl: pet[Constants.database.COLUMN_PHOTO_URL]?.toString() ??
+                      pet['profilePictureUrl']?.toString() ??
+                      pet['photo_url']?.toString(),
                   assetFallback: index.isEven
                       ? 'assets/images/common/pet_1.png'
                       : 'assets/images/common/pet_2.png',
                   showDelete: true,
                   onTap: () => context.pushNamed(
                     RouteNames.createPet,
-                    extra: {'pet': pet},
+                    extra: {'pet': pet, 'id': id, 'petId': id},
                   ),
                   onDelete: () {
                     showDialog(
@@ -141,8 +154,6 @@ class MyPetsPageMobile extends StatelessWidget {
                             TextButton(
                               onPressed: () {
                                 Navigator.of(ctx).pop();
-                                final id =
-                                    pet[Constants.database.COLUMN_ID] as int;
                                 context.read<PetBloc>().add(
                                   DeletePet(petId: id),
                                 );

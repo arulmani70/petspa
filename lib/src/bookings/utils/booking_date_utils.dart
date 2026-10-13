@@ -524,7 +524,9 @@ class BookingDateUtils {
         booking['pet_id'] ??
         booking['PetId'] ??
         booking['pet_ID'] ??
-        booking['petID'];
+        booking['petID'] ??
+        booking['_id'] ??
+        booking['id'];
     if (raw is int && raw > 0) return raw;
     final parsed = int.tryParse(raw?.toString().trim() ?? '');
     if (parsed != null && parsed > 0) return parsed;
@@ -536,6 +538,7 @@ class BookingDateUtils {
   static int? parsePetIdFromPet(Map<dynamic, dynamic>? pet) {
     if (pet == null) return null;
     final raw = pet['id'] ??
+        pet['_id'] ??
         pet['petId'] ??
         pet['pet_id'] ??
         pet['PetId'] ??

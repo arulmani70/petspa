@@ -6,6 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
 import 'package:shear_heaven_pet_spa/src/app/routes.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/utils/booking_date_utils.dart';
 import 'package:shear_heaven_pet_spa/src/common/common.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
@@ -1678,11 +1679,17 @@ Widget _buildMyPets(BuildContext context) {
               children: [
                 ...state.pets.asMap().entries.map((entry) {
                   final pet = entry.value;
-                  final petId = pet[Constants.database.COLUMN_ID] as int;
-                  final name =
-                      pet[Constants.database.COLUMN_PET_NAME]?.toString() ?? '';
-                  final photoUrl = pet[Constants.database.COLUMN_PHOTO_URL]
-                      ?.toString();
+                  final petId = BookingDateUtils.parsePetIdFromPet(pet) ??
+                      (pet[Constants.database.COLUMN_ID] is int
+                          ? pet[Constants.database.COLUMN_ID] as int
+                          : int.tryParse(pet[Constants.database.COLUMN_ID]?.toString() ?? '') ?? 0);
+                  final name = pet[Constants.database.COLUMN_PET_NAME]?.toString() ??
+                      pet['petName']?.toString() ??
+                      pet['name']?.toString() ??
+                      '';
+                  final photoUrl = pet[Constants.database.COLUMN_PHOTO_URL]?.toString() ??
+                      pet['profilePictureUrl']?.toString() ??
+                      pet['photo_url']?.toString();
                   final fallbackAsset = entry.key.isEven
                       ? 'assets/images/common/pet_1.png'
                       : 'assets/images/common/pet_2.png';
@@ -1690,6 +1697,7 @@ Widget _buildMyPets(BuildContext context) {
                     padding: const EdgeInsets.only(right: 20),
                     child: _buildPetAvatar(
                       context,
+                      pet,
                       petId,
                       photoUrl,
                       fallbackAsset,
@@ -1753,6 +1761,7 @@ Widget _buildMyPets(BuildContext context) {
 
 Widget _buildPetAvatar(
   BuildContext context,
+  Map<String, dynamic> pet,
   int petId,
   String? photoUrl,
   String fallbackAsset,
@@ -1761,7 +1770,15 @@ Widget _buildPetAvatar(
   return InkWell(
     onTap: () {
       context.read<PetBloc>().add(SelectPet(petId));
-      context.pushNamed(RouteNames.petSelect);
+      ServicesLocator.bookingDraft.setPet(pet);
+      context.pushNamed(
+        RouteNames.petSelect,
+        extra: {
+          'pet': pet,
+          'petId': petId,
+          'selectedPetId': petId,
+        },
+      );
     },
     child: Column(
       children: [

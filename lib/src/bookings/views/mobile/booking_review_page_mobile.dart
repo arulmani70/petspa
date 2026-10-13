@@ -47,8 +47,17 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
       if (ServicesLocator.sessionService.isLoggedIn) {
         final pets = await ServicesLocator.petRepository.getAllPets();
         if (pets.isNotEmpty && mounted) {
-          final currentPetId = int.tryParse(_draft.pet?['id']?.toString() ?? '0') ?? 0;
-          if (currentPetId == 0) {
+          final currentPetId = BookingDateUtils.parsePetIdFromPet(_draft.pet) ??
+              int.tryParse(_draft.pet?['id']?.toString() ?? '0') ?? 0;
+          if (currentPetId > 0) {
+            final matched = pets.cast<Map<String, dynamic>?>().firstWhere(
+              (p) => p != null && BookingDateUtils.parsePetIdFromPet(p) == currentPetId,
+              orElse: () => null,
+            );
+            if (matched != null) {
+              _draft.setPet(matched);
+            }
+          } else {
             final selectedBreed = _draft.pet?['breed']?.toString().toLowerCase() ?? '';
             final matched = pets.firstWhere(
               (p) => selectedBreed.isNotEmpty && p['breed']?.toString().toLowerCase() == selectedBreed,
@@ -543,7 +552,8 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
     try {
       _log.d("BookingReviewPage::_confirmBooking::Starting booking confirmation");
 
-      int petId = int.tryParse(_draft.pet?['id']?.toString() ?? '0') ?? 0;
+      int petId = BookingDateUtils.parsePetIdFromPet(_draft.pet) ??
+          int.tryParse(_draft.pet?['id']?.toString() ?? '0') ?? 0;
       if (petId == 0 && ServicesLocator.sessionService.isLoggedIn) {
         try {
           final pets = await ServicesLocator.petRepository.getAllPets();
@@ -554,7 +564,8 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
               orElse: () => pets.first,
             );
             _draft.setPet(matched);
-            petId = int.tryParse(matched['id']?.toString() ?? '0') ?? 0;
+            petId = BookingDateUtils.parsePetIdFromPet(matched) ??
+                int.tryParse(matched['id']?.toString() ?? '0') ?? 0;
           } else {
             final rawName = _draft.pet?['pet_name']?.toString() ?? 'My Pet';
             final rawBreed = _draft.pet?['breed']?.toString() ?? 'All Breeds';
