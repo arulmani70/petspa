@@ -78,17 +78,37 @@ class ServiceCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        "View Service",
-                        style: AppFonts.parkinsans(
-                          size: 14,
-                          weight: FontWeight.w600,
+                      Row(
+                        children: [
+                          Text(
+                            "View Service",
+                            style: AppFonts.parkinsans(
+                              size: 14,
+                              weight: FontWeight.w600,
+                              color: Colors.black,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.arrow_forward_ios, size: 12, color: Colors.black),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6.5),
+                        decoration: BoxDecoration(
                           color: Colors.black,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          "Add",
+                          style: AppFonts.poppins(
+                            size: 12,
+                            weight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 4),
-                      const Icon(Icons.arrow_forward_ios, size: 12, color: Colors.black),
                     ],
                   ),
                 ],

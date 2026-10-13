@@ -18,7 +18,6 @@ const _kBorder    = Color(0xFFE5E7EB);
 const _kPageBg    = Color(0xFFFAFAFA);
 const _kCardBg    = Color(0xFFFFFFFF);
 const _kLightGrey = Color(0xFFF3F4F6);
-const _kBaseUrl   = 'https://devapi.shearheavenpetspa.com';
 
 // ─────────────────────────────────────────────────────────────────────────────
 class ServicesPageMobile extends StatelessWidget {
@@ -124,8 +123,11 @@ class _ServicesView extends StatelessWidget {
                               onTap: () => ctx.pushNamed(
                                 RouteNames.serviceDetail,
                                 pathParameters: {
-                                  'serviceId': bs.walkIn[i].id.toString(),
+                                  'serviceId': bs.walkIn[i].code?.isNotEmpty == true
+                                      ? bs.walkIn[i].code!
+                                      : bs.walkIn[i].id.toString(),
                                 },
+                                extra: bs.walkIn[i].toMap(),
                               ),
                             ),
                           ),
@@ -149,8 +151,11 @@ class _ServicesView extends StatelessWidget {
                               onTap: () => ctx.pushNamed(
                                 RouteNames.serviceDetail,
                                 pathParameters: {
-                                  'serviceId': bs.addOns[i].id.toString(),
+                                  'serviceId': bs.addOns[i].code?.isNotEmpty == true
+                                      ? bs.addOns[i].code!
+                                      : 'addon_${bs.addOns[i].id}',
                                 },
+                                extra: bs.addOns[i].toMap(),
                               ),
                             ),
                           ),
@@ -176,6 +181,7 @@ class _ServicesView extends StatelessWidget {
                                 pathParameters: {
                                   'serviceId': bs.breeds[i].id.toString(),
                                 },
+                                extra: bs.breeds[i].toMap(),
                               ),
                             ),
                           ),
@@ -330,13 +336,24 @@ class _ServiceListCard extends StatelessWidget {
                 ),
               ),
             ),
-            // Arrow
+            // Add Button
             Padding(
-              padding: const EdgeInsets.only(top: 16, right: 12),
-              child: const Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 14,
-                color: _kSubText,
+              padding: const EdgeInsets.only(top: 14, right: 12),
+              child: Container(
+                key: ValueKey('add_btn_${item.id}_${item.name}'),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6.5),
+                decoration: BoxDecoration(
+                  color: _kBlack,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  'Add',
+                  style: AppFonts.poppins(
+                    size: 12,
+                    weight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ),
           ],
@@ -377,8 +394,15 @@ class _ApiOrLocalImage extends StatelessWidget {
       return _icon();
     }
 
-    if (url != null && url.isNotEmpty) {
-      final fullUrl = url.startsWith('http') ? url : '$_kBaseUrl$url';
+    final fullUrl = ServiceRepository.resolveImageUrl(url);
+    if (fullUrl != null && fullUrl.isNotEmpty) {
+      if (fullUrl.startsWith('assets/')) {
+        return FigmaImage(
+          asset: fullUrl,
+          fit: BoxFit.cover,
+          fallback: fallback(),
+        );
+      }
       return Image.network(
         fullUrl,
         fit: BoxFit.cover,

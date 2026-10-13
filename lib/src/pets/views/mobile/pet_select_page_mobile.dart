@@ -8,6 +8,7 @@ import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/utils.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/shimmer_loading.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
+import 'package:shear_heaven_pet_spa/src/offers/bloc/offer_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/pets/bloc/pet_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/pets/views/mobile/widgets/pet_card.dart';
 
@@ -25,6 +26,10 @@ class _PetSelectPageMobileState extends State<PetSelectPageMobile> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialBookingData == null) {
+      // Clear stale offers from any previous booking attempt
+      ServicesLocator.bookingDraft.removeOffer();
+    }
     // Prioritize the PetBloc selectedPetId as requested
     final selectedPetId = context.read<PetBloc>().state.selectedPetId;
     if (selectedPetId != null) {
@@ -48,6 +53,10 @@ class _PetSelectPageMobileState extends State<PetSelectPageMobile> {
   }
 
   void _handleBack(BuildContext context) {
+    ServicesLocator.bookingDraft.removeOffer();
+    try {
+      context.read<OfferBloc>().add(const RemoveOfferEvent());
+    } catch (_) {}
     bool canPop = false;
     try {
       canPop = context.canPop();

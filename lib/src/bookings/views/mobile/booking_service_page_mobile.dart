@@ -7,7 +7,9 @@ import 'package:shear_heaven_pet_spa/src/bookings/views/mobile/widgets/booking_h
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/toast_util.dart';
+import 'package:shear_heaven_pet_spa/src/common/widgets/app_assets.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/shimmer_loading.dart';
+import 'package:shear_heaven_pet_spa/src/offers/bloc/offer_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/services/bloc/service_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/services/repo/service_repository.dart';
 
@@ -20,10 +22,6 @@ const _kCardBg     = Color(0xFFFFFFFF);
 const _kBorder     = Color(0xFFE5E7EB);
 const _kSubText    = Color(0xFF6B7280);
 const _kLightGrey  = Color(0xFFF3F4F6);
-
-// Base URL as a plain string constant — avoids const-expression issue
-// with AppConstants (which holds non-const Color fields).
-const _kBaseUrl = 'https://devapi.shearheavenpetspa.com';
 
 // ─────────────────────────────────────────────────────────────────────────────
 class BookingServicePageMobile extends StatefulWidget {
@@ -93,12 +91,30 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
         canPop = Navigator.of(context).canPop();
       } catch (_) {}
     }
+
+    final extra = GoRouterState.of(context).extra;
+    final isFromPopular = (extra is Map && (extra['from_popular'] == true || extra['service'] != null)) || _isFromPopular;
+    final hasRealPet = _draft.pet != null &&
+        (_draft.pet?['id'] != null && _draft.pet?['id'] != 0);
+
     if (canPop) {
       try {
+        if (isFromPopular || !hasRealPet) {
+          _draft.removeOffer();
+          try {
+            context.read<OfferBloc>().add(const RemoveOfferEvent());
+          } catch (_) {}
+        }
         context.pop();
         return;
       } catch (_) {
         if (Navigator.of(context).canPop()) {
+          if (isFromPopular || !hasRealPet) {
+            _draft.removeOffer();
+            try {
+              context.read<OfferBloc>().add(const RemoveOfferEvent());
+            } catch (_) {}
+          }
           Navigator.of(context).pop();
           return;
         }
@@ -106,12 +122,11 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
     }
 
     // Fallback when navigation stack has no previous route
-    final extra = GoRouterState.of(context).extra;
-    final isFromPopular = (extra is Map && (extra['from_popular'] == true || extra['service'] != null)) || _isFromPopular;
-    final hasRealPet = _draft.pet != null &&
-        (_draft.pet?['id'] != null && _draft.pet?['id'] != 0);
-
     if (isFromPopular && !hasRealPet) {
+      _draft.removeOffer();
+      try {
+        context.read<OfferBloc>().add(const RemoveOfferEvent());
+      } catch (_) {}
       try {
         context.goNamed(RouteNames.services);
         return;
@@ -120,6 +135,10 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
     try {
       context.goNamed(RouteNames.petSelect);
     } catch (_) {
+      _draft.removeOffer();
+      try {
+        context.read<OfferBloc>().add(const RemoveOfferEvent());
+      } catch (_) {}
       context.goNamed(RouteNames.home);
     }
   }
@@ -831,40 +850,66 @@ class _ServiceImage extends StatelessWidget {
   final ServiceItem item;
   const _ServiceImage({required this.item});
 
+  Widget _iconPlaceholder() {
+    final IconData icon;
+    if (item.isPackage) {
+      icon = Icons.auto_awesome;
+    } else if (item.isAddOn) {
+      icon = Icons.add_circle_outline;
+    } else if (item.name.toLowerCase().contains('bath')) {
+      icon = Icons.shower_outlined;
+    } else {
+      icon = Icons.content_cut;
+    }
+    return Container(
+      width    : double.infinity,
+      height   : double.infinity,
+      color    : _kLightGrey,
+      alignment: Alignment.center,
+      child    : Icon(icon, size: 30, color: _kSubText),
+    );
+  }
+
+  Widget _placeholder() {
+    final localAsset = serviceAssetFor(item.name.split(' — ').last.trim()) ??
+        serviceAssetFor(item.name) ??
+        (item.name.toLowerCase().contains('breed')
+            ? 'assets/images/common/svc_breed_style.png'
+            : null);
+    if (localAsset != null) {
+      return FigmaImage(
+        asset: localAsset,
+        width: double.infinity,
+        height: double.infinity,
+        fit: BoxFit.cover,
+        fallback: _iconPlaceholder(),
+      );
+    }
+    return _iconPlaceholder();
+  }
+
   @override
   Widget build(BuildContext context) {
     final url = item.imageUrl;
+    final fullUrl = ServiceRepository.resolveImageUrl(url);
+    if (fullUrl == null || fullUrl.isEmpty) return _placeholder();
 
-    Widget placeholder() {
-      final IconData icon;
-      if (item.isPackage) {
-        icon = Icons.auto_awesome;
-      } else if (item.isAddOn) {
-        icon = Icons.add_circle_outline;
-      } else if (item.name.toLowerCase().contains('bath')) {
-        icon = Icons.shower_outlined;
-      } else {
-        icon = Icons.content_cut;
-      }
-      return Container(
-        width    : double.infinity,
-        height   : double.infinity,
-        color    : _kLightGrey,
-        alignment: Alignment.center,
-        child    : Icon(icon, size: 30, color: _kSubText),
+    if (fullUrl.startsWith('assets/')) {
+      return FigmaImage(
+        asset: fullUrl,
+        width: double.infinity,
+        height: double.infinity,
+        fit: BoxFit.cover,
+        fallback: _placeholder(),
       );
     }
-
-    if (url == null || url.isEmpty) return placeholder();
-
-    final fullUrl = url.startsWith('http') ? url : '$_kBaseUrl$url';
 
     return Image.network(
       fullUrl,
       width        : double.infinity,
       height       : double.infinity,
       fit          : BoxFit.cover,
-      errorBuilder : (ctx, err, st) => placeholder(),
+      errorBuilder : (ctx, err, st) => _placeholder(),
       loadingBuilder: (ctx, child, progress) {
         if (progress == null) return child;
         return Container(
@@ -892,8 +937,17 @@ class _NetworkOrIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (url != null && url!.isNotEmpty) {
-      final full = url!.startsWith('http') ? url! : '$_kBaseUrl$url';
+    final full = ServiceRepository.resolveImageUrl(url);
+    if (full != null && full.isNotEmpty) {
+      if (full.startsWith('assets/')) {
+        return FigmaImage(
+          asset: full,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          fallback: Icon(Icons.pets, size: size, color: _kSubText),
+        );
+      }
       return Image.network(
         full,
         fit         : BoxFit.cover,

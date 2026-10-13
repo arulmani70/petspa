@@ -10,6 +10,7 @@ import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/app_assets.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/shimmer_loading.dart';
 import 'package:shear_heaven_pet_spa/src/services/bloc/service_bloc.dart';
+import 'package:shear_heaven_pet_spa/src/services/repo/service_repository.dart';
 
 class PackagesPageMobile extends StatelessWidget {
   const PackagesPageMobile({super.key});
@@ -82,7 +83,7 @@ class PackagesPageMobile extends StatelessWidget {
                 itemCount: packages.length,
                 itemBuilder: (context, index) {
                   final package = packages[index];
-                  return _PackageCard(package: package);
+                  return _PackageCard(package: package, index: index);
                 },
               );
             },
@@ -95,8 +96,46 @@ class PackagesPageMobile extends StatelessWidget {
 
 class _PackageCard extends StatelessWidget {
   final Map<String, dynamic> package;
+  final int index;
 
-  const _PackageCard({required this.package});
+  const _PackageCard({required this.package, required this.index});
+
+  Widget _buildBackground() {
+    String fallbackAsset;
+    if (index == 1) {
+      fallbackAsset = 'assets/images/home/package_banner_1.png';
+    } else if (index == 2) {
+      fallbackAsset = 'assets/images/home/package_banner_2.png';
+    } else {
+      fallbackAsset = 'assets/images/packages/package_banner.png';
+    }
+
+    final rawUrl = package['imageUrl'] ?? package['image_url'];
+    final resolvedUrl = ServiceRepository.resolveImageUrl(rawUrl);
+
+    Widget fallback() => DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1B1F),
+        image: figmaDecorationImage(fallbackAsset),
+      ),
+    );
+
+    if (resolvedUrl != null && resolvedUrl.isNotEmpty) {
+      if (resolvedUrl.startsWith('assets/')) {
+        return FigmaImage(
+          asset: resolvedUrl,
+          fit: BoxFit.cover,
+          fallback: fallback(),
+        );
+      }
+      return Image.network(
+        resolvedUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (ctx, err, st) => fallback(),
+      );
+    }
+    return fallback();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -109,6 +148,7 @@ class _PackageCard extends StatelessWidget {
     final breedList = package['breeds']?.toString() ?? '';
     final services = package['services']?.toString() ?? '';
     final hasExtra = package['extra'] == true;
+    final pkgId = package['packageId'] ?? package['id'] ?? package['package_id'] ?? (index + 1);
 
     final groomingPrice =
         package['grooming_price']?.toString() ??
@@ -144,55 +184,55 @@ class _PackageCard extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
-      child: SizedBox(
-        height: cardHeight + 64,
-        child: Stack(
-          children: [
-            Positioned(
-              top: cardHeight - 56,
-              left: 0,
-              right: 0,
-              height: 120,
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(23, 70, 23, 22),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(21),
-                ),
-                child: Text(
-                  description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppFonts.poppins(size: 16, weight: FontWeight.w400),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => context.pushNamed(
+          RouteNames.packageDetail,
+          pathParameters: {'packageId': pkgId.toString()},
+          extra: package,
+        ),
+        child: SizedBox(
+          height: cardHeight + 64,
+          child: Stack(
+            children: [
+              Positioned(
+                top: cardHeight - 56,
+                left: 0,
+                right: 0,
+                height: 120,
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(23, 70, 23, 22),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(21),
+                  ),
+                  child: Text(
+                    description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppFonts.poppins(size: 16, weight: FontWeight.w400),
+                  ),
                 ),
               ),
-            ),
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height: cardHeight,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(30),
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1C1B1F),
-                          image: figmaDecorationImage(
-                            'assets/images/packages/package_banner.png',
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: cardHeight,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(30),
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: _buildBackground(),
+                      ),
+                      Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.20),
                           ),
                         ),
                       ),
-                    ),
-                    Positioned.fill(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.20),
-                        ),
-                      ),
-                    ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(23, 28, 23, 21),
                       child: Column(
@@ -301,8 +341,9 @@ class _PackageCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _priceRow({required String label, required String price}) {
     return Row(

@@ -165,7 +165,7 @@ class BookingDraft extends ChangeNotifier {
   /// Returns a list of integer add-on IDs from the current selection.
   List<int> extractAddOnIds() {
     return addOns
-        .map((a) => int.tryParse((a['id'] ?? a['service_id'] ?? a['addOnId'])?.toString() ?? '0') ?? 0)
+        .map((a) => int.tryParse((a['addOnId'] ?? a['id'] ?? a['service_id'])?.toString() ?? '0') ?? 0)
         .where((id) => id > 0)
         .toList();
   }
@@ -230,6 +230,11 @@ class BookingDraft extends ChangeNotifier {
     log.d("BookingDraft::removeOffer::Removing applied offer");
     appliedOffer = null;
     notifyListeners();
+  }
+
+  /// Explicit helper to reset booking-specific offer state when exiting the flow.
+  void resetOffer() {
+    removeOffer();
   }
 
   List<Map<String, dynamic>> addOns = [];

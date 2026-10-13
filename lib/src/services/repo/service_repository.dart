@@ -16,6 +16,8 @@ class ServiceItem {
   final String priceDisplay;
   final int durationMinutes;   // 0 when "Not Applicable"
   final String? imageUrl;
+  final List<String> includes;
+  final String? code;
 
   const ServiceItem({
     required this.id,
@@ -27,27 +29,38 @@ class ServiceItem {
     required this.priceDisplay,
     required this.durationMinutes,
     this.imageUrl,
+    this.includes = const [],
+    this.code,
   });
 
   // Legacy map used by home_page, services_page, review_page, etc.
   Map<String, dynamic> toMap() => {
     Constants.database.COLUMN_ID          : id,
-    'serviceId'                           : isPackage ? null : id,
+    'serviceId'                           : (isPackage || isAddOn) ? null : id,
     'packageId'                           : isPackage ? id   : null,
+    'package_id'                          : isPackage ? (code ?? id.toString()) : null,
     'addOnId'                             : isAddOn   ? id   : null,
     'id'                                  : id,
     'isPackage'                           : isPackage,
     'isAddOn'                             : isAddOn,
+    'name'                                : name,
     Constants.database.COLUMN_SERVICE_NAME: name,
     'service_name'                        : name,
     Constants.database.COLUMN_PACKAGE_NAME: isPackage ? name : null,
+    'package_name'                        : isPackage ? name : null,
     Constants.database.COLUMN_DESCRIPTION : description,
+    'description'                         : description,
     Constants.database.COLUMN_PRICE       : price,
     'price'                               : price,
     'priceDisplay'                        : priceDisplay,
     'duration'     : durationMinutes > 0 ? '$durationMinutes min' : '',
+    Constants.database.COLUMN_DURATION_MIN: durationMinutes,
     'durationMinutes': durationMinutes,
+    'duration_min': durationMinutes,
     'imageUrl'     : imageUrl,
+    'image_url'    : imageUrl,
+    'includes'     : includes,
+    'code'         : code,
   };
 }
 
@@ -90,6 +103,7 @@ class BookingServicesResult {
           price: 55.0,
           priceDisplay: r'$55 & up',
           durationMinutes: 60,
+          imageUrl: 'assets/images/common/svc_full_grooming.png',
         ),
         ServiceItem(
           id: 2,
@@ -100,6 +114,7 @@ class BookingServicesResult {
           price: 35.0,
           priceDisplay: r'$35 & up',
           durationMinutes: 30,
+          imageUrl: 'assets/images/common/svc_bath_blowdry.png',
         ),
         ServiceItem(
           id: 3,
@@ -110,6 +125,7 @@ class BookingServicesResult {
           price: 65.0,
           priceDisplay: r'$65 & up',
           durationMinutes: 75,
+          imageUrl: 'assets/images/common/svc_spa.png',
         ),
         ServiceItem(
           id: 4,
@@ -120,6 +136,7 @@ class BookingServicesResult {
           price: 68.0,
           priceDisplay: r'$68 & up',
           durationMinutes: 75,
+          imageUrl: 'assets/images/common/svc_full_grooming.png',
         ),
         ServiceItem(
           id: 5,
@@ -130,6 +147,7 @@ class BookingServicesResult {
           price: 45.0,
           priceDisplay: r'$45 & up',
           durationMinutes: 45,
+          imageUrl: 'assets/images/common/svc_bath_blowdry.png',
         ),
         ServiceItem(
           id: 6,
@@ -140,6 +158,7 @@ class BookingServicesResult {
           price: 80.0,
           priceDisplay: r'$80 & up',
           durationMinutes: 90,
+          imageUrl: 'assets/images/common/svc_spa.png',
         ),
         ServiceItem(
           id: 7,
@@ -150,6 +169,7 @@ class BookingServicesResult {
           price: 85.0,
           priceDisplay: r'$85 & up',
           durationMinutes: 90,
+          imageUrl: 'assets/images/common/svc_full_grooming.png',
         ),
         ServiceItem(
           id: 8,
@@ -160,6 +180,7 @@ class BookingServicesResult {
           price: 55.0,
           priceDisplay: r'$55 & up',
           durationMinutes: 60,
+          imageUrl: 'assets/images/common/svc_bath_blowdry.png',
         ),
         ServiceItem(
           id: 9,
@@ -170,6 +191,7 @@ class BookingServicesResult {
           price: 100.0,
           priceDisplay: r'$100 & up',
           durationMinutes: 105,
+          imageUrl: 'assets/images/common/svc_spa.png',
         ),
       ],
       walkIn: [
@@ -183,6 +205,7 @@ class BookingServicesResult {
           price: 68.0,
           priceDisplay: r'$68 & up',
           durationMinutes: 75,
+          imageUrl: 'assets/images/common/svc_full_grooming.png',
         ),
         ServiceItem(
           id: 11,
@@ -194,6 +217,7 @@ class BookingServicesResult {
           price: 40.0,
           priceDisplay: r'$40 & up',
           durationMinutes: 45,
+          imageUrl: 'assets/images/common/svc_bath_blowdry.png',
         ),
         ServiceItem(
           id: 12,
@@ -205,6 +229,7 @@ class BookingServicesResult {
           price: 30.0,
           priceDisplay: r'$30 & up',
           durationMinutes: 30,
+          imageUrl: 'assets/images/common/svc_hair_trim.png',
         ),
         ServiceItem(
           id: 13,
@@ -216,6 +241,7 @@ class BookingServicesResult {
           price: 55.0,
           priceDisplay: r'$55 & up',
           durationMinutes: 60,
+          imageUrl: 'assets/images/common/svc_breed_style.png',
         ),
         ServiceItem(
           id: 14,
@@ -227,6 +253,7 @@ class BookingServicesResult {
           price: 15.0,
           priceDisplay: r'$15',
           durationMinutes: 15,
+          imageUrl: 'assets/images/common/svc_nail_trim.png',
         ),
         ServiceItem(
           id: 15,
@@ -238,6 +265,7 @@ class BookingServicesResult {
           price: 12.0,
           priceDisplay: r'$12',
           durationMinutes: 10,
+          imageUrl: 'assets/images/common/svc_ear_clean.png',
         ),
         ServiceItem(
           id: 16,
@@ -249,6 +277,7 @@ class BookingServicesResult {
           price: 14.0,
           priceDisplay: r'$14',
           durationMinutes: 10,
+          imageUrl: 'assets/images/common/svc_teeth_brush.png',
         ),
         ServiceItem(
           id: 17,
@@ -260,6 +289,7 @@ class BookingServicesResult {
           price: 25.0,
           priceDisplay: r'$25 & up',
           durationMinutes: 30,
+          imageUrl: 'assets/images/common/svc_flea_tick.png',
         ),
         ServiceItem(
           id: 18,
@@ -271,6 +301,7 @@ class BookingServicesResult {
           price: 35.0,
           priceDisplay: r'$35 & up',
           durationMinutes: 45,
+          imageUrl: 'assets/images/common/svc_puppy.png',
         ),
         ServiceItem(
           id: 19,
@@ -282,6 +313,7 @@ class BookingServicesResult {
           price: 28.0,
           priceDisplay: r'$28 & up',
           durationMinutes: 30,
+          imageUrl: 'assets/images/common/svc_deshed.png',
         ),
         ServiceItem(
           id: 20,
@@ -293,6 +325,7 @@ class BookingServicesResult {
           price: 22.0,
           priceDisplay: r'$22 & up',
           durationMinutes: 20,
+          imageUrl: 'assets/images/common/svc_skin_care.png',
         ),
       ],
       packages: [
@@ -306,6 +339,7 @@ class BookingServicesResult {
           price: 85.0,
           priceDisplay: r'$85 & up',
           durationMinutes: 90,
+          imageUrl: 'assets/images/common/svc_spa.png',
         ),
         ServiceItem(
           id: 2,
@@ -317,6 +351,7 @@ class BookingServicesResult {
           price: 50.0,
           priceDisplay: r'$50 & up',
           durationMinutes: 45,
+          imageUrl: 'assets/images/common/svc_bath_blowdry.png',
         ),
         ServiceItem(
           id: 3,
@@ -328,74 +363,165 @@ class BookingServicesResult {
           price: 45.0,
           priceDisplay: r'$45 & up',
           durationMinutes: 45,
+          imageUrl: 'assets/images/common/svc_puppy.png',
         ),
       ],
       addOns: [
         ServiceItem(
           id: 1,
+          code: 'A0001',
           isPackage: false,
           isAddOn: true,
-          name: 'Nail Grinding & Buffing',
+          name: 'Nail Grinding',
           description:
               'Smooth round finish on nails using a professional rotary tool.',
-          price: 8.0,
-          priceDisplay: r'$8',
-          durationMinutes: 10,
+          price: 18.0,
+          priceDisplay: r'$18 & up',
+          durationMinutes: 60,
+          imageUrl: 'assets/images/common/svc_nail_trim.png',
         ),
         ServiceItem(
           id: 2,
+          code: 'A0002',
           isPackage: false,
           isAddOn: true,
-          name: 'Medicated Shampoo',
+          name: 'Teeth Brushing',
           description:
-              'Therapeutic bath treatment for sensitive or irritated skin.',
-          price: 10.0,
-          priceDisplay: r'$10',
-          durationMinutes: 10,
+              'Oral hygiene care with pet-safe enzymatic toothpaste for fresh breath and cleaner teeth.',
+          price: 16.0,
+          priceDisplay: r'$16 & up',
+          durationMinutes: 60,
+          imageUrl: 'assets/images/common/svc_teeth_brush.png',
         ),
         ServiceItem(
           id: 3,
+          code: 'A0003',
           isPackage: false,
           isAddOn: true,
           name: 'Blueberry Facial',
           description:
               'Tearless, aromatic face cleanser that removes tear stains and dirt.',
-          price: 10.0,
-          priceDisplay: r'$10',
-          durationMinutes: 10,
+          price: 12.0,
+          priceDisplay: r'$12 & up',
+          durationMinutes: 60,
+          imageUrl: 'assets/images/common/svc_skin_care.png',
         ),
         ServiceItem(
           id: 4,
+          code: 'A0004',
           isPackage: false,
           isAddOn: true,
-          name: 'Breath Freshener Spray',
+          name: 'Flea Bath',
           description:
-              'Refreshing dental spray for instant breath refreshment.',
-          price: 6.0,
-          priceDisplay: r'$6',
-          durationMinutes: 5,
+              'Specialized cleansing flea bath to cleanse the coat and keep your dog comfortable.',
+          price: 14.0,
+          priceDisplay: r'$14 & up',
+          durationMinutes: 60,
+          imageUrl: 'assets/images/common/svc_flea_tick.png',
         ),
         ServiceItem(
           id: 5,
+          code: 'A0005',
           isPackage: false,
           isAddOn: true,
-          name: 'Paw Balm Treatment',
+          name: 'Furminator',
           description:
-              'Soothing moisturizer applied to dry, cracked paw pads.',
-          price: 8.0,
-          priceDisplay: r'$8',
-          durationMinutes: 5,
+              'Deep undercoat removal treatment that drastically reduces excess seasonal shedding.',
+          price: 25.0,
+          priceDisplay: r'$25 & up',
+          durationMinutes: 60,
+          imageUrl: 'assets/images/common/svc_deshed.png',
         ),
         ServiceItem(
           id: 6,
+          code: 'A0006',
           isPackage: false,
           isAddOn: true,
-          name: 'De-Matting Treatment',
+          name: 'Dental Package',
           description:
-              'Gentle detangling for knotted or tangled coat sections.',
-          price: 15.0,
-          priceDisplay: r'$15 & up',
-          durationMinutes: 20,
+              'Comprehensive oral care including teeth brushing, dental spray, and treat.',
+          price: 20.0,
+          priceDisplay: r'$20 & up',
+          durationMinutes: 60,
+          imageUrl: 'assets/images/common/svc_teeth_brush.png',
+        ),
+        ServiceItem(
+          id: 7,
+          code: 'A0007',
+          isPackage: false,
+          isAddOn: true,
+          name: 'Medicated Bath',
+          description:
+              'Therapeutic bath treatment for sensitive or irritated skin.',
+          price: 18.0,
+          priceDisplay: r'$18',
+          durationMinutes: 60,
+          imageUrl: 'assets/images/common/svc_bath_blowdry.png',
+        ),
+        ServiceItem(
+          id: 8,
+          code: 'A0008',
+          isPackage: false,
+          isAddOn: true,
+          name: 'De-Odorize',
+          description:
+              'Deep odor-eliminating shampoo treatment keeping pets smelling fresh for days.',
+          price: 18.0,
+          priceDisplay: r'$18',
+          durationMinutes: 60,
+          imageUrl: 'assets/images/common/svc_spa.png',
+        ),
+        ServiceItem(
+          id: 9,
+          code: 'A0009',
+          isPackage: false,
+          isAddOn: true,
+          name: 'Brush/Dematt',
+          description:
+              'Gentle coat detangling and dead fur removal for knot-free, soft fur.',
+          price: 10.0,
+          priceDisplay: r'$10 (Per 15 min)',
+          durationMinutes: 0,
+          imageUrl: 'assets/images/common/svc_deshed.png',
+        ),
+        ServiceItem(
+          id: 10,
+          code: 'A0010',
+          isPackage: false,
+          isAddOn: true,
+          name: 'Hard To Handle',
+          description:
+              'Extra care and patience for anxious, energetic, or reactive pets.',
+          price: 18.0,
+          priceDisplay: r'$18',
+          durationMinutes: 60,
+          imageUrl: 'assets/images/common/svc_puppy.png',
+        ),
+        ServiceItem(
+          id: 11,
+          code: 'A0011',
+          isPackage: false,
+          isAddOn: true,
+          name: 'Express Service',
+          description:
+              'Expedited one-on-one grooming service without cage drying or waiting.',
+          price: 18.0,
+          priceDisplay: r'$18 & up',
+          durationMinutes: 60,
+          imageUrl: 'assets/images/common/svc_spa.png',
+        ),
+        ServiceItem(
+          id: 12,
+          code: 'A0012',
+          isPackage: false,
+          isAddOn: true,
+          name: 'Scissoring',
+          description:
+              'Hand-scissored styling and neatening for breed-standard or customized looks.',
+          price: 10.0,
+          priceDisplay: r'$10 & up',
+          durationMinutes: 60,
+          imageUrl: 'assets/images/common/svc_hair_trim.png',
         ),
       ],
     );
@@ -414,9 +540,60 @@ class ServiceRepository {
 
   // ── helpers ───────────────────────────────────────────────────────────────
 
+  static const String _kBaseUrl = 'https://devapi.shearheavenpetspa.com';
+
+  static const List<String> _defaultPackageNames = [
+    'Spa Package',
+    'Bath & Tidy Package',
+    'Deluxe Puppy Spa',
+  ];
+
+  static const List<String> _defaultPackageDescriptions = [
+    'Full Service Pet Grooming, coat conditioning, nail clipping, ear cleaning, and finishing treatments.',
+    'Bath, blow dry, nail clipping, ear cleaning, and light sanitary trimming.',
+    'Gentle puppy bath, brush out, nail trim, ear cleaning, and positive intro styling.',
+  ];
+
+  static const List<List<String>> _defaultPackageIncludes = [
+    ['Full Grooming', 'Coat Conditioning', 'Nail Clipping & Ear Cleaning', 'Finishing Spray'],
+    ['Bath & Blow Dry', 'Nail Clipping', 'Ear Cleaning', 'Sanitary Trim'],
+    ['Gentle Puppy Bath', 'Brush Out', 'Nail Trim', 'Positive Intro Styling'],
+  ];
+
+  /// Resolves relative, localhost, or outdated image URLs against the official API base URL.
+  static String? resolveImageUrl(dynamic rawUrl) {
+    if (rawUrl == null) return null;
+    final s = rawUrl.toString().trim();
+    if (s.isEmpty || s == 'null' || s == 'undefined') return null;
+
+    if (s.startsWith('assets/')) {
+      return s;
+    }
+
+    final uri = Uri.tryParse(s);
+    if (uri == null) {
+      final clean = s.startsWith('/') ? s : '/$s';
+      return '$_kBaseUrl$clean';
+    }
+
+    // Keep external remote URLs that are neither localhost nor old hosts
+    if (uri.hasScheme &&
+        uri.host.isNotEmpty &&
+        uri.host != 'localhost' &&
+        uri.host != '127.0.0.1' &&
+        uri.host != '10.0.2.2' &&
+        !uri.host.contains('genzcodershub.com')) {
+      return s;
+    }
+
+    final path = uri.path.startsWith('/') ? uri.path : '/${uri.path}';
+    final query = uri.hasQuery ? '?${uri.query}' : '';
+    return '$_kBaseUrl$path$query';
+  }
+
   static double _parseDouble(dynamic v) {
     if (v == null) return 0.0;
-    if (v is num)  return v.toDouble();
+    if (v is num) return v.toDouble();
     final s = v.toString().replaceAll(RegExp(r'[^0-9.]'), '');
     return double.tryParse(s) ?? 0.0;
   }
@@ -431,12 +608,15 @@ class ServiceRepository {
     return sfx.isNotEmpty ? '$leading$sfx' : leading;
   }
 
-  /// Returns imageUrl from the map (checks several casing variants).
+  /// Returns resolved imageUrl from the map (checks several casing variants).
   static String? _imageUrl(Map<dynamic, dynamic> m) {
-    final v = m['imageUrl'] ?? m['ImageUrl'] ?? m['image_url'] ??
-              m['ImageURL'] ?? m['image'];
-    final s = v?.toString().trim();
-    return (s != null && s.isNotEmpty) ? s : null;
+    final v = m['imageUrl'] ??
+        m['ImageUrl'] ??
+        m['image_url'] ??
+        m['ImageURL'] ??
+        m['image'] ??
+        m['photo_url'];
+    return resolveImageUrl(v);
   }
 
   /// Parses `TimeinMinutes`; returns 0 for "Not Applicable" or missing.
@@ -446,6 +626,42 @@ class ServiceRepository {
     if (s.isEmpty || s.toLowerCase() == 'not applicable') return 0;
     final n = int.tryParse(s.replaceAll(RegExp(r'[^0-9]'), ''));
     return (n != null && n > 0) ? n : 0;
+  }
+
+  static String _defaultWalkInDescription(String name) {
+    final lower = name.toLowerCase();
+    if (lower.contains('nail') && lower.contains('grind')) {
+      return 'Careful rotary nail grinding for smooth, rounded edges and optimal comfort.';
+    } else if (lower.contains('nail')) {
+      return 'Carefully trimmed and smoothed nails to improve posture, mobility, and comfort.';
+    } else if (lower.contains('anal gland')) {
+      return 'Gentle and hygienic anal gland expression supporting digestive comfort.';
+    } else if (lower.contains('face') || lower.contains('feet')) {
+      return 'Precision facial shaping and foot feather trimming for tidy and clear paws and eyes.';
+    }
+    return 'Walk-in express pet grooming service performed by skilled specialists.';
+  }
+
+  static String _defaultAddOnDescription(String name) {
+    final lower = name.toLowerCase();
+    if (lower.contains('teeth') || lower.contains('dental')) {
+      return 'Oral hygiene care with pet-safe enzymatic toothpaste for fresh breath and cleaner teeth.';
+    } else if (lower.contains('blueberry') || lower.contains('facial')) {
+      return 'Tearless, aromatic face cleanser that removes tear stains and refreshes facial fur.';
+    } else if (lower.contains('flea') || lower.contains('tick')) {
+      return 'Specialized cleansing bath to cleanse coat and soothe skin from external parasites.';
+    } else if (lower.contains('furminator') || lower.contains('deshed')) {
+      return 'Deep undercoat removal treatment that drastically reduces excess seasonal shedding.';
+    } else if (lower.contains('medicated')) {
+      return 'Therapeutic bath treatment formulated for sensitive, dry, or irritated coat and skin.';
+    } else if (lower.contains('de-odorize')) {
+      return 'Deep odor-eliminating shampoo treatment keeping pets smelling fresh for days.';
+    } else if (lower.contains('dematt') || lower.contains('brush')) {
+      return 'Gentle coat detangling and dead fur removal for knot-free, soft fur.';
+    } else if (lower.contains('scissoring')) {
+      return 'Hand-scissored styling and neatening for breed-standard or customized looks.';
+    }
+    return 'Specialized add-on grooming enhancement.';
   }
 
   // ── main fetch ────────────────────────────────────────────────────────────
@@ -464,168 +680,217 @@ class ServiceRepository {
       final data = response['data'] as Map<String, dynamic>;
       log.d('ServiceRepository::getBookingServices::keys=${data.keys.toList()}');
 
-    // ── Breeds ────────────────────────────────────────────────────────────
-    // Backend catalog: services 1–9
-    //   Each breed type has up to 3 sub-services (Grooming, Bathing,
-    //   GroomingAndBathing). The backend assigns them sequential integer IDs
-    //   starting at 1 in the order they appear in the catalog.
-    //   The /api/service-packages response does NOT include these integers —
-    //   we must assign them by position (1-based across all sub-services).
-    final breeds = <ServiceItem>[];
-    int breedServiceCounter = 1; // starts at 1 per Postman catalog description
-    if (data['Breeds'] is List) {
-      for (final b in data['Breeds'] as List) {
-        if (b is! Map) continue;
-        final breedName = b['BreedType']?.toString() ?? 'Unknown Breed';
-        final breedImg  = _imageUrl(b);
+      // ── Breeds ────────────────────────────────────────────────────────────
+      final breeds = <ServiceItem>[];
+      int breedServiceCounter = 1; // starts at 1 per Postman catalog description
+      if (data['Breeds'] is List) {
+        for (final b in data['Breeds'] as List) {
+          if (b is! Map) continue;
+          final breedName = b['BreedType']?.toString() ?? 'Unknown Breed';
+          final breedImg = _imageUrl(b);
 
-        void addBreedSvc(
-            String subType, Map<dynamic, dynamic> m, int catalogId) {
-          final price = _parseDouble(m['Price'] ?? m['price']);
-          final dur   = _parseDuration(m['TimeinMinutes'] ?? m['timeInMinutes']);
-          breeds.add(ServiceItem(
-            id             : catalogId,
-            isPackage      : false,
-            isAddOn        : false,
-            name           : '$breedName — $subType',
-            description    : '$subType for $breedName',
-            price          : price,
-            priceDisplay   : _priceDisplay(m['Price'] ?? m['price'], null),
-            durationMinutes: dur,
-            imageUrl       : _imageUrl(m) ?? breedImg,
+          void addBreedSvc(
+              String subType, Map<dynamic, dynamic> m, int catalogId) {
+            final price = _parseDouble(m['Price'] ?? m['price']);
+            final dur = _parseDuration(m['TimeinMinutes'] ?? m['timeInMinutes']);
+            final img = _imageUrl(m) ?? breedImg;
+            breeds.add(ServiceItem(
+              id: catalogId,
+              isPackage: false,
+              isAddOn: false,
+              name: '$breedName — $subType',
+              description: '$subType for $breedName',
+              price: price,
+              priceDisplay: _priceDisplay(m['Price'] ?? m['price'], null),
+              durationMinutes: dur > 0 ? dur : 60,
+              imageUrl: img,
+              includes: [
+                '$subType tailored to $breedName coat',
+                'Nail trim and ear cleanse included',
+                'Blow dry and finishing fluff',
+              ],
+            ));
+          }
+
+          if (b['Grooming'] is Map) {
+            addBreedSvc('Grooming', b['Grooming'], breedServiceCounter++);
+          }
+          if (b['Bathing'] is Map) {
+            addBreedSvc('Bathing', b['Bathing'], breedServiceCounter++);
+          }
+          if (b['GroomingAndBathing'] is Map) {
+            addBreedSvc('Grooming & Bathing', b['GroomingAndBathing'],
+                breedServiceCounter++);
+          }
+        }
+      }
+
+      // ── Walk-In Services ─────────────────────────────────────────────────
+      final walkIn = <ServiceItem>[];
+      int walkInCounter = breedServiceCounter; // e.g. 10 after 9 breed services
+      final rawWalkin = data['Walk In Services'] ??
+          data['WalkInServices'] ??
+          data['walkInServices'] ??
+          data['walkin'];
+      if (rawWalkin is List) {
+        for (final w in rawWalkin) {
+          if (w is! Map) continue;
+          final code = (w['WalkInServiceId'] ?? w['id'])?.toString().trim();
+          final name =
+              (w['Name'] ?? w['name'] ?? 'Walk-In Service').toString().trim();
+          final price = _parseDouble(w['Price'] ?? w['price']);
+          final dur = _parseDuration(w['TimeinMinutes'] ?? w['timeInMinutes']);
+          var desc =
+              (w['Description'] ?? w['description'] ?? '').toString().trim();
+          if (desc.isEmpty) {
+            desc = _defaultWalkInDescription(name);
+          }
+          walkIn.add(ServiceItem(
+            id: walkInCounter++,
+            code: code,
+            isPackage: false,
+            isAddOn: false,
+            name: name,
+            description: desc,
+            price: price,
+            priceDisplay: _priceDisplay(w['Price'] ?? w['price'], null),
+            durationMinutes: dur > 0 ? dur : 15,
+            imageUrl: _imageUrl(w),
+            includes: [
+              name,
+              'Fast walk-in express service',
+              'Safe handling by certified groomers',
+            ],
           ));
         }
+      }
 
-        if (b['Grooming'] is Map) {
-          addBreedSvc('Grooming', b['Grooming'], breedServiceCounter++);
-        }
-        if (b['Bathing'] is Map) {
-          addBreedSvc('Bathing', b['Bathing'], breedServiceCounter++);
-        }
-        if (b['GroomingAndBathing'] is Map) {
-          addBreedSvc('Grooming & Bathing', b['GroomingAndBathing'],
-              breedServiceCounter++);
+      // ── Packages ─────────────────────────────────────────────────────────
+      final packages = <ServiceItem>[];
+      int pkgCounter = 1;
+      if (data['Packages'] is List) {
+        for (final p in data['Packages'] as List) {
+          if (p is! Map) continue;
+          final currentPkgId = pkgCounter++;
+          final code = (p['PackageId'] ?? p['id'] ?? 'P000$currentPkgId').toString().trim();
+
+          String name = (p['PackageName'] ?? p['packageName'] ?? p['name'] ?? '')
+              .toString()
+              .trim();
+          // If name looks like a code (e.g. "P0003") or is empty, use descriptive name
+          if (name.isEmpty || RegExp(r'^[A-Z]\d+$').hasMatch(name)) {
+            final idx = currentPkgId - 1;
+            if (idx >= 0 && idx < _defaultPackageNames.length) {
+              name = _defaultPackageNames[idx];
+            } else {
+              name = 'Package $currentPkgId';
+            }
+          }
+
+          final price = _parseDouble(p['Price'] ?? p['price']);
+          final dur = _parseDuration(p['TimeinMinutes'] ?? p['timeInMinutes']);
+          var includes = (p['Includes'] is List)
+              ? (p['Includes'] as List)
+                  .map((e) => e?.toString().trim() ?? '')
+                  .where((s) => s.isNotEmpty)
+                  .toList()
+              : <String>[];
+          if (includes.isEmpty) {
+            final idx = currentPkgId - 1;
+            if (idx >= 0 && idx < _defaultPackageIncludes.length) {
+              includes = _defaultPackageIncludes[idx];
+            }
+          }
+
+          var desc = (p['Description'] ?? p['description'] ?? '').toString().trim();
+          if (desc.isEmpty) {
+            final idx = currentPkgId - 1;
+            if (idx >= 0 && idx < _defaultPackageDescriptions.length) {
+              desc = _defaultPackageDescriptions[idx];
+            } else if (includes.isNotEmpty) {
+              desc = includes.join(', ');
+            } else {
+              desc = 'Comprehensive pet spa package with premium grooming services.';
+            }
+          }
+
+          packages.add(ServiceItem(
+            id: currentPkgId,
+            code: code,
+            isPackage: true,
+            isAddOn: false,
+            name: name,
+            description: desc,
+            price: price,
+            priceDisplay: _priceDisplay(p['Price'] ?? p['price'], null),
+            durationMinutes: dur > 0 ? dur : 60,
+            imageUrl: _imageUrl(p),
+            includes: includes,
+          ));
         }
       }
-    }
 
-    // ── Walk-In Services ─────────────────────────────────────────────────
-    // Backend catalog: services 10–13 (immediately after breeds)
-    // The counter continues from breedServiceCounter so Walk-In IDs start
-    // at breedServiceCounter (which should be 10 for the standard 9-breed-svc
-    // catalog). This matches the Postman description exactly.
-    final walkIn = <ServiceItem>[];
-    int walkInCounter = breedServiceCounter; // e.g. 10 after 9 breed services
-    final rawWalkin = data['Walk In Services'] ??
-                      data['WalkInServices']  ??
-                      data['walkInServices']  ??
-                      data['walkin'];
-    if (rawWalkin is List) {
-      for (final w in rawWalkin) {
-        if (w is! Map) continue;
-        final name  = (w['Name'] ?? w['name'] ?? 'Walk-In Service').toString().trim();
-        final price = _parseDouble(w['Price'] ?? w['price']);
-        final dur   = _parseDuration(w['TimeinMinutes'] ?? w['timeInMinutes']);
-        final desc  = (w['Description'] ?? w['description'] ?? '').toString().trim();
-        walkIn.add(ServiceItem(
-          id             : walkInCounter++,
-          isPackage      : false,
-          isAddOn        : false,
-          name           : name,
-          description    : desc,
-          price          : price,
-          priceDisplay   : _priceDisplay(w['Price'] ?? w['price'], null),
-          durationMinutes: dur,
-          imageUrl       : _imageUrl(w),
-        ));
-      }
-    }
+      // ── Add-Ons ──────────────────────────────────────────────────────────
+      // Backend catalog: add-ons 1–12 (independent sequence starting at 1)
+      final addOns = <ServiceItem>[];
+      int addonCounter = 1;
+      if (data['AddOns'] is List) {
+        for (final a in data['AddOns'] as List) {
+          if (a is! Map) continue;
+          final fallbackId = addonCounter++;
+          final rawId = a['id'];
+          final explicitId = (rawId is int)
+              ? rawId
+              : (rawId != null ? int.tryParse(rawId.toString()) : null);
+          final currentAddonId = (explicitId != null && explicitId > 0)
+              ? explicitId
+              : fallbackId;
+          final code = (a['AddOnId'] ?? a['id'])?.toString().trim();
+          final name = (a['Name'] ?? a['name'] ?? 'Add-on').toString().trim();
+          final price = _parseDouble(a['Price'] ?? a['price']);
+          final suffix = a['Sufix'] ?? a['suffix'];
+          final dur = _parseDuration(a['TimeinMinutes'] ?? a['timeInMinutes']);
+          final includes = (a['Includes'] is List)
+              ? (a['Includes'] as List)
+                  .map((e) => e?.toString().trim() ?? '')
+                  .where((s) => s.isNotEmpty)
+                  .toList()
+              : <String>[];
+          var desc = (a['Description'] ?? a['description'] ?? '').toString().trim();
+          if (desc.isEmpty && includes.isNotEmpty) {
+            desc = includes.join(', ');
+          }
+          if (desc.isEmpty) {
+            desc = _defaultAddOnDescription(name);
+          }
 
-    // ── Packages ─────────────────────────────────────────────────────────
-    // Backend catalog: packages 1–3 (independent sequence from services)
-    final packages = <ServiceItem>[];
-    int pkgCounter = 1;
-    if (data['Packages'] is List) {
-      for (final p in data['Packages'] as List) {
-        if (p is! Map) continue;
-        final currentPkgId = pkgCounter++;
-
-        String name = (p['PackageName'] ?? p['packageName'] ?? p['name'] ?? '')
-                          .toString().trim();
-        // If name looks like a code (e.g. "P0003") or is empty, generate one
-        if (name.isEmpty || RegExp(r'^[A-Z]\d+$').hasMatch(name)) {
-          name = 'Package $currentPkgId';
+          addOns.add(ServiceItem(
+            id: currentAddonId,
+            code: code,
+            isPackage: false,
+            isAddOn: true,
+            name: name,
+            description: desc,
+            price: price,
+            priceDisplay: _priceDisplay(a['Price'] ?? a['price'], suffix),
+            durationMinutes: dur,
+            imageUrl: _imageUrl(a),
+            includes: includes.isNotEmpty ? includes : [name],
+          ));
         }
-
-        final price = _parseDouble(p['Price'] ?? p['price']);
-        final dur   = _parseDuration(p['TimeinMinutes'] ?? p['timeInMinutes']);
-        final includes = (p['Includes'] is List)
-            ? (p['Includes'] as List)
-                .map((e) => e?.toString().trim() ?? '')
-                .where((s) => s.isNotEmpty)
-                .toList()
-            : <String>[];
-        final desc = includes.isNotEmpty ? includes.join(', ') : 'Package service';
-
-        packages.add(ServiceItem(
-          id             : currentPkgId,
-          isPackage      : true,
-          isAddOn        : false,
-          name           : name,
-          description    : desc,
-          price          : price,
-          priceDisplay   : _priceDisplay(p['Price'] ?? p['price'], null),
-          durationMinutes: dur,
-          imageUrl       : _imageUrl(p),
-        ));
       }
-    }
 
-    // ── Add-Ons ──────────────────────────────────────────────────────────
-    // Backend catalog: add-ons 1–12 (independent sequence)
-    final addOns = <ServiceItem>[];
-    int addonCounter = 1;
-    if (data['AddOns'] is List) {
-      for (final a in data['AddOns'] as List) {
-        if (a is! Map) continue;
-        final currentAddonId = addonCounter++;
-        final name   = (a['Name'] ?? a['name'] ?? 'Add-on').toString().trim();
-        final price  = _parseDouble(a['Price'] ?? a['price']);
-        final suffix = a['Sufix'] ?? a['suffix'];
-        final dur    = _parseDuration(a['TimeinMinutes'] ?? a['timeInMinutes']);
-        final includes = (a['Includes'] is List)
-            ? (a['Includes'] as List)
-                .map((e) => e?.toString().trim() ?? '')
-                .where((s) => s.isNotEmpty)
-                .toList()
-            : <String>[];
-        final desc = includes.isNotEmpty ? includes.join(', ') : '';
-
-        addOns.add(ServiceItem(
-          id             : currentAddonId,
-          isPackage      : false,
-          isAddOn        : true,
-          name           : name,
-          description    : desc,
-          price          : price,
-          priceDisplay   : _priceDisplay(a['Price'] ?? a['price'], suffix),
-          durationMinutes: dur,
-          imageUrl       : _imageUrl(a),
-        ));
-      }
-    }
-
-    log.d('ServiceRepository::getBookingServices::Result'
-        ' breeds=${breeds.length}(ids 1–${breeds.isEmpty ? 0 : breeds.last.id})'
-        ' walkIn=${walkIn.length}(ids ${breeds.isEmpty ? 1 : breeds.last.id + 1}–${walkIn.isEmpty ? 0 : walkIn.last.id})'
-        ' packages=${packages.length}(ids 1–${packages.isEmpty ? 0 : packages.last.id})'
-        ' addOns=${addOns.length}(ids 1–${addOns.isEmpty ? 0 : addOns.last.id})');
+      log.d('ServiceRepository::getBookingServices::Result'
+          ' breeds=${breeds.length}(ids 1–${breeds.isEmpty ? 0 : breeds.last.id})'
+          ' walkIn=${walkIn.length}(ids ${breeds.isEmpty ? 1 : breeds.last.id + 1}–${walkIn.isEmpty ? 0 : walkIn.last.id})'
+          ' packages=${packages.length}(ids 1–${packages.isEmpty ? 0 : packages.last.id})'
+          ' addOns=${addOns.length}(ids 1–${addOns.isEmpty ? 0 : addOns.last.id})');
 
       final result = BookingServicesResult(
-        breeds  : breeds,
+        breeds: breeds,
         packages: packages,
-        addOns  : addOns,
-        walkIn  : walkIn,
+        addOns: addOns,
+        walkIn: walkIn,
       );
 
       if (result.isEmpty) {
@@ -652,15 +917,168 @@ class ServiceRepository {
     return result.allPackagesAsMap;
   }
 
-  Future<Map<String, dynamic>?> getServiceById(int id) async {
+  /// Looks up a service by numeric ID, string code, name, and category.
+  /// Resolves the collision between breeds (1..9), walkIn (10..13), and addOns (1..12).
+  Future<Map<String, dynamic>?> getServiceDetail({
+    dynamic id,
+    String? code,
+    String? name,
+    bool? isAddOn,
+    bool? isPackage,
+    Map<String, dynamic>? initialService,
+  }) async {
     final result = await getBookingServices();
-    final all = [
-      ...result.breeds, ...result.packages,
-      ...result.addOns, ...result.walkIn,
-    ];
-    for (final s in all) {
-      if (s.id == id) return s.toMap();
+
+    final idStr = (id ?? code ?? initialService?['code'] ?? initialService?['id'])?.toString().trim();
+    final intId = id is int
+        ? id
+        : int.tryParse(id?.toString() ?? '') ??
+            int.tryParse(initialService?['id']?.toString() ?? '');
+
+    final targetName = (name ?? initialService?['name'] ?? initialService?['service_name'])?.toString().trim();
+    final effectiveIsAddOn = isAddOn ??
+        (initialService?['isAddOn'] == true ||
+            initialService?['addOnId'] != null ||
+            (idStr != null && (idStr.startsWith('addon_') || idStr.startsWith('A') || idStr.startsWith('a'))));
+    final effectiveIsPackage = isPackage ??
+        (initialService?['isPackage'] == true ||
+            initialService?['packageId'] != null ||
+            (idStr != null && (idStr.startsWith('pkg_') || idStr.startsWith('P') || idStr.startsWith('p'))));
+
+    final targetCode = (code ?? initialService?['code'] ?? (idStr != null && RegExp(r'^[A-Za-z]\d+$').hasMatch(idStr) ? idStr : null))?.toString().trim();
+
+    // 1. Match by Code if available (e.g. A0001, W0001, P0001)
+    if (targetCode != null && targetCode.isNotEmpty) {
+      final allServices = [...result.addOns, ...result.walkIn, ...result.packages, ...result.breeds];
+      for (final s in allServices) {
+        if (s.code != null && s.code!.toLowerCase() == targetCode.toLowerCase()) {
+          return s.toMap();
+        }
+      }
     }
-    return null;
+
+    // 2. If isAddOn is true, search addOns by id / code / name
+    if (effectiveIsAddOn == true) {
+      if (intId != null) {
+        for (final s in result.addOns) {
+          if (s.id == intId) return s.toMap();
+        }
+      }
+      if (idStr != null && idStr.startsWith('addon_')) {
+        final parsed = int.tryParse(idStr.replaceFirst('addon_', ''));
+        if (parsed != null) {
+          for (final s in result.addOns) {
+            if (s.id == parsed) return s.toMap();
+          }
+        }
+      }
+      if (targetName != null && targetName.isNotEmpty) {
+        for (final s in result.addOns) {
+          if (s.name.toLowerCase() == targetName.toLowerCase()) return s.toMap();
+        }
+      }
+    }
+
+    // 3. If isPackage is true, search packages by id / code / name
+    if (effectiveIsPackage == true) {
+      if (intId != null) {
+        for (final p in result.packages) {
+          if (p.id == intId) return p.toMap();
+        }
+      }
+      if (targetName != null && targetName.isNotEmpty) {
+        for (final p in result.packages) {
+          if (p.name.toLowerCase() == targetName.toLowerCase()) return p.toMap();
+        }
+      }
+    }
+
+    // 4. Match by Name if available
+    if (targetName != null && targetName.isNotEmpty) {
+      final nameLower = targetName.toLowerCase();
+      final allServices = [...result.walkIn, ...result.breeds, ...result.addOns, ...result.packages];
+      for (final s in allServices) {
+        if (s.name.toLowerCase() == nameLower) {
+          return s.toMap();
+        }
+      }
+      for (final s in allServices) {
+        if (s.name.toLowerCase().contains(nameLower) || nameLower.contains(s.name.toLowerCase())) {
+          return s.toMap();
+        }
+      }
+    }
+
+    // 5. General search by numeric id
+    if (intId != null) {
+      // If caller knows it's not an add-on, search walkIn and breeds first
+      if (effectiveIsAddOn == false) {
+        for (final s in [...result.walkIn, ...result.breeds]) {
+          if (s.id == intId) return s.toMap();
+        }
+      }
+
+      // Default order: search walkIn, breeds, addOns, then packages
+      for (final s in [...result.walkIn, ...result.breeds, ...result.addOns]) {
+        if (s.id == intId) return s.toMap();
+      }
+      for (final p in result.packages) {
+        if (p.id == intId) return p.toMap();
+      }
+    }
+
+    return initialService;
+  }
+
+  /// Looks up a service by numeric ID.
+  /// Delegates to [getServiceDetail] for comprehensive lookup across walkIn, breeds, and addOns.
+  Future<Map<String, dynamic>?> getServiceById(int id) async {
+    return getServiceDetail(id: id);
+  }
+
+  /// Looks up a package by ID, code, or name.
+  Future<Map<String, dynamic>?> getPackageDetail({
+    dynamic id,
+    String? code,
+    String? name,
+    Map<String, dynamic>? initialPackage,
+  }) async {
+    final result = await getBookingServices();
+    final idStr = (id ?? code ?? initialPackage?['code'] ?? initialPackage?['id'])?.toString().trim();
+    final intId = id is int ? id : int.tryParse(idStr ?? '');
+    final targetCode = (code ?? initialPackage?['code'] ?? (idStr != null && RegExp(r'^[A-Za-z]\d+$').hasMatch(idStr) ? idStr : null))?.toString().trim();
+    final targetName = (name ?? initialPackage?['package_name'] ?? initialPackage?['name'])?.toString().trim();
+
+    if (targetCode != null && targetCode.isNotEmpty) {
+      for (final p in result.packages) {
+        if (p.code != null && p.code!.toLowerCase() == targetCode.toLowerCase()) {
+          return p.toMap();
+        }
+      }
+    }
+
+    if (targetName != null && targetName.isNotEmpty) {
+      for (final p in result.packages) {
+        if (p.name.toLowerCase() == targetName.toLowerCase()) {
+          return p.toMap();
+        }
+      }
+    }
+
+    if (intId != null) {
+      for (final p in result.packages) {
+        if (p.id == intId) return p.toMap();
+      }
+      if (intId > 0 && intId <= result.packages.length) {
+        return result.packages[intId - 1].toMap();
+      }
+    }
+
+    return initialPackage;
+  }
+
+  /// Looks up a package specifically by numeric ID (e.g. 1, 2, 3).
+  Future<Map<String, dynamic>?> getPackageById(int id) async {
+    return getPackageDetail(id: id);
   }
 }

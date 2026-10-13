@@ -219,30 +219,13 @@ void main() {
     );
 
     testWidgets(
-      '7. LoginPageMobile top-left back button navigates to Welcome instead of Home when stack cannot pop',
+      '7. LoginPageMobile does not display top-left back button',
       (WidgetTester tester) async {
         final authBloc = AuthBloc(repository: authRepository);
-        String? navigatedRoute;
 
         final testRouter = GoRouter(
           initialLocation: '/${RouteNames.login}',
           routes: [
-            GoRoute(
-              name: RouteNames.welcome,
-              path: '/${RouteNames.welcome}',
-              builder: (context, state) {
-                navigatedRoute = RouteNames.welcome;
-                return const Scaffold(body: Text('Welcome Screen'));
-              },
-            ),
-            GoRoute(
-              name: RouteNames.home,
-              path: '/${RouteNames.home}',
-              builder: (context, state) {
-                navigatedRoute = RouteNames.home;
-                return const Scaffold(body: Text('Home Screen'));
-              },
-            ),
             GoRoute(
               name: RouteNames.login,
               path: '/${RouteNames.login}',
@@ -258,17 +241,9 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 100));
 
-        // Find back arrow button
+        // Verify back arrow button is not present
         final backButton = find.byIcon(Icons.arrow_back);
-        expect(backButton, findsOneWidget);
-
-        await tester.tap(backButton);
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 100));
-
-        // Ensure it navigated to Welcome, and NEVER to Home
-        expect(navigatedRoute, equals(RouteNames.welcome));
-        expect(navigatedRoute, isNot(equals(RouteNames.home)));
+        expect(backButton, findsNothing);
 
         await authBloc.close();
       },

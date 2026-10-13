@@ -13,6 +13,8 @@ import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/toast_util.dart';
 
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shear_heaven_pet_spa/src/offers/bloc/offer_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/offers/models/offer_model.dart';
 
 class BookingReviewPageMobile extends StatefulWidget {
@@ -72,8 +74,50 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
     }
   }
 
+  bool _isBookingConfirmed = false;
+
+  void _cleanupOfferOnExit() {
+    if (!_isBookingConfirmed) {
+      _draft.removeOffer();
+      try {
+        context.read<OfferBloc>().add(const RemoveOfferEvent());
+      } catch (_) {}
+    }
+  }
+
+  void _handleBack() {
+    _cleanupOfferOnExit();
+    bool canPop = false;
+    try {
+      canPop = context.canPop();
+    } catch (_) {
+      try {
+        canPop = Navigator.of(context).canPop();
+      } catch (_) {}
+    }
+    if (canPop) {
+      try {
+        context.pop();
+        return;
+      } catch (_) {
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+          return;
+        }
+      }
+    }
+    try {
+      context.goNamed(RouteNames.bookingDateTime);
+    } catch (_) {
+      try {
+        context.goNamed(RouteNames.home);
+      } catch (_) {}
+    }
+  }
+
   @override
   void dispose() {
+    _cleanupOfferOnExit();
     _notesController.dispose();
     _promoController.dispose();
     super.dispose();
@@ -780,6 +824,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
           'applied_offer': _draft.appliedOffer,
           'discount_amount': _draft.discountAmount,
         };
+        _isBookingConfirmed = true;
         _draft.reset();
 
         if (!mounted) return;
@@ -858,11 +903,20 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
     final date = _draft.date ?? DateTime.now();
     final slot = _draft.timeSlot ?? '';
 
+    bool canPop = false;
+    try {
+      canPop = context.canPop();
+    } catch (_) {
+      try {
+        canPop = Navigator.of(context).canPop();
+      } catch (_) {}
+    }
+
     return PopScope(
-      canPop: context.canPop(),
+      canPop: canPop,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        context.goNamed(RouteNames.bookingDateTime);
+        _handleBack();
       },
       child: Scaffold(
         backgroundColor: const Color(0xFFFAFAFA),
@@ -871,10 +925,11 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const BookingHeader(
+            BookingHeader(
               title: "Review & Confirm",
               step: 4,
               subtitle: "Step 4 of 4 - Review the Booking and Confirm",
+              onBack: _handleBack,
             ),
             Expanded(
               child: SingleChildScrollView(

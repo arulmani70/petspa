@@ -8,7 +8,10 @@ import 'package:flutter/material.dart';
 /// file has not been downloaded yet, every consumer shows its fallback.
 const Map<String, String> _serviceAssets = {
   'full grooming': 'assets/images/common/svc_full_grooming.png',
+  'grooming': 'assets/images/common/svc_full_grooming.png',
   'bath & blow dry': 'assets/images/common/svc_bath_blowdry.png',
+  'bathing': 'assets/images/common/svc_bath_blowdry.png',
+  'grooming & bathing': 'assets/images/common/svc_full_grooming.png',
   'hair trimming': 'assets/images/common/svc_hair_trim.png',
   'breed styling': 'assets/images/common/svc_breed_style.png',
   'nail trimming': 'assets/images/common/svc_nail_trim.png',
@@ -23,12 +26,67 @@ const Map<String, String> _serviceAssets = {
   'haircut & styling': 'assets/images/common/svc_breed_style.png',
   'nail clipping': 'assets/images/common/svc_nail_trim.png',
   'puppy package': 'assets/images/common/svc_puppy.png',
+  'nail grinding & buffing': 'assets/images/common/svc_nail_trim.png',
+  'nail grinding': 'assets/images/common/svc_nail_trim.png',
+  'anal gland expression': 'assets/images/common/svc_skin_care.png',
+  'face & feet trim': 'assets/images/common/svc_hair_trim.png',
+  'medicated shampoo': 'assets/images/common/svc_bath_blowdry.png',
+  'blueberry facial': 'assets/images/common/svc_skin_care.png',
+  'paw balm treatment': 'assets/images/common/svc_skin_care.png',
+  'paw balm': 'assets/images/common/svc_skin_care.png',
+  'breath freshener spray': 'assets/images/common/svc_teeth_brush.png',
+  'breath freshener': 'assets/images/common/svc_teeth_brush.png',
+  'de-matting treatment': 'assets/images/common/svc_deshed.png',
+  'de-matting': 'assets/images/common/svc_deshed.png',
+  'dematting': 'assets/images/common/svc_deshed.png',
+  'deshedding': 'assets/images/common/svc_deshed.png',
+  'bath & tidy package': 'assets/images/common/svc_bath_blowdry.png',
+  'deluxe puppy spa': 'assets/images/common/svc_puppy.png',
+  'small breeds': 'assets/images/common/svc_breed_style.png',
+  'medium breeds': 'assets/images/common/svc_breed_style.png',
+  'large breeds': 'assets/images/common/svc_breed_style.png',
+  'small dog': 'assets/images/common/svc_breed_style.png',
+  'medium dog': 'assets/images/common/svc_breed_style.png',
+  'large dog': 'assets/images/common/svc_breed_style.png',
+  'breed style': 'assets/images/common/svc_breed_style.png',
+  'breed': 'assets/images/common/svc_breed_style.png',
+  'breeds': 'assets/images/common/svc_breed_style.png',
 };
 
 /// Asset path for a service by its display name, or null when unknown.
 String? serviceAssetFor(String? serviceName) {
   if (serviceName == null) return null;
-  return _serviceAssets[serviceName.trim().toLowerCase()];
+  final clean = serviceName.trim().toLowerCase();
+  if (clean.isEmpty) return null;
+
+  // Direct match
+  if (_serviceAssets.containsKey(clean)) {
+    return _serviceAssets[clean];
+  }
+
+  // Split on " — " or " - " (e.g. "Small Breeds — Grooming" -> "Grooming")
+  if (clean.contains('—') || clean.contains('-')) {
+    final sub = clean.split(RegExp(r'[—-]\s*')).last.trim();
+    if (_serviceAssets.containsKey(sub)) {
+      return _serviceAssets[sub];
+    }
+  }
+
+  // Keyword-based fallback matching
+  if (clean.contains('breed')) return 'assets/images/common/svc_breed_style.png';
+  if (clean.contains('groom')) return 'assets/images/common/svc_full_grooming.png';
+  if (clean.contains('bath')) return 'assets/images/common/svc_bath_blowdry.png';
+  if (clean.contains('nail')) return 'assets/images/common/svc_nail_trim.png';
+  if (clean.contains('teeth') || clean.contains('dental')) return 'assets/images/common/svc_teeth_brush.png';
+  if (clean.contains('ear')) return 'assets/images/common/svc_ear_clean.png';
+  if (clean.contains('hair') || clean.contains('scissor')) return 'assets/images/common/svc_hair_trim.png';
+  if (clean.contains('puppy')) return 'assets/images/common/svc_puppy.png';
+  if (clean.contains('spa')) return 'assets/images/common/svc_spa.png';
+  if (clean.contains('shed')) return 'assets/images/common/svc_deshed.png';
+  if (clean.contains('skin') || clean.contains('facial')) return 'assets/images/common/svc_skin_care.png';
+  if (clean.contains('flea') || clean.contains('tick')) return 'assets/images/common/svc_flea_tick.png';
+
+  return null;
 }
 
 /// `Image.asset` wired to a Figma asset with a safe fallback while the PNG

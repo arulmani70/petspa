@@ -1155,11 +1155,26 @@ class _BookingDateTimePageMobileState
             _draft.endTime != null &&
             _draft.endTime!.isNotEmpty;
 
+        bool canPop = false;
+        try {
+          canPop = context.canPop();
+        } catch (_) {
+          try {
+            canPop = Navigator.of(context).canPop();
+          } catch (_) {}
+        }
+
         return PopScope(
-          canPop: context.canPop(),
+          canPop: canPop,
           onPopInvokedWithResult: (didPop, result) {
             if (didPop) return;
-            context.goNamed(RouteNames.bookingService);
+            try {
+              context.goNamed(RouteNames.bookingService);
+            } catch (_) {
+              if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              }
+            }
           },
           child: Scaffold(
             backgroundColor: _kPageBg,

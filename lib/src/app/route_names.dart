@@ -22,6 +22,7 @@ mixin RouteNames {
   static const serviceDetail = "service-detail";
 
   static const packages = "packages";
+  static const packageDetail = "package-detail";
 
   static const petSelect = "pet-select";
 

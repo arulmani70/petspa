@@ -39,8 +39,10 @@ import 'package:shear_heaven_pet_spa/src/pets/views/my_pets_page.dart';
 import 'package:shear_heaven_pet_spa/src/pets/views/pet_select_page.dart';
 import 'package:shear_heaven_pet_spa/src/shell/main_shell.dart';
 import 'package:shear_heaven_pet_spa/src/services/views/packages_page.dart';
+import 'package:shear_heaven_pet_spa/src/services/views/package_detail_page.dart';
 import 'package:shear_heaven_pet_spa/src/services/views/service_detail_page.dart';
 import 'package:shear_heaven_pet_spa/src/services/views/services_page.dart';
+import 'package:shear_heaven_pet_spa/src/services/repo/service_repository.dart';
 
 class Routes {
   final log = Logger();
@@ -220,15 +222,47 @@ class Routes {
       GoRoute(
         name: RouteNames.serviceDetail,
         path: '/${RouteNames.services}/:serviceId',
-        builder: (context, state) => ServiceDetailPage(
-          serviceId: state.pathParameters['serviceId'] ?? '',
-        ),
+        builder: (context, state) {
+          Map<String, dynamic>? serviceData;
+          if (state.extra is Map<String, dynamic>) {
+            serviceData = state.extra as Map<String, dynamic>;
+          } else if (state.extra is Map) {
+            serviceData = Map<String, dynamic>.from(state.extra as Map);
+          } else if (state.extra is ServiceItem) {
+            serviceData = (state.extra as ServiceItem).toMap();
+          }
+          final serviceId = state.pathParameters['serviceId'] ?? '';
+          return ServiceDetailPage(
+            key: ValueKey('route_svc_detail_${serviceId}_${serviceData?['id']}_${serviceData?['name']}'),
+            serviceId: serviceId,
+            service: serviceData,
+          );
+        },
       ),
 
       GoRoute(
         name: RouteNames.packages,
         path: '/${RouteNames.packages}',
         builder: (context, state) => const PackagesPage(),
+      ),
+
+      GoRoute(
+        name: RouteNames.packageDetail,
+        path: '/${RouteNames.packages}/:packageId',
+        builder: (context, state) {
+          Map<String, dynamic>? packageData;
+          if (state.extra is Map<String, dynamic>) {
+            packageData = state.extra as Map<String, dynamic>;
+          } else if (state.extra is Map) {
+            packageData = Map<String, dynamic>.from(state.extra as Map);
+          } else if (state.extra is ServiceItem) {
+            packageData = (state.extra as ServiceItem).toMap();
+          }
+          return PackageDetailPage(
+            packageId: state.pathParameters['packageId'] ?? '',
+            package: packageData,
+          );
+        },
       ),
 
       GoRoute(

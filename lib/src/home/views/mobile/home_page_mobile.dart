@@ -13,6 +13,7 @@ import 'package:shear_heaven_pet_spa/src/common/widgets/app_assets.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/shimmer_loading.dart';
 import 'package:shear_heaven_pet_spa/src/pets/bloc/pet_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/services/bloc/service_bloc.dart';
+import 'package:shear_heaven_pet_spa/src/services/repo/service_repository.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shear_heaven_pet_spa/src/account/models/app_notification.dart';
 import 'package:shear_heaven_pet_spa/src/account/repos/notification_repository.dart';
@@ -34,6 +35,7 @@ class _HomePageMobileState extends State<HomePageMobile> {
   String _name = 'Guest';
   String? _photoUrl;
   Timer? _popupTimer;
+  static bool _offersPopupShown = false;
   StreamSubscription<AppNotification>? _realtimeNotificationSub;
   List<OfferModel> _offers = [];
 
@@ -52,8 +54,18 @@ class _HomePageMobileState extends State<HomePageMobile> {
       context.read<PetBloc>().add(const InitializePets());
     } catch (_) {}
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_offersPopupShown) return;
       _popupTimer = Timer(const Duration(seconds: 1), () {
-        if (mounted) {
+        if (!mounted) return;
+        try {
+          final matchedLoc = GoRouterState.of(context).matchedLocation;
+          if (matchedLoc != '/${RouteNames.home}' && matchedLoc != '/') {
+            // User navigated to booking flow or another screen
+            return;
+          }
+        } catch (_) {}
+        if (!_offersPopupShown) {
+          _offersPopupShown = true;
           _showOffersPopup(context, offers: _offers);
         }
       });
@@ -91,6 +103,12 @@ class _HomePageMobileState extends State<HomePageMobile> {
             });
       }
     } catch (_) {}
+  }
+
+  @override
+  void deactivate() {
+    _popupTimer?.cancel();
+    super.deactivate();
   }
 
   @override
@@ -763,7 +781,10 @@ class _HomePageMobileState extends State<HomePageMobile> {
                   ),
                   const SizedBox(height: 8),
                   GestureDetector(
-                    onTap: () => context.pushNamed(RouteNames.petSelect),
+                    onTap: () {
+                      _popupTimer?.cancel();
+                      context.pushNamed(RouteNames.petSelect);
+                    },
                     child: Container(
                       width: 170,
                       height: 36,
@@ -805,7 +826,10 @@ class _HomePageMobileState extends State<HomePageMobile> {
           iconWidth: 38,
           iconHeight: 38,
           label: 'Book Now',
-          onTap: () => context.pushNamed(RouteNames.petSelect),
+          onTap: () {
+            _popupTimer?.cancel();
+            context.pushNamed(RouteNames.petSelect);
+          },
         ),
         _buildQuickActionTile(
           icon: 'assets/images/home/ic_cat_1.png',
@@ -839,51 +863,56 @@ class _HomePageMobileState extends State<HomePageMobile> {
     required String label,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: 78,
-            height: 78,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: const Color(0xFFE5E7EB),
-                width: 1.2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+    return SizedBox(
+      width: 78,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 78,
+              height: 78,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: const Color(0xFFE5E7EB),
+                  width: 1.2,
                 ),
-              ],
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              alignment: Alignment.center,
+              child: Image.asset(
+                icon,
+                width: iconWidth,
+                height: iconHeight,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
+              ),
             ),
-            alignment: Alignment.center,
-            child: Image.asset(
-              icon,
-              width: iconWidth,
-              height: iconHeight,
-              fit: BoxFit.contain,
-              filterQuality: FilterQuality.high,
+            const SizedBox(height: 8),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppFonts.poppins(
+                size: 13,
+                weight: FontWeight.w500,
+                color: const Color(0xFF111827),
+              ),
+              textAlign: TextAlign.center,
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: AppFonts.poppins(
-              size: 13,
-              weight: FontWeight.w500,
-              color: const Color(0xFF111827),
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -988,8 +1017,10 @@ class _HomePageMobileState extends State<HomePageMobile> {
     }
 
     final tiles = display.map((svc) {
-      final id = (svc['id'] ?? svc[Constants.database.COLUMN_ID] ?? 0)
-          .toString();
+      final code = svc['code']?.toString();
+      final id = (code != null && code.isNotEmpty)
+          ? code
+          : (svc['id'] ?? svc[Constants.database.COLUMN_ID] ?? 0).toString();
       final name =
           svc['service_name']?.toString() ??
           svc[Constants.database.COLUMN_SERVICE_NAME]?.toString() ??
@@ -1010,6 +1041,7 @@ class _HomePageMobileState extends State<HomePageMobile> {
         onTap: () => context.pushNamed(
           RouteNames.serviceDetail,
           pathParameters: {'serviceId': id},
+          extra: svc,
         ),
       );
     }).toList();
@@ -1094,8 +1126,9 @@ class _HomePageMobileState extends State<HomePageMobile> {
           dark: dark,
           onBook: () => context.pushNamed(RouteNames.petSelect),
           onDetail: () => context.pushNamed(
-            RouteNames.serviceDetail,
-            pathParameters: {'serviceId': p.id.toString()},
+            RouteNames.packageDetail,
+            pathParameters: {'packageId': (p.code ?? p.id.toString())},
+            extra: p.toMap(),
           ),
         ),
       );
@@ -1867,12 +1900,17 @@ class _ServiceImageWidget extends StatelessWidget {
       return _iconPlaceholder();
     }
 
-    if (imageUrl != null && imageUrl!.isNotEmpty) {
-      final url = imageUrl!.startsWith('http')
-          ? imageUrl!
-          : '$baseUrl$imageUrl';
+    final resolved = ServiceRepository.resolveImageUrl(imageUrl);
+    if (resolved != null && resolved.isNotEmpty) {
+      if (resolved.startsWith('assets/')) {
+        return FigmaImage(
+          asset: resolved,
+          fit: BoxFit.cover,
+          fallback: placeholder(),
+        );
+      }
       return Image.network(
-        url,
+        resolved,
         fit: BoxFit.cover,
         errorBuilder: (ctx, err, st) => placeholder(),
         loadingBuilder: (ctx, child, progress) {

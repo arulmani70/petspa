@@ -99,25 +99,7 @@ class _LoginPageMobileState extends State<LoginPageMobile> {
                   padding: const EdgeInsets.symmetric(horizontal: 28),
                   child: Column(
                     children: [
-                      const SizedBox(height: 8),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: IconButton(
-                          icon: const Icon(
-                            Icons.arrow_back,
-                            color: Color(0xFF111827),
-                            size: 24,
-                          ),
-                          onPressed: () {
-                            if (context.canPop()) {
-                              context.pop();
-                            } else {
-                              context.goNamed(RouteNames.welcome);
-                            }
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 24),
 
                       // ── Logo ──
                       SvgPicture.asset(

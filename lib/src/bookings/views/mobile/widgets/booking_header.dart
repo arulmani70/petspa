@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/views/mobile/widgets/booking_progress.dart';
+import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
+import 'package:shear_heaven_pet_spa/src/offers/bloc/offer_bloc.dart';
 
 /// White app bar + booking progress header matching the Figma booking
 /// flow screens (Rectangle 153 @ (0,47) 390x67, segments @ (17,139)).
@@ -35,10 +38,22 @@ class BookingHeader extends StatelessWidget {
     }
     if (canPop) {
       try {
+        if (step <= 1) {
+          ServicesLocator.bookingDraft.removeOffer();
+          try {
+            context.read<OfferBloc>().add(const RemoveOfferEvent());
+          } catch (_) {}
+        }
         context.pop();
         return;
       } catch (_) {
         if (Navigator.of(context).canPop()) {
+          if (step <= 1) {
+            ServicesLocator.bookingDraft.removeOffer();
+            try {
+              context.read<OfferBloc>().add(const RemoveOfferEvent());
+            } catch (_) {}
+          }
           Navigator.of(context).pop();
           return;
         }
@@ -55,6 +70,10 @@ class BookingHeader extends StatelessWidget {
         context.goNamed(RouteNames.bookingDateTime);
         break;
       default:
+        ServicesLocator.bookingDraft.removeOffer();
+        try {
+          context.read<OfferBloc>().add(const RemoveOfferEvent());
+        } catch (_) {}
         context.goNamed(RouteNames.home);
         break;
     }
