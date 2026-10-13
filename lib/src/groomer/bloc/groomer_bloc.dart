@@ -32,6 +32,7 @@ class GroomerBloc extends Bloc<GroomerEvent, GroomerState> {
     on<GroomerMarkAllNotificationsReadEvent>(_onMarkAllNotificationsRead);
     on<GroomerLogoutEvent>(_onLogout);
     on<GroomerCreateBookingForUserEvent>(_onCreateBookingForUser);
+    on<GroomerDeleteAccountEvent>(_onDeleteAccount);
   }
 
   final GroomerRepository _repository;
@@ -155,6 +156,10 @@ class GroomerBloc extends Bloc<GroomerEvent, GroomerState> {
   ) async {
     _log.d('GroomerBloc::_onFetchProfile::Fetching profile');
     try {
+      final cached = _repository.getCurrentGroomer();
+      if (cached != null) {
+        emit(state.copyWith(groomer: () => cached));
+      }
       final profile = await _repository.getProfile();
       if (profile != null) {
         emit(state.copyWith(
@@ -178,8 +183,10 @@ class GroomerBloc extends Bloc<GroomerEvent, GroomerState> {
         firstName: event.firstName,
         lastName: event.lastName,
         mobile: event.mobile,
+        highlights: event.highlights,
         multiBookingEnabled: event.multiBookingEnabled,
         slotBookingLimit: event.slotBookingLimit,
+        photoPath: event.photoPath,
       );
       if (updated != null) {
         emit(state.copyWith(
@@ -395,10 +402,10 @@ class GroomerBloc extends Bloc<GroomerEvent, GroomerState> {
     try {
       await _repository.logout();
       emit(GroomerState.initial);
-      Routes.redirectToLogin(isGroomer: true);
+      Routes.redirectToLogin(isGroomer: false);
     } catch (e) {
       _log.e('GroomerBloc::_onLogout::Error: $e');
-      Routes.redirectToLogin(isGroomer: true);
+      Routes.redirectToLogin(isGroomer: false);
     }
   }
 
@@ -426,5 +433,39 @@ class GroomerBloc extends Bloc<GroomerEvent, GroomerState> {
       _log.e('GroomerBloc::_onCreateBookingForUser::Error: $e');
     }
   }
+
+  Future<void> _onDeleteAccount(
+    GroomerDeleteAccountEvent event,
+    Emitter<GroomerState> emit,
+  ) async {
+    _log.d('GroomerBloc::_onDeleteAccount::Processing groomer account deletion');
+    try {
+      emit(state.copyWith(status: () => GroomerStatus.loading));
+      final success = await _repository.deleteAccount(
+        password: event.password,
+        confirm: event.confirm,
+      );
+      if (success) {
+        emit(GroomerState.initial.copyWith(
+          status: () => GroomerStatus.success,
+          message: () => 'Account successfully deleted.',
+        ));
+        Routes.redirectToLogin(isGroomer: false);
+      } else {
+        emit(state.copyWith(
+          status: () => GroomerStatus.failure,
+          message: () => 'Failed to delete groomer account.',
+        ));
+      }
+    } catch (e) {
+      final cleanMsg = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+      _log.e('GroomerBloc::_onDeleteAccount::Error: $cleanMsg');
+      emit(state.copyWith(
+        status: () => GroomerStatus.failure,
+        message: () => cleanMsg,
+      ));
+    }
+  }
 }
+
 

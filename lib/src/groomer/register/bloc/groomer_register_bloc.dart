@@ -44,19 +44,32 @@ class GroomerRegisterBloc extends Bloc<GroomerRegisterEvent, GroomerRegisterStat
 
       if (success != null) {
         await ServicesLocator.sessionService.clearTempGroomerCredentials();
-        if ((event.fullName != null && event.fullName!.isNotEmpty) ||
+        final trimmedFull = (event.fullName ?? '').trim();
+        String? resolvedFirst = event.firstName?.trim();
+        String? resolvedLast = event.lastName?.trim();
+
+        if ((resolvedFirst == null || resolvedFirst.isEmpty) &&
+            (resolvedLast == null || resolvedLast.isEmpty) &&
+            trimmedFull.isNotEmpty) {
+          final names = trimmedFull.split(RegExp(r'\s+'));
+          resolvedFirst = names.first;
+          resolvedLast = names.length > 1 ? names.sublist(1).join(' ') : names.first;
+        }
+
+        if ((resolvedFirst != null && resolvedFirst.isNotEmpty) ||
+            (resolvedLast != null && resolvedLast.isNotEmpty) ||
             (event.phone != null && event.phone!.isNotEmpty) ||
             (event.photoPath != null && event.photoPath!.isNotEmpty)) {
-          final names = (event.fullName ?? '').split(' ');
-          final firstName = names.isNotEmpty ? names.first : '';
-          final lastName = names.length > 1 ? names.sublist(1).join(' ') : '';
           await repository.updateProfile(
-            firstName: firstName.isNotEmpty ? firstName : null,
-            lastName: lastName.isNotEmpty ? lastName : null,
+            firstName: (resolvedFirst != null && resolvedFirst.isNotEmpty) ? resolvedFirst : null,
+            lastName: (resolvedLast != null && resolvedLast.isNotEmpty) ? resolvedLast : null,
             mobile: event.phone,
             photoPath: event.photoPath,
           );
         }
+
+        // Fetch fresh profile and persist
+        await repository.getProfile();
 
         emit(state.copyWith(
           status: () => GroomerRegisterStatus.success,

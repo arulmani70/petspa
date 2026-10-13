@@ -57,15 +57,19 @@ class GroomerUpdateProfileEvent extends GroomerEvent {
   final String? firstName;
   final String? lastName;
   final String? mobile;
+  final String? highlights;
   final bool? multiBookingEnabled;
   final int? slotBookingLimit;
+  final String? photoPath;
 
   const GroomerUpdateProfileEvent({
     this.firstName,
     this.lastName,
     this.mobile,
+    this.highlights,
     this.multiBookingEnabled,
     this.slotBookingLimit,
+    this.photoPath,
   });
 
   @override
@@ -73,8 +77,10 @@ class GroomerUpdateProfileEvent extends GroomerEvent {
         firstName,
         lastName,
         mobile,
+        highlights,
         multiBookingEnabled,
         slotBookingLimit,
+        photoPath,
       ];
 }
 
@@ -207,3 +213,17 @@ class GroomerCreateBookingForUserEvent extends GroomerEvent {
         endTime,
       ];
 }
+
+class GroomerDeleteAccountEvent extends GroomerEvent {
+  final String? password;
+  final String confirm;
+
+  const GroomerDeleteAccountEvent({
+    this.password,
+    this.confirm = 'DELETE',
+  });
+
+  @override
+  List<Object?> get props => [password, confirm];
+}
+

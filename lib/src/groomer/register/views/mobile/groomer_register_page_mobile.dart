@@ -45,7 +45,11 @@ class _GroomerRegisterPageMobileState extends State<GroomerRegisterPageMobile> {
     final savedTempLoginId = widget.tempLoginId ?? ServicesLocator.sessionService.getTempGroomerLoginId();
     if (groomer != null) {
       _fullNameController.text = groomer.fullName;
-      _emailController.text = groomer.email;
+      if (groomer.email.isNotEmpty) {
+        _emailController.text = groomer.email;
+      } else if (savedTempLoginId != null && savedTempLoginId.isNotEmpty) {
+        _emailController.text = savedTempLoginId;
+      }
       if (groomer.mobile.isNotEmpty) {
         _phoneController.text = UsPhoneInputFormatter.formatDigits(groomer.mobile);
       }
@@ -65,6 +69,8 @@ class _GroomerRegisterPageMobileState extends State<GroomerRegisterPageMobile> {
   }
 
   Future<void> _handleCompleteSetup() async {
+    if (_isLoading) return;
+
     final email = _emailController.text.trim();
     final password = _passwordController.text;
     final confirmPassword = _confirmPasswordController.text;
@@ -127,8 +133,8 @@ class _GroomerRegisterPageMobileState extends State<GroomerRegisterPageMobile> {
           ? widget.tempLoginId!.trim()
           : (storedTempLoginId?.trim().isNotEmpty == true
               ? storedTempLoginId!.trim()
-              : (groomer?.email.trim().isNotEmpty == true
-                  ? groomer!.email.trim()
+              : (groomer?.tempLoginId?.trim().isNotEmpty == true
+                  ? groomer!.tempLoginId!.trim()
                   : (email.isNotEmpty ? email : '')));
 
       final tempPassword = (widget.tempPassword != null && widget.tempPassword!.isNotEmpty)
@@ -153,7 +159,7 @@ class _GroomerRegisterPageMobileState extends State<GroomerRegisterPageMobile> {
         return;
       }
 
-      await ServicesLocator.groomerRegisterRepository.setupAccount(
+      final setupResponse = await ServicesLocator.groomerRegisterRepository.setupAccount(
         tempLoginId: tempLoginId,
         tempPassword: tempPassword,
         email: email,
@@ -164,17 +170,60 @@ class _GroomerRegisterPageMobileState extends State<GroomerRegisterPageMobile> {
       await ServicesLocator.sessionService.clearTempGroomerCredentials();
 
       if (fullName.isNotEmpty || phone.isNotEmpty) {
-        final names = fullName.split(' ');
-        final firstName = names.isNotEmpty ? names.first : '';
-        final lastName = names.length > 1 ? names.sublist(1).join(' ') : '';
+        final names = fullName.trim().split(RegExp(r'\s+'));
+        final firstName = names.isNotEmpty && names.first.isNotEmpty
+            ? names.first
+            : (groomer?.firstName ?? 'Groomer');
+        final lastName = names.length > 1
+            ? names.sublist(1).join(' ')
+            : (groomer?.lastName.isNotEmpty == true ? groomer!.lastName : firstName);
+        final cleanMobile = phone.isNotEmpty ? UsPhoneInputFormatter.cleanDigits(phone) : null;
+
         await ServicesLocator.groomerRegisterRepository.updateProfile(
-          firstName: firstName.isNotEmpty ? firstName : null,
-          lastName: lastName.isNotEmpty ? lastName : null,
-          mobile: phone.isNotEmpty ? phone : null,
+          firstName: firstName,
+          lastName: lastName,
+          mobile: cleanMobile,
         );
       }
 
+      final refreshedGroomer = await ServicesLocator.groomerRegisterRepository.getProfile();
+      if (refreshedGroomer != null && setupResponse != null) {
+        await ServicesLocator.sessionService.saveGroomerSession(
+          accessToken: setupResponse.accessToken,
+          refreshToken: setupResponse.refreshToken,
+          groomerData: refreshedGroomer.toJson(),
+        );
+      }
+
+      if (setupResponse != null && ServicesLocator.isGroomerSocketServiceRegistered) {
+        try {
+          await ServicesLocator.groomerSocketService.connect(
+            token: setupResponse.accessToken,
+          );
+          ServicesLocator.groomerSocketService.joinGroomerRooms(
+            (refreshedGroomer ?? setupResponse.groomer).toJson(),
+          );
+        } catch (_) {}
+      }
+
+      if (ServicesLocator.isPushNotificationServiceRegistered) {
+        try {
+          await ServicesLocator.pushNotificationService.fetchAndRegisterToken(
+            isGroomer: true,
+          );
+        } catch (_) {}
+      }
+
       if (!mounted) return;
+      try {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile completed successfully!'),
+            backgroundColor: Color(0xFF10B981),
+          ),
+        );
+      } catch (_) {}
+
       try {
         context.goNamed(RouteNames.groomerHome);
       } catch (_) {}
@@ -191,10 +240,33 @@ class _GroomerRegisterPageMobileState extends State<GroomerRegisterPageMobile> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: context.canPop(),
+      canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        context.goNamed(RouteNames.groomerLogin);
+
+        final isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0 ||
+            View.of(context).viewInsets.bottom > 0;
+        if (isKeyboardOpen) {
+          FocusManager.instance.primaryFocus?.unfocus();
+          FocusScope.of(context).unfocus();
+          return;
+        }
+
+        try {
+          if (context.canPop()) {
+            context.pop();
+            return;
+          }
+        } catch (_) {}
+        try {
+          if (Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+            return;
+          }
+        } catch (_) {}
+        try {
+          context.goNamed(RouteNames.groomerLogin);
+        } catch (_) {}
       },
       child: Scaffold(
         backgroundColor: const Color(0xFFF0F8FD),
@@ -231,20 +303,7 @@ class _GroomerRegisterPageMobileState extends State<GroomerRegisterPageMobile> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: IconButton(
-                        icon: const Icon(Icons.arrow_back, color: Color(0xFF111827), size: 24),
-                        onPressed: () {
-                          if (context.canPop()) {
-                            context.pop();
-                          } else {
-                            context.goNamed(RouteNames.groomerLogin);
-                          }
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 12),
 
                     // Logo
                     Center(
@@ -256,152 +315,152 @@ class _GroomerRegisterPageMobileState extends State<GroomerRegisterPageMobile> {
                     ),
                     const SizedBox(height: 24),
 
-                  // Title
-                  Text(
-                    'Complete Your Setup',
-                    textAlign: TextAlign.center,
-                    style: AppFonts.parkinsans(
-                      size: 22,
-                      weight: FontWeight.w700,
-                      color: const Color(0xFF111827),
+                    // Title
+                    Text(
+                      'Complete Your Profile',
+                      textAlign: TextAlign.center,
+                      style: AppFonts.parkinsans(
+                        size: 22,
+                        weight: FontWeight.w700,
+                        color: const Color(0xFF111827),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
+                    const SizedBox(height: 4),
 
-                  // Subtitle
-                  Text(
-                    'Shear Heaven Pet Spa | Staff Login',
-                    textAlign: TextAlign.center,
-                    style: AppFonts.poppins(
-                      size: 14,
-                      weight: FontWeight.w400,
-                      color: const Color(0xFF374151),
+                    // Subtitle
+                    Text(
+                      'Shear Heaven Pet Spa | Staff Login',
+                      textAlign: TextAlign.center,
+                      style: AppFonts.poppins(
+                        size: 14,
+                        weight: FontWeight.w400,
+                        color: const Color(0xFF374151),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 32),
+                    const SizedBox(height: 32),
 
-                  // ── SECTION 1: ACCOUNT CREDENTIALS ──
-                  _buildSectionHeader('ACCOUNT CREDENTIALS'),
-                  const SizedBox(height: 14),
+                    // ── SECTION 1: ACCOUNT CREDENTIALS ──
+                    _buildSectionHeader('ACCOUNT CREDENTIALS'),
+                    const SizedBox(height: 14),
 
-                  _buildFieldLabel('Email / Login ID'),
-                  const SizedBox(height: 6),
-                  _buildPillTextField(
-                    controller: _emailController,
-                    hintText: 'name@shearheaven.com',
-                    keyboardType: TextInputType.emailAddress,
-                  ),
-                  const SizedBox(height: 14),
+                    _buildFieldLabel('Email / Login ID'),
+                    const SizedBox(height: 6),
+                    _buildPillTextField(
+                      controller: _emailController,
+                      hintText: 'name@shearheaven.com',
+                      keyboardType: TextInputType.emailAddress,
+                    ),
+                    const SizedBox(height: 14),
 
-                  _buildFieldLabel('Enter Password'),
-                  const SizedBox(height: 6),
-                  _buildPillTextField(
-                    controller: _passwordController,
-                    hintText: '••••••••••••••••',
-                    obscureText: true,
-                  ),
-                  const SizedBox(height: 6),
+                    _buildFieldLabel('Enter Password'),
+                    const SizedBox(height: 6),
+                    _buildPillTextField(
+                      controller: _passwordController,
+                      hintText: '••••••••••••••••',
+                      obscureText: true,
+                    ),
+                    const SizedBox(height: 6),
 
-                  PasswordRequirementsView(
-                    controller: _passwordController,
-                  ),
-                  const SizedBox(height: 14),
+                    PasswordRequirementsView(
+                      controller: _passwordController,
+                    ),
+                    const SizedBox(height: 14),
 
-                  _buildFieldLabel('Confirm Password'),
-                  const SizedBox(height: 6),
-                  _buildPillTextField(
-                    controller: _confirmPasswordController,
-                    hintText: '••••••••••••••••',
-                    obscureText: true,
-                  ),
-                  const SizedBox(height: 32),
+                    _buildFieldLabel('Confirm Password'),
+                    const SizedBox(height: 6),
+                    _buildPillTextField(
+                      controller: _confirmPasswordController,
+                      hintText: '••••••••••••••••',
+                      obscureText: true,
+                    ),
+                    const SizedBox(height: 32),
 
-                  // ── SECTION 2: PROFILE DETAILS ──
-                  _buildSectionHeader('PROFILE DETAILS'),
-                  const SizedBox(height: 18),
+                    // ── SECTION 2: PROFILE DETAILS ──
+                    _buildSectionHeader('PROFILE DETAILS'),
+                    const SizedBox(height: 18),
 
-                  _buildFieldLabel('Full Name'),
-                  const SizedBox(height: 6),
-                  _buildPillTextField(
-                    controller: _fullNameController,
-                    hintText: 'e.g. Ashna Menon',
-                  ),
-                  const SizedBox(height: 14),
+                    _buildFieldLabel('Full Name'),
+                    const SizedBox(height: 6),
+                    _buildPillTextField(
+                      controller: _fullNameController,
+                      hintText: 'e.g. Ashna Menon',
+                    ),
+                    const SizedBox(height: 14),
 
-                  _buildFieldLabel('Phone'),
-                  const SizedBox(height: 6),
-                  _buildPillTextField(
-                    controller: _phoneController,
-                    hintText: '(555) 000-0000',
-                    keyboardType: TextInputType.phone,
-                    inputFormatters: const [
-                      UsPhoneInputFormatter(),
+                    _buildFieldLabel('Phone'),
+                    const SizedBox(height: 6),
+                    _buildPillTextField(
+                      controller: _phoneController,
+                      hintText: '(555) 000-0000',
+                      keyboardType: TextInputType.phone,
+                      inputFormatters: const [
+                        UsPhoneInputFormatter(),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+
+                    if (_errorMessage != null) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF2F2),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFFCA5A5)),
+                        ),
+                        child: Text(
+                          _errorMessage!,
+                          style: AppFonts.poppins(
+                            size: 13,
+                            weight: FontWeight.w500,
+                            color: const Color(0xFFDC2626),
+                          ),
+                        ),
+                      ),
                     ],
-                  ),
-                  const SizedBox(height: 14),
 
-                  if (_errorMessage != null) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFEF2F2),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFFCA5A5)),
-                      ),
-                      child: Text(
-                        _errorMessage!,
-                        style: AppFonts.poppins(
-                          size: 13,
-                          weight: FontWeight.w500,
-                          color: const Color(0xFFDC2626),
+                    const SizedBox(height: 28),
+
+                    // Complete Profile Button
+                    SizedBox(
+                      height: 52,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF111827),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(26),
+                          ),
                         ),
+                        onPressed: _isLoading ? null : _handleCompleteSetup,
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : Text(
+                                'Complete Profile',
+                                style: AppFonts.parkinsans(
+                                  size: 16,
+                                  weight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
                       ),
                     ),
+                    const SizedBox(height: 40),
                   ],
-
-                  const SizedBox(height: 28),
-
-                  // Complete Setup Button
-                  SizedBox(
-                    height: 52,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF111827),
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(26),
-                        ),
-                      ),
-                      onPressed: _isLoading ? null : _handleCompleteSetup,
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
-                            )
-                          : Text(
-                              'Complete Setup',
-                              style: AppFonts.parkinsans(
-                                size: 16,
-                                weight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-                ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
     );
   }
 

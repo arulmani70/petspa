@@ -83,7 +83,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify required UI elements are rendered
-    expect(find.text('Complete Your Setup'), findsOneWidget);
+    expect(find.text('Complete Your Profile'), findsOneWidget);
     expect(find.text('Shear Heaven Pet Spa | Staff Login'), findsOneWidget);
     expect(find.text('ACCOUNT CREDENTIALS'), findsOneWidget);
     expect(find.text('Email / Login ID'), findsOneWidget);
@@ -92,7 +92,7 @@ void main() {
     expect(find.text('PROFILE DETAILS'), findsOneWidget);
     expect(find.text('Full Name'), findsOneWidget);
     expect(find.text('Phone'), findsOneWidget);
-    expect(find.text('Complete Setup'), findsOneWidget);
+    expect(find.text('Complete Profile'), findsOneWidget);
 
     // Verify Back button and Image Upload field are removed
     expect(find.byIcon(Icons.arrow_back), findsNothing);
@@ -110,10 +110,10 @@ void main() {
     await tester.enterText(textFields.at(2), 'Groomer@123');
     await tester.pump();
 
-    // Scroll to and tap Complete Setup
-    await tester.ensureVisible(find.text('Complete Setup'));
+    // Scroll to and tap Complete Profile
+    await tester.ensureVisible(find.text('Complete Profile'));
     await tester.pump();
-    await tester.tap(find.text('Complete Setup'));
+    await tester.tap(find.text('Complete Profile'));
     await tester.pump(const Duration(milliseconds: 100));
 
     // Verify exact endpoint was called
@@ -150,9 +150,9 @@ void main() {
     await tester.enterText(textFields.at(2), 'Groomer@123');
     await tester.pump();
 
-    await tester.ensureVisible(find.text('Complete Setup'));
+    await tester.ensureVisible(find.text('Complete Profile'));
     await tester.pump();
-    await tester.tap(find.text('Complete Setup'));
+    await tester.tap(find.text('Complete Profile'));
     await tester.pump(const Duration(milliseconds: 100));
 
     // Verify error message is shown and no network request was sent
@@ -198,9 +198,9 @@ void main() {
     await tester.enterText(textFields.at(2), 'NewPass@123');
     await tester.pump();
 
-    await tester.ensureVisible(find.text('Complete Setup'));
+    await tester.ensureVisible(find.text('Complete Profile'));
     await tester.pump();
-    await tester.tap(find.text('Complete Setup'));
+    await tester.tap(find.text('Complete Profile'));
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(mockApi.lastPostPath, equals('/api/groomer-auth/setup-account'));
@@ -282,9 +282,9 @@ void main() {
       await tester.enterText(textFields.at(4), '555123');
       await tester.pump();
 
-      await tester.ensureVisible(find.text('Complete Setup'));
+      await tester.ensureVisible(find.text('Complete Profile'));
       await tester.pump();
-      await tester.tap(find.text('Complete Setup'));
+      await tester.tap(find.text('Complete Profile'));
       await tester.pump(const Duration(milliseconds: 100));
 
       // Verification error

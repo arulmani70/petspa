@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:logger/logger.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_user.dart';
@@ -59,10 +58,26 @@ class GroomerRegisterRepository {
         groomerData: loginResponse.groomer.toJson(),
       );
 
+      // Connect real-time socket notifications on setup account
+      if (ServicesLocator.isGroomerSocketServiceRegistered) {
+        try {
+          await ServicesLocator.groomerSocketService.connect(
+            token: loginResponse.accessToken,
+          );
+          ServicesLocator.groomerSocketService.joinGroomerRooms(
+            loginResponse.groomer.toJson(),
+          );
+        } catch (e) {
+          log.e('GroomerRegisterRepository::setupAccount::Socket connection error: $e');
+        }
+      }
+
       // Register FCM device token on setup account
       if (ServicesLocator.isPushNotificationServiceRegistered) {
         try {
-          await ServicesLocator.pushNotificationService.registerDeviceToken();
+          await ServicesLocator.pushNotificationService.fetchAndRegisterToken(
+            isGroomer: true,
+          );
         } catch (e) {
           log.e('GroomerRegisterRepository::setupAccount::FCM registration error: $e');
         }
@@ -88,85 +103,15 @@ class GroomerRegisterRepository {
   }) async {
     try {
       log.d('GroomerRegisterRepository::updateProfile::Updating groomer profile');
-
-      final current = getCurrentGroomer();
-      final body = <String, dynamic>{
-        'firstName': firstName ?? current?.firstName ?? '',
-        'lastName': lastName ?? current?.lastName ?? '',
-        'mobile': mobile ?? current?.mobile ?? '',
-        'highlights': highlights ?? current?.highlights ?? '',
-        'multiBookingEnabled': multiBookingEnabled ?? current?.multiBookingEnabled ?? false,
-        'slotBookingLimit': slotBookingLimit ?? current?.slotBookingLimit ?? 1,
-      };
-
-      Map<String, dynamic>? response;
-      if (photoPath != null && photoPath.isNotEmpty && !photoPath.startsWith('http')) {
-        try {
-          final fileName = photoPath.split(RegExp(r'[/\\]')).last;
-          final formData = FormData.fromMap({
-            ...body,
-            'avatar': await MultipartFile.fromFile(photoPath, filename: fileName),
-            'profilePicture': await MultipartFile.fromFile(photoPath, filename: fileName),
-          });
-          response = await ServicesLocator.apiRepository.postMultipart(
-            '/api/groomer-auth/profile',
-            formData,
-          );
-          if (response == null || response['success'] != true) {
-            await ServicesLocator.apiRepository.putMultipart(
-              '/api/groomer-auth/profile',
-              formData,
-            );
-          }
-        } catch (e) {
-          log.w('GroomerRegisterRepository::updateProfile::Multipart upload error: $e');
-        }
-      }
-
-      if (response == null) {
-        response = await ServicesLocator.apiRepository.post(
-          '/api/groomer-auth/profile',
-          body,
-        );
-
-        bool isPutSuccess = false;
-        if (response == null || response['success'] != true) {
-          isPutSuccess = await ServicesLocator.apiRepository.put(
-            '/api/groomer-auth/profile',
-            body,
-          );
-        }
-
-        if (response != null && response['data'] != null) {
-          final data = response['data'] as Map<String, dynamic>;
-          final updated = GroomerUser.fromJson(data);
-          final currentToken = await ServicesLocator.sessionService.getGroomerAccessToken() ?? '';
-          final currentRefreshToken = await ServicesLocator.sessionService.getGroomerRefreshToken() ?? '';
-          await ServicesLocator.sessionService.saveGroomerSession(
-            accessToken: currentToken,
-            refreshToken: currentRefreshToken,
-            groomerData: updated.toJson(),
-          );
-          return updated;
-        }
-
-        if (isPutSuccess) {
-          return await getProfile();
-        }
-      } else if (response['data'] != null) {
-        final data = response['data'] as Map<String, dynamic>;
-        final updated = GroomerUser.fromJson(data);
-        final currentToken = await ServicesLocator.sessionService.getGroomerAccessToken() ?? '';
-        final currentRefreshToken = await ServicesLocator.sessionService.getGroomerRefreshToken() ?? '';
-        await ServicesLocator.sessionService.saveGroomerSession(
-          accessToken: currentToken,
-          refreshToken: currentRefreshToken,
-          groomerData: updated.toJson(),
-        );
-        return updated;
-      }
-
-      return current;
+      return await ServicesLocator.groomerHomeRepository.updateProfile(
+        firstName: firstName,
+        lastName: lastName,
+        mobile: mobile,
+        highlights: highlights,
+        multiBookingEnabled: multiBookingEnabled,
+        slotBookingLimit: slotBookingLimit,
+        photoPath: photoPath,
+      );
     } catch (error) {
       log.e('GroomerRegisterRepository::updateProfile::Error: $error');
       rethrow;
@@ -177,28 +122,7 @@ class GroomerRegisterRepository {
   Future<GroomerUser?> getProfile() async {
     try {
       log.d('GroomerRegisterRepository::getProfile::Fetching groomer profile');
-
-      final response = await ServicesLocator.apiRepository.get(
-        '/api/groomer-auth/profile',
-      );
-
-      if (response == null || response['success'] != true || response['data'] == null) {
-        log.w('GroomerRegisterRepository::getProfile::Failed to fetch profile');
-        return getCurrentGroomer();
-      }
-
-      final data = response['data'] as Map<String, dynamic>;
-      final groomer = GroomerUser.fromJson(data);
-
-      final currentToken = await ServicesLocator.sessionService.getGroomerAccessToken() ?? '';
-      final currentRefreshToken = await ServicesLocator.sessionService.getGroomerRefreshToken() ?? '';
-      await ServicesLocator.sessionService.saveGroomerSession(
-        accessToken: currentToken,
-        refreshToken: currentRefreshToken,
-        groomerData: groomer.toJson(),
-      );
-
-      return groomer;
+      return await ServicesLocator.groomerHomeRepository.getProfile();
     } catch (error) {
       log.e('GroomerRegisterRepository::getProfile::Error: $error');
       return getCurrentGroomer();

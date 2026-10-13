@@ -36,6 +36,13 @@ class GroomerLoginRepository {
       final data = response['data'] as Map<String, dynamic>;
       final loginResponse = GroomerLoginResponse.fromJson(data);
 
+      if (ServicesLocator.sessionService.isLoggedIn) {
+        await ServicesLocator.sessionService.clearSession();
+        if (ServicesLocator.isCustomerSocketServiceRegistered) {
+          ServicesLocator.customerSocketService.disconnect();
+        }
+      }
+
       await ServicesLocator.sessionService.saveGroomerSession(
         accessToken: loginResponse.accessToken,
         refreshToken: loginResponse.refreshToken,
@@ -68,6 +75,9 @@ class GroomerLoginRepository {
         try {
           await ServicesLocator.groomerSocketService.connect(
             token: loginResponse.accessToken,
+          );
+          ServicesLocator.groomerSocketService.joinGroomerRooms(
+            loginResponse.groomer.toJson(),
           );
         } catch (e) {
           log.e('GroomerLoginRepository::login::Socket connection error: $e');
@@ -168,6 +178,7 @@ class GroomerLoginRepository {
       if (ServicesLocator.isGroomerSocketServiceRegistered) {
         ServicesLocator.groomerSocketService.disconnect();
       }
+      ServicesLocator.apiRepository.setNotificationAuthRole(null);
       await ServicesLocator.sessionService.clearGroomerSession();
     } catch (e) {
       log.e('GroomerLoginRepository::logout::Error: $e');

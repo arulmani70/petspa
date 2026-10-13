@@ -17,15 +17,40 @@ class NotificationsPageMobile extends StatefulWidget {
 }
 
 class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
-  List<AppNotification>? _mockNotifications;
-
   @override
   void initState() {
     super.initState();
-    _mockNotifications = _getMockNotifications();
     if (ServicesLocator.sessionService.isLoggedIn) {
       context.read<NotificationBloc>().add(const FetchNotifications());
       context.read<NotificationBloc>().add(const NotificationConnectSocketEvent());
+    }
+  }
+
+  bool _canPopSafe(BuildContext context) {
+    final router = GoRouter.maybeOf(context);
+    if (router != null) {
+      return router.canPop();
+    }
+    return Navigator.maybeOf(context)?.canPop() ?? false;
+  }
+
+  void _popOrGoHomeSafe(BuildContext context) {
+    final router = GoRouter.maybeOf(context);
+    if (router != null) {
+      if (router.canPop()) {
+        router.pop();
+      } else {
+        router.goNamed(RouteNames.home);
+      }
+    } else {
+      Navigator.maybeOf(context)?.maybePop();
+    }
+  }
+
+  void _pushNamedSafe(BuildContext context, String routeName) {
+    final router = GoRouter.maybeOf(context);
+    if (router != null) {
+      router.pushNamed(routeName);
     }
   }
 
@@ -35,30 +60,11 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
 
   void _onMarkAllAsRead() {
     context.read<NotificationBloc>().add(const MarkAllNotificationsRead());
-    if (mounted) {
-      setState(() {
-        if (_mockNotifications != null) {
-          _mockNotifications = _mockNotifications!.map((n) => n.copyWith(isRead: true)).toList();
-        }
-      });
-    }
   }
 
   void _onNotificationTap(AppNotification notification) {
     if (!notification.isRead) {
       context.read<NotificationBloc>().add(MarkNotificationRead(notification.id));
-      if (mounted) {
-        setState(() {
-          if (_mockNotifications != null) {
-            _mockNotifications = _mockNotifications!.map((n) {
-              if (n.id == notification.id) {
-                return n.copyWith(isRead: true);
-              }
-              return n;
-            }).toList();
-          }
-        });
-      }
     }
 
     final metadata = notification.metadata;
@@ -72,9 +78,9 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
         type.contains('appointment') ||
         type.contains('confirm') ||
         type.contains('groom')) {
-      context.pushNamed(RouteNames.myBookings);
+      _pushNamedSafe(context, RouteNames.myBookings);
     } else if (type.contains('offer') || type.contains('promo') || type.contains('discount')) {
-      context.pushNamed(RouteNames.offers);
+      _pushNamedSafe(context, RouteNames.offers);
     }
   }
 
@@ -82,10 +88,10 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
   Widget build(BuildContext context) {
     if (!ServicesLocator.sessionService.isLoggedIn) {
       return PopScope(
-        canPop: context.canPop(),
+        canPop: _canPopSafe(context),
         onPopInvokedWithResult: (didPop, result) {
           if (didPop) return;
-          context.goNamed(RouteNames.home);
+          _popOrGoHomeSafe(context);
         },
         child: Scaffold(
           backgroundColor: Colors.white,
@@ -95,13 +101,7 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
             scrolledUnderElevation: 0,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.black, size: 22),
-              onPressed: () {
-                if (context.canPop()) {
-                  context.pop();
-                } else {
-                  context.goNamed(RouteNames.home);
-                }
-              },
+              onPressed: () => _popOrGoHomeSafe(context),
             ),
             title: Text(
               'Notifications',
@@ -125,82 +125,87 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
         }
       },
       builder: (context, state) {
-        final rawNotifications = state.notifications;
-        final notifications = rawNotifications.isNotEmpty
-            ? rawNotifications
-            : (_mockNotifications ??= _getMockNotifications());
+        final notifications = state.notifications;
         final hasUnread = notifications.any((n) => !n.isRead);
 
         return PopScope(
-          canPop: context.canPop(),
+          canPop: _canPopSafe(context),
           onPopInvokedWithResult: (didPop, result) {
             if (didPop) return;
-            context.goNamed(RouteNames.home);
+            _popOrGoHomeSafe(context);
           },
           child: Scaffold(
-          backgroundColor: Colors.white,
-          appBar: AppBar(
             backgroundColor: Colors.white,
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.black, size: 22),
-              onPressed: () {
-                if (context.canPop()) {
-                  context.pop();
-                } else {
-                  context.goNamed(RouteNames.home);
-                }
-              },
-            ),
-            title: Text(
-              'Notifications',
-              style: AppFonts.parkinsans(
-                size: 20,
-                weight: FontWeight.w700,
-                color: Colors.black,
+            appBar: AppBar(
+              backgroundColor: Colors.white,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.black, size: 22),
+                onPressed: () => _popOrGoHomeSafe(context),
               ),
-            ),
-            centerTitle: false,
-            actions: [
-              Padding(
-                padding: const EdgeInsets.only(right: 8.0),
-                child: TextButton(
-                  key: const Key('notifications_mark_all_read_button'),
-                  onPressed: hasUnread ? _onMarkAllAsRead : null,
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.black,
-                    disabledForegroundColor: const Color(0xFF9CA3AF),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+              title: Text(
+                'Notifications',
+                style: AppFonts.parkinsans(
+                  size: 20,
+                  weight: FontWeight.w700,
+                  color: Colors.black,
+                ),
+              ),
+              centerTitle: false,
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: TextButton(
+                    key: const Key('notifications_mark_all_read_button'),
+                    onPressed: hasUnread ? _onMarkAllAsRead : null,
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.black,
+                      disabledForegroundColor: const Color(0xFF9CA3AF),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
                     ),
-                  ),
-                  child: Text(
-                    'Mark as read all',
-                    style: AppFonts.parkinsans(
-                      size: 13,
-                      weight: FontWeight.w600,
-                      color: hasUnread ? Colors.black : const Color(0xFF9CA3AF),
+                    child: Text(
+                      'Mark as read all',
+                      style: AppFonts.parkinsans(
+                        size: 13,
+                        weight: FontWeight.w600,
+                        color: hasUnread ? Colors.black : const Color(0xFF9CA3AF),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          body: RefreshIndicator(
-            onRefresh: _handleRefresh,
-            color: Colors.black,
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 130.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: _buildGroupedNotificationList(notifications),
-              ),
+              ],
+            ),
+            body: RefreshIndicator(
+              onRefresh: _handleRefresh,
+              color: Colors.black,
+              child: notifications.isEmpty
+                  ? (state.status == NotificationStatus.loading
+                      ? const Center(
+                          child: CircularProgressIndicator(color: Colors.black),
+                        )
+                      : ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            SizedBox(
+                              height: MediaQuery.of(context).size.height * 0.65,
+                              child: _buildEmptyState(),
+                            ),
+                          ],
+                        ))
+                  : SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 130.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: _buildGroupedNotificationList(notifications),
+                      ),
+                    ),
             ),
           ),
-        ),
         );
       },
     );
@@ -399,50 +404,50 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
     }
   }
 
-  List<AppNotification> _getMockNotifications() {
-    final now = DateTime.now();
-    return [
-      AppNotification(
-        id: 1,
-        title: 'Appointment Booked',
-        message: "Teddy's Full Grooming is tomorrow at 10:30 AM. See you soon!",
-        createdAt: now.subtract(const Duration(hours: 2)),
-        isRead: false,
-        type: 'booking',
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 84,
+              height: 84,
+              decoration: const BoxDecoration(
+                color: Color(0xFFF3F4F6),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.notifications_none_outlined,
+                size: 42,
+                color: Color(0xFF111827),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              'No Notifications Yet',
+              style: AppFonts.parkinsans(
+                size: 18,
+                weight: FontWeight.w700,
+                color: const Color(0xFF111827),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'You\'re all caught up! When you receive booking updates or special offers, they will appear here.',
+              style: AppFonts.poppins(
+                size: 14,
+                color: const Color(0xFF6B7280),
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
-      AppNotification(
-        id: 2,
-        title: 'Booking Confirmed',
-        message: "Teddy's Full Grooming is tomorrow at 10:30 AM. See you soon!",
-        createdAt: now.subtract(const Duration(hours: 2)),
-        isRead: true,
-        type: 'confirm',
-      ),
-      AppNotification(
-        id: 3,
-        title: 'Weekend Offer',
-        message: "Teddy's Full Grooming is tomorrow at 10:30 AM. See you soon!",
-        createdAt: now.subtract(const Duration(days: 2)),
-        isRead: true,
-        type: 'offer',
-      ),
-      AppNotification(
-        id: 4,
-        title: 'Grooming Complete',
-        message: "Teddy's Full Grooming is tomorrow at 10:30 AM. See you soon!",
-        createdAt: now.subtract(const Duration(days: 2)),
-        isRead: true,
-        type: 'complete',
-      ),
-      AppNotification(
-        id: 5,
-        title: 'Appointment Reminder',
-        message: "Teddy's Full Grooming is tomorrow at 10:30 AM. See you soon!",
-        createdAt: now.subtract(const Duration(days: 2)),
-        isRead: true,
-        type: 'reminder',
-      ),
-    ];
+    );
   }
 
   Widget _buildGuestState() {
@@ -496,7 +501,7 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
                     borderRadius: BorderRadius.circular(60),
                   ),
                 ),
-                onPressed: () => context.pushNamed(RouteNames.login),
+                onPressed: () => _pushNamedSafe(context, RouteNames.login),
                 child: Text(
                   'Sign In / Register',
                   style: AppFonts.parkinsans(

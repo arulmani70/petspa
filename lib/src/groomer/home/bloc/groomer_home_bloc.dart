@@ -49,6 +49,7 @@ class GroomerHomeBloc extends Bloc<GroomerHomeEvent, GroomerHomeState> {
     on<GroomerHomeGetBookingServicesEvent>(_onGetBookingServices);
     on<GroomerHomeCheckAvailabilityEvent>(_onCheckAvailability);
     on<GroomerHomeResetBookingDialogEvent>(_onResetBookingDialog);
+    on<GroomerHomeDeleteAccountEvent>(_onDeleteAccount);
 
     _initSocketSubscriptions();
   }
@@ -190,6 +191,32 @@ class GroomerHomeBloc extends Bloc<GroomerHomeEvent, GroomerHomeState> {
         repository.getGroomerHours(),
       ]);
 
+      final fetchedNotifications = results[8] as List<Map<String, dynamic>>? ?? [];
+      final mergedNotifications = <Map<String, dynamic>>[];
+      for (final item in [...state.notifications, ...fetchedNotifications]) {
+        final idStr = (item['id'] ?? item['notificationId'] ?? '').toString().trim();
+        if (idStr.isNotEmpty) {
+          final existingIdx = mergedNotifications.indexWhere(
+            (e) => (e['id'] ?? e['notificationId'] ?? '').toString().trim() == idStr,
+          );
+          if (existingIdx >= 0) {
+            final existing = mergedNotifications[existingIdx];
+            final isRead = existing['isRead'] == true ||
+                existing['is_read'] == true ||
+                item['isRead'] == true ||
+                item['is_read'] == true;
+            mergedNotifications[existingIdx] = <String, dynamic>{
+              ...existing,
+              ...item,
+              'isRead': isRead,
+              'is_read': isRead,
+            };
+            continue;
+          }
+        }
+        mergedNotifications.add(Map<String, dynamic>.from(item));
+      }
+
       emit(state.copyWith(
         status: () => GroomerHomeStatus.loaded,
         groomer: () => results[0] as GroomerUser? ?? state.groomer,
@@ -200,7 +227,7 @@ class GroomerHomeBloc extends Bloc<GroomerHomeEvent, GroomerHomeState> {
         cancellationRequests: () => results[5] as List<GroomerBooking>? ?? [],
         serviceHours: () => results[6] as List<StoreServiceHour>? ?? [],
         holidays: () => results[7] as List<StoreHoliday>? ?? [],
-        notifications: () => results[8] as List<Map<String, dynamic>>? ?? [],
+        notifications: () => mergedNotifications,
         groomerHours: () => results[9] as List<GroomerWorkingHour>? ?? [],
         bookingForUserSuccess: () => false,
       ));
@@ -261,6 +288,10 @@ class GroomerHomeBloc extends Bloc<GroomerHomeEvent, GroomerHomeState> {
     Emitter<GroomerHomeState> emit,
   ) async {
     try {
+      final cached = repository.getCurrentGroomer();
+      if (cached != null) {
+        emit(state.copyWith(groomer: () => cached));
+      }
       final profile = await repository.getProfile();
       if (profile != null) {
         emit(state.copyWith(groomer: () => profile));
@@ -274,7 +305,11 @@ class GroomerHomeBloc extends Bloc<GroomerHomeEvent, GroomerHomeState> {
     GroomerHomeUpdateProfileEvent event,
     Emitter<GroomerHomeState> emit,
   ) async {
-    emit(state.copyWith(status: () => GroomerHomeStatus.loading));
+    emit(state.copyWith(
+      status: () => GroomerHomeStatus.loading,
+      errorMessage: () => null,
+      actionMessage: () => null,
+    ));
     try {
       final updated = await repository.updateProfile(
         firstName: event.firstName,
@@ -283,6 +318,7 @@ class GroomerHomeBloc extends Bloc<GroomerHomeEvent, GroomerHomeState> {
         highlights: event.highlights,
         multiBookingEnabled: event.multiBookingEnabled,
         slotBookingLimit: event.slotBookingLimit,
+        photoPath: event.photoPath,
       );
 
       if (updated != null) {
@@ -298,9 +334,10 @@ class GroomerHomeBloc extends Bloc<GroomerHomeEvent, GroomerHomeState> {
         ));
       }
     } catch (e) {
+      final msg = e.toString().replaceAll('Exception:', '').trim();
       emit(state.copyWith(
         status: () => GroomerHomeStatus.failure,
-        errorMessage: () => 'Failed to update profile: $e',
+        errorMessage: () => msg.isNotEmpty ? msg : 'Failed to update profile.',
       ));
     }
   }
@@ -442,7 +479,44 @@ class GroomerHomeBloc extends Bloc<GroomerHomeEvent, GroomerHomeState> {
   ) async {
     await repository.logout();
     emit(GroomerHomeState.initial);
-    Routes.redirectToLogin(isGroomer: true);
+    Routes.redirectToLogin(isGroomer: false);
+  }
+
+  Future<void> _onDeleteAccount(
+    GroomerHomeDeleteAccountEvent event,
+    Emitter<GroomerHomeState> emit,
+  ) async {
+    log.d('GroomerHomeBloc::_onDeleteAccount::Processing groomer account deletion');
+    try {
+      emit(state.copyWith(
+        isDeletingAccount: () => true,
+        deleteAccountError: () => null,
+        deleteAccountSuccess: () => false,
+      ));
+      final success = await repository.deleteAccount(
+        password: event.password,
+        confirm: event.confirm,
+      );
+      if (success) {
+        emit(GroomerHomeState.initial.copyWith(
+          deleteAccountSuccess: () => true,
+          actionMessage: () => 'Account successfully deleted.',
+        ));
+        Routes.redirectToLogin(isGroomer: false);
+      } else {
+        emit(state.copyWith(
+          isDeletingAccount: () => false,
+          deleteAccountError: () => 'Failed to delete groomer account.',
+        ));
+      }
+    } catch (e) {
+      final cleanMsg = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+      log.e('GroomerHomeBloc::_onDeleteAccount::Error: $cleanMsg');
+      emit(state.copyWith(
+        isDeletingAccount: () => false,
+        deleteAccountError: () => cleanMsg,
+      ));
+    }
   }
 
   bool _isCreatingBooking = false;

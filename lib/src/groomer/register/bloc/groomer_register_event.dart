@@ -18,6 +18,8 @@ final class GroomerRegisterSetupAccountEvent extends GroomerRegisterEvent {
   final String password;
   final String confirmPassword;
   final String? fullName;
+  final String? firstName;
+  final String? lastName;
   final String? phone;
   final String? photoPath;
 
@@ -28,6 +30,8 @@ final class GroomerRegisterSetupAccountEvent extends GroomerRegisterEvent {
     required this.password,
     required this.confirmPassword,
     this.fullName,
+    this.firstName,
+    this.lastName,
     this.phone,
     this.photoPath,
   });
@@ -40,6 +44,8 @@ final class GroomerRegisterSetupAccountEvent extends GroomerRegisterEvent {
         password,
         confirmPassword,
         fullName,
+        firstName,
+        lastName,
         phone,
         photoPath,
       ];

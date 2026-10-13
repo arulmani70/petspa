@@ -55,6 +55,11 @@ class GroomerHomeState extends Equatable {
   final String? bookingForUserError;
   final int? lastCreatedBookingId;
 
+  // Groomer Account Deletion State
+  final bool isDeletingAccount;
+  final bool deleteAccountSuccess;
+  final String? deleteAccountError;
+
   const GroomerHomeState({
     required this.status,
     this.groomer,
@@ -97,6 +102,9 @@ class GroomerHomeState extends Equatable {
     this.bookingForUserSuccess = false,
     this.bookingForUserError,
     this.lastCreatedBookingId,
+    this.isDeletingAccount = false,
+    this.deleteAccountSuccess = false,
+    this.deleteAccountError,
   });
 
   static final initial = GroomerHomeState(
@@ -120,6 +128,8 @@ class GroomerHomeState extends Equatable {
     isSlotAvailable: false,
     isCreatingBookingForUser: false,
     bookingForUserSuccess: false,
+    isDeletingAccount: false,
+    deleteAccountSuccess: false,
   );
 
   /// Number of unread notifications and pending action requests
@@ -172,6 +182,9 @@ class GroomerHomeState extends Equatable {
     bool Function()? bookingForUserSuccess,
     String? Function()? bookingForUserError,
     int? Function()? lastCreatedBookingId,
+    bool Function()? isDeletingAccount,
+    bool Function()? deleteAccountSuccess,
+    String? Function()? deleteAccountError,
   }) {
     return GroomerHomeState(
       status: status != null ? status() : this.status,
@@ -215,6 +228,9 @@ class GroomerHomeState extends Equatable {
       bookingForUserSuccess: bookingForUserSuccess != null ? bookingForUserSuccess() : this.bookingForUserSuccess,
       bookingForUserError: bookingForUserError != null ? bookingForUserError() : this.bookingForUserError,
       lastCreatedBookingId: lastCreatedBookingId != null ? lastCreatedBookingId() : this.lastCreatedBookingId,
+      isDeletingAccount: isDeletingAccount != null ? isDeletingAccount() : this.isDeletingAccount,
+      deleteAccountSuccess: deleteAccountSuccess != null ? deleteAccountSuccess() : this.deleteAccountSuccess,
+      deleteAccountError: deleteAccountError != null ? deleteAccountError() : this.deleteAccountError,
     );
   }
 
@@ -261,5 +277,8 @@ class GroomerHomeState extends Equatable {
         bookingForUserSuccess,
         bookingForUserError,
         lastCreatedBookingId,
+        isDeletingAccount,
+        deleteAccountSuccess,
+        deleteAccountError,
       ];
 }

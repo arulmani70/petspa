@@ -1,8 +1,10 @@
 import 'package:logger/logger.dart';
+import 'package:shear_heaven_pet_spa/src/account/models/app_notification.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/utils/booking_date_utils.dart';
 import 'package:shear_heaven_pet_spa/src/common/common.dart';
 import 'package:shear_heaven_pet_spa/src/common/repos/database_repository.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
+import 'package:shear_heaven_pet_spa/src/common/services/session_service.dart';
 
 class BookingRepository {
   final Logger log = Logger();
@@ -156,10 +158,102 @@ class BookingRepository {
       log.d('BookingRepository::createBookingApi::Booking created successfully');
       invalidateUpcomingBookingsCache();
 
+      if (response != null && response['success'] != false) {
+        await _dispatchBookingCreatedNotifications(payload, response);
+      }
+
       return response;
     } catch (error) {
       log.e('BookingRepository::createBookingApi::Booking creation failed: $error');
       rethrow;
+    }
+  }
+
+  Future<void> _dispatchBookingCreatedNotifications(
+    Map<String, dynamic> payload,
+    Map<String, dynamic> response,
+  ) async {
+    try {
+      if (!ServicesLocator.isRegistered<SessionService>()) return;
+      final session = ServicesLocator.sessionService;
+      final data = response['data'] is Map
+          ? Map<String, dynamic>.from(response['data'] as Map)
+          : response;
+      final rawBookingId = data['bookingId'] ??
+          data['id'] ??
+          response['bookingId'] ??
+          (DateTime.now().millisecondsSinceEpoch ~/ 1000);
+      final bookingId = rawBookingId is int
+          ? rawBookingId
+          : (int.tryParse(rawBookingId.toString()) ??
+              (DateTime.now().millisecondsSinceEpoch ~/ 1000));
+      final groomerId = payload['groomerId'] ?? data['groomerId'];
+      final bookingDate = (payload['bookingDate'] ?? data['bookingDate'] ?? '').toString();
+      final startTime = (payload['startTime'] ?? data['startTime'] ?? '').toString();
+      final status = (data['status'] ?? 'pending').toString();
+      final currentUid = session.currentUserId;
+      final nowIso = DateTime.now().toIso8601String();
+      final baseId = DateTime.now().millisecondsSinceEpoch;
+
+      final customerNotifMap = <String, dynamic>{
+        'id': baseId,
+        'notificationId': baseId,
+        if (currentUid != null && currentUid.isNotEmpty)
+          'userId': int.tryParse(currentUid) ?? currentUid,
+        'title': 'Appointment Booked',
+        'message': bookingDate.isNotEmpty
+            ? 'Your booking #$bookingId for $bookingDate${startTime.isNotEmpty ? " at $startTime" : ""} has been submitted.'
+            : 'Your booking #$bookingId has been submitted.',
+        'body': bookingDate.isNotEmpty
+            ? 'Your booking #$bookingId for $bookingDate${startTime.isNotEmpty ? " at $startTime" : ""} has been submitted.'
+            : 'Your booking #$bookingId has been submitted.',
+        'type': 'booking',
+        'status': status,
+        'isRead': false,
+        'is_read': false,
+        'createdAt': nowIso,
+        'data': <String, dynamic>{
+          'bookingId': bookingId,
+          'entityId': bookingId,
+          'status': status,
+          if (groomerId != null) 'groomerId': groomerId,
+        },
+      };
+
+      await session.saveCustomerPortalNotification(customerNotifMap);
+      if (ServicesLocator.isCustomerSocketServiceRegistered && session.isLoggedIn) {
+        ServicesLocator.customerSocketService.handleDirectNotification(
+          AppNotification.fromJson(customerNotifMap),
+        );
+      }
+
+      final groomerNotifMap = <String, dynamic>{
+        'id': baseId + 1,
+        'notificationId': baseId + 1,
+        if (groomerId != null) 'groomerId': groomerId,
+        'title': 'New Booking Request',
+        'message': bookingDate.isNotEmpty
+            ? 'New booking request #$bookingId for $bookingDate${startTime.isNotEmpty ? " at $startTime" : ""} is awaiting approval.'
+            : 'New booking request #$bookingId has been received.',
+        'body': bookingDate.isNotEmpty
+            ? 'New booking request #$bookingId for $bookingDate${startTime.isNotEmpty ? " at $startTime" : ""} is awaiting approval.'
+            : 'New booking request #$bookingId has been received.',
+        'type': 'new_booking',
+        'status': status,
+        'isRead': false,
+        'is_read': false,
+        'createdAt': nowIso,
+        'data': <String, dynamic>{
+          'bookingId': bookingId,
+          'entityId': bookingId,
+          'status': status,
+          if (groomerId != null) 'groomerId': groomerId,
+        },
+      };
+
+      await session.saveGroomerPortalNotification(groomerNotifMap);
+    } catch (e) {
+      log.w('BookingRepository::_dispatchBookingCreatedNotifications::Error: $e');
     }
   }
 
@@ -252,10 +346,87 @@ class BookingRepository {
       log.d('BookingRepository::cancelBookingApi::Response'
           ' success=${response?["success"]}'
           ' message=${response?["message"]}');
+
+      if (response != null && response['success'] == true) {
+        await _dispatchBookingCancelledNotifications(bookingId, response);
+      }
+
       return response;
     } catch (error) {
       log.e('BookingRepository::cancelBookingApi::Error: $error');
       rethrow;
+    }
+  }
+
+  Future<void> _dispatchBookingCancelledNotifications(
+    int bookingId,
+    Map<String, dynamic> response,
+  ) async {
+    try {
+      if (!ServicesLocator.isRegistered<SessionService>()) return;
+      final session = ServicesLocator.sessionService;
+      final currentUid = session.currentUserId;
+      final nowIso = DateTime.now().toIso8601String();
+      final baseId = DateTime.now().millisecondsSinceEpoch;
+      final msg = response['message']?.toString() ?? 'Booking #$bookingId has been cancelled.';
+      final isRequest = msg.toLowerCase().contains('request');
+
+      final customerNotifMap = <String, dynamic>{
+        'id': baseId,
+        'notificationId': baseId,
+        if (currentUid != null && currentUid.isNotEmpty)
+          'userId': int.tryParse(currentUid) ?? currentUid,
+        'title': isRequest ? 'Cancellation Requested' : 'Booking Cancelled',
+        'message': isRequest
+            ? 'Your cancellation request for booking #$bookingId has been submitted.'
+            : 'Your booking #$bookingId has been cancelled.',
+        'body': isRequest
+            ? 'Your cancellation request for booking #$bookingId has been submitted.'
+            : 'Your booking #$bookingId has been cancelled.',
+        'type': 'cancellation',
+        'status': isRequest ? 'cancellation_requested' : 'cancelled',
+        'isRead': false,
+        'is_read': false,
+        'createdAt': nowIso,
+        'data': <String, dynamic>{
+          'bookingId': bookingId,
+          'entityId': bookingId,
+          'status': isRequest ? 'cancellation_requested' : 'cancelled',
+        },
+      };
+
+      await session.saveCustomerPortalNotification(customerNotifMap);
+      if (ServicesLocator.isCustomerSocketServiceRegistered && session.isLoggedIn) {
+        ServicesLocator.customerSocketService.handleDirectNotification(
+          AppNotification.fromJson(customerNotifMap),
+        );
+      }
+
+      final groomerNotifMap = <String, dynamic>{
+        'id': baseId + 1,
+        'notificationId': baseId + 1,
+        'title': isRequest ? 'Cancellation Requested' : 'Booking Cancelled',
+        'message': isRequest
+            ? 'Customer requested cancellation for booking #$bookingId.'
+            : 'Booking #$bookingId was cancelled by the customer.',
+        'body': isRequest
+            ? 'Customer requested cancellation for booking #$bookingId.'
+            : 'Booking #$bookingId was cancelled by the customer.',
+        'type': 'cancellation_requested',
+        'status': isRequest ? 'cancellation_requested' : 'cancelled',
+        'isRead': false,
+        'is_read': false,
+        'createdAt': nowIso,
+        'data': <String, dynamic>{
+          'bookingId': bookingId,
+          'entityId': bookingId,
+          'status': isRequest ? 'cancellation_requested' : 'cancelled',
+        },
+      };
+
+      await session.saveGroomerPortalNotification(groomerNotifMap);
+    } catch (e) {
+      log.w('BookingRepository::_dispatchBookingCancelledNotifications::Error: $e');
     }
   }
 

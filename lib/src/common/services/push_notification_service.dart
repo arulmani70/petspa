@@ -1,11 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:logger/logger.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shear_heaven_pet_spa/firebase_options.dart';
+import 'package:shear_heaven_pet_spa/src/account/models/app_notification.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 
 /// Dedicated Android Notification Channel for Shear Heaven Pet Spa.
@@ -47,50 +50,122 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   );
   debugPrint('[FCM Background] Data: ${message.data}');
 
+  final title =
+      message.notification?.title ??
+      message.data['title']?.toString() ??
+      message.data['notification_title']?.toString() ??
+      message.data['header']?.toString() ??
+      'Shear Heaven Pet Spa';
+  final body =
+      message.notification?.body ??
+      message.data['body']?.toString() ??
+      message.data['message']?.toString() ??
+      message.data['notification_body']?.toString() ??
+      message.data['text']?.toString() ??
+      'You have a new update';
+
+  final rawId = message.data['id'] ??
+      message.data['notificationId'] ??
+      message.data['bookingId'] ??
+      message.data['booking_id'];
+  final resolvedId = (rawId != null ? int.tryParse(rawId.toString()) : null) ??
+      (message.messageId?.hashCode ?? DateTime.now().millisecondsSinceEpoch).abs();
+
+  // Persist background notification so when the app opens/resumes, the in-app
+  // notification list and unread count reflect it across Customer, Groomer, and Admin portals.
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    const bgKey = 'PENDING_BG_FCM_NOTIFS';
+    final existingRaw = prefs.getString(bgKey);
+    final List<Map<String, dynamic>> list = [];
+    if (existingRaw != null && existingRaw.isNotEmpty) {
+      final decoded = jsonDecode(existingRaw);
+      if (decoded is List) {
+        for (final item in decoded) {
+          if (item is Map) list.add(Map<String, dynamic>.from(item));
+        }
+      }
+    }
+    final notifPayload = <String, dynamic>{
+      'id': resolvedId,
+      'title': title,
+      'message': body,
+      'body': body,
+      'type': message.data['type']?.toString() ?? 'general',
+      'isRead': false,
+      'createdAt': DateTime.now().toIso8601String(),
+      'data': Map<String, dynamic>.from(message.data),
+      if (message.data['userId'] != null) 'userId': message.data['userId'],
+      if (message.data['groomerId'] != null) 'groomerId': message.data['groomerId'],
+      if (message.data['role'] != null) 'role': message.data['role'],
+    };
+    final exists = list.any((e) => e['id']?.toString() == resolvedId.toString());
+    if (!exists) {
+      list.insert(0, notifPayload);
+      await prefs.setString(bgKey, jsonEncode(list));
+    }
+  } catch (e) {
+    debugPrint('[FCM Background] Failed to persist background notification: $e');
+  }
+
   // When the message is data-only (no notification payload), Android OS does not
-  // display a system notification automatically. We display it using flutter_local_notifications.
+  // display a system notification automatically. We initialize and display it using flutter_local_notifications.
   if (message.notification == null && message.data.isNotEmpty) {
-    final title =
-        message.data['title']?.toString() ??
-        message.data['notification_title']?.toString() ??
-        message.data['header']?.toString() ??
-        'Shear Heaven Pet Spa';
-    final body =
-        message.data['body']?.toString() ??
-        message.data['message']?.toString() ??
-        message.data['notification_body']?.toString() ??
-        message.data['text']?.toString() ??
-        'You have a new update';
+    try {
+      final FlutterLocalNotificationsPlugin localNotifications =
+          FlutterLocalNotificationsPlugin();
+      const androidSettings = AndroidInitializationSettings(
+        '@mipmap/ic_launcher',
+      );
+      const darwinSettings = DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      );
+      const initSettings = InitializationSettings(
+        android: androidSettings,
+        iOS: darwinSettings,
+      );
+      await localNotifications.initialize(settings: initSettings);
 
-    final FlutterLocalNotificationsPlugin localNotifications =
-        FlutterLocalNotificationsPlugin();
-    final androidNotificationDetails = AndroidNotificationDetails(
-      highImportanceChannel.id,
-      highImportanceChannel.name,
-      channelDescription: highImportanceChannel.description,
-      importance: Importance.max,
-      priority: Priority.high,
-      icon: '@mipmap/ic_launcher',
-      playSound: true,
-      enableVibration: true,
-    );
+      if (!kIsWeb && Platform.isAndroid) {
+        final androidPlugin = localNotifications
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >();
+        await androidPlugin?.createNotificationChannel(highImportanceChannel);
+      }
 
-    final notificationDetails = NotificationDetails(
-      android: androidNotificationDetails,
-      iOS: const DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-      ),
-    );
+      final androidNotificationDetails = AndroidNotificationDetails(
+        highImportanceChannel.id,
+        highImportanceChannel.name,
+        channelDescription: highImportanceChannel.description,
+        importance: Importance.max,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+        playSound: true,
+        enableVibration: true,
+      );
 
-    await localNotifications.show(
-      id: message.hashCode,
-      title: title,
-      body: body,
-      notificationDetails: notificationDetails,
-      payload: message.data.isNotEmpty ? message.data.toString() : null,
-    );
+      final notificationDetails = NotificationDetails(
+        android: androidNotificationDetails,
+        iOS: const DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
+      );
+
+      await localNotifications.show(
+        id: resolvedId,
+        title: title,
+        body: body,
+        notificationDetails: notificationDetails,
+        payload: jsonEncode(message.data),
+      );
+    } catch (e) {
+      debugPrint('[FCM Background] Local notification display error: $e');
+    }
   }
 }
 
@@ -114,6 +189,10 @@ class PushNotificationService {
   StreamSubscription<String>? _tokenRefreshSubscription;
   String? _currentToken;
   bool _isFirebaseInitialized = false;
+  bool _isLocalNotificationsInitialized = false;
+
+  /// Deduplication cache to avoid showing duplicate banners within a short window.
+  final Map<String, DateTime> _recentDisplayedKeys = {};
 
   /// Dedicated Firebase Project ID for Shear Heaven Pet Spa
   static const String firebaseProjectId = 'shpr-3b7ce';
@@ -153,6 +232,10 @@ class PushNotificationService {
   /// Initializes Firebase, requests notification permissions, sets up background & foreground
   /// message handlers, creates notification channels, and registers the initial FCM token.
   Future<void> initialize() async {
+    // Always initialize local notifications even if Firebase is unavailable in test/desktop environments
+    await _initializeLocalNotifications();
+    await ingestPendingBackgroundNotifications();
+
     try {
       _log.d(
         'PushNotificationService::initialize::Initializing Firebase for project $firebaseProjectId...',
@@ -165,9 +248,15 @@ class PushNotificationService {
           // Fallback if platform options not supported (e.g. desktop)
         }
         if (options != null) {
-          await Firebase.initializeApp(options: options);
+          await Firebase.initializeApp(options: options).timeout(
+            const Duration(milliseconds: 1500),
+            onTimeout: () => throw Exception('Firebase init timeout'),
+          );
         } else {
-          await Firebase.initializeApp();
+          await Firebase.initializeApp().timeout(
+            const Duration(milliseconds: 1500),
+            onTimeout: () => throw Exception('Firebase init timeout'),
+          );
         }
       }
       _isFirebaseInitialized = true;
@@ -200,9 +289,6 @@ class PushNotificationService {
         );
       }
 
-      // Initialize local notifications and register high importance notification channel
-      await _initializeLocalNotifications();
-
       // Setup foreground message listener
       _setupForegroundMessageListener();
 
@@ -225,6 +311,7 @@ class PushNotificationService {
   }
 
   Future<void> _initializeLocalNotifications() async {
+    if (_isLocalNotificationsInitialized) return;
     try {
       const androidSettings = AndroidInitializationSettings(
         '@mipmap/ic_launcher',
@@ -255,6 +342,7 @@ class PushNotificationService {
             >();
         await androidPlugin?.createNotificationChannel(highImportanceChannel);
       }
+      _isLocalNotificationsInitialized = true;
       _log.d(
         'PushNotificationService::_initializeLocalNotifications::Channel ${highImportanceChannel.id} initialized',
       );
@@ -265,32 +353,34 @@ class PushNotificationService {
     }
   }
 
+  /// Ingests any notifications received in the background isolate while the app was backgrounded/terminated.
+  Future<void> ingestPendingBackgroundNotifications() async {
+    try {
+      final session = ServicesLocator.sessionService;
+      final pending = await session.consumePendingBackgroundFcmNotifications();
+      for (final raw in pending) {
+        await handleRemotePayload(
+          raw,
+          title: raw['title']?.toString(),
+          body: raw['message']?.toString() ?? raw['body']?.toString(),
+          id: raw['id'],
+          showBanner: false,
+        );
+      }
+    } catch (e) {
+      _log.d(
+        'PushNotificationService::ingestPendingBackgroundNotifications::Skipped: $e',
+      );
+    }
+  }
+
   void _setupForegroundMessageListener() {
     try {
       FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
         _log.i(
           '[FCM Foreground] Received: ${message.notification?.title ?? message.data['title']}',
         );
-
-        final title =
-            message.notification?.title ??
-            message.data['title']?.toString() ??
-            message.data['notification_title']?.toString() ??
-            'Shear Heaven Pet Spa';
-        final body =
-            message.notification?.body ??
-            message.data['body']?.toString() ??
-            message.data['message']?.toString() ??
-            '';
-
-        if (title.isNotEmpty || body.isNotEmpty) {
-          await _showLocalNotification(
-            id: message.hashCode,
-            title: title,
-            body: body,
-            payload: message.data.isNotEmpty ? message.data.toString() : null,
-          );
-        }
+        await handleIncomingRemoteMessage(message, showBanner: true);
       });
     } catch (e) {
       _log.d(
@@ -302,20 +392,22 @@ class PushNotificationService {
   void _setupNotificationOpenedListeners() {
     try {
       // When app is in background and user taps on notification
-      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) async {
         _log.i(
           '[FCM Click] App opened from background notification: ${message.data}',
         );
+        await handleIncomingRemoteMessage(message, showBanner: false);
       });
 
       // When app is terminated and user taps on notification to launch app
       FirebaseMessaging.instance.getInitialMessage().then((
         RemoteMessage? message,
-      ) {
+      ) async {
         if (message != null) {
           _log.i(
             '[FCM Click] App launched from terminated notification: ${message.data}',
           );
+          await handleIncomingRemoteMessage(message, showBanner: false);
         }
       });
     } catch (e) {
@@ -325,13 +417,198 @@ class PushNotificationService {
     }
   }
 
-  Future<void> _showLocalNotification({
+  /// Processes an incoming [RemoteMessage] from FCM (foreground, background tap, or initial launch),
+  /// displays a local heads-up notification if [showBanner] is true, and routes the notification
+  /// to the appropriate in-app portal stream and persistent store.
+  Future<AppNotification?> handleIncomingRemoteMessage(
+    RemoteMessage message, {
+    bool showBanner = true,
+  }) async {
+    final title =
+        message.notification?.title ??
+        message.data['title']?.toString() ??
+        message.data['notification_title']?.toString() ??
+        message.data['header']?.toString() ??
+        '';
+    final body =
+        message.notification?.body ??
+        message.data['body']?.toString() ??
+        message.data['message']?.toString() ??
+        message.data['notification_body']?.toString() ??
+        '';
+    final rawId = message.data['id'] ??
+        message.data['notificationId'] ??
+        message.data['bookingId'] ??
+        message.data['booking_id'] ??
+        message.messageId?.hashCode;
+
+    return handleRemotePayload(
+      Map<String, dynamic>.from(message.data),
+      title: title,
+      body: body,
+      id: rawId,
+      showBanner: showBanner,
+    );
+  }
+
+  /// Parses a notification payload map, deduplicates banner display, persists for the target recipient,
+  /// and forwards to the active portal's real-time stream (Customer, Groomer, or Admin).
+  Future<AppNotification?> handleRemotePayload(
+    Map<String, dynamic> rawData, {
+    String? title,
+    String? body,
+    dynamic id,
+    bool showBanner = true,
+  }) async {
+    try {
+      final data = Map<String, dynamic>.from(rawData);
+      final resolvedTitle = (title != null && title.trim().isNotEmpty)
+          ? title.trim()
+          : (data['title']?.toString() ??
+              data['notification_title']?.toString() ??
+              'Shear Heaven Pet Spa');
+      final resolvedBody = (body != null && body.trim().isNotEmpty)
+          ? body.trim()
+          : (data['body']?.toString() ??
+              data['message']?.toString() ??
+              data['notification_body']?.toString() ??
+              '');
+
+      final rawId = id ??
+          data['id'] ??
+          data['notificationId'] ??
+          data['bookingId'] ??
+          data['booking_id'];
+      final resolvedId = (rawId is int
+              ? rawId
+              : (rawId != null ? int.tryParse(rawId.toString()) : null)) ??
+          DateTime.now().millisecondsSinceEpoch;
+
+      final type = (data['type'] ?? data['event'] ?? 'general').toString();
+      final notifJson = <String, dynamic>{
+        ...data,
+        'id': resolvedId,
+        'notificationId': resolvedId,
+        'title': resolvedTitle,
+        'message': resolvedBody,
+        'body': resolvedBody,
+        'type': type,
+        'isRead': data['isRead'] == true || data['is_read'] == true,
+        'createdAt':
+            data['createdAt']?.toString() ?? DateTime.now().toIso8601String(),
+        'data': data['data'] is Map
+            ? Map<String, dynamic>.from(data['data'] as Map)
+            : Map<String, dynamic>.from(data),
+      };
+
+      final notification = AppNotification.fromJson(notifJson);
+
+      if (showBanner && (resolvedTitle.isNotEmpty || resolvedBody.isNotEmpty)) {
+        await showLocalNotification(
+          id: resolvedId,
+          title: resolvedTitle,
+          body: resolvedBody,
+          payload: jsonEncode(data),
+        );
+      }
+
+      // Route to appropriate portal(s) based on recipient metadata and active session
+      final session = ServicesLocator.sessionService;
+      final roleTarget = (data['role'] ??
+              data['recipientRole'] ??
+              data['targetRole'] ??
+              data['portal'] ??
+              '')
+          .toString()
+          .toLowerCase();
+      final targetGroomerId = int.tryParse(
+        (data['groomerId'] ??
+                data['groomer_id'] ??
+                (data['data'] is Map ? data['data']['groomerId'] : null) ??
+                '')
+            .toString(),
+      );
+      final targetUserId = int.tryParse(
+        (data['userId'] ??
+                data['user_id'] ??
+                data['customerId'] ??
+                data['customer_id'] ??
+                (data['data'] is Map ? data['data']['userId'] : null) ??
+                '')
+            .toString(),
+      );
+
+      final isExplicitGroomerOrAdmin = roleTarget.contains('groomer') ||
+          roleTarget.contains('admin') ||
+          roleTarget.contains('staff') ||
+          type.toLowerCase().contains('groomer_notification') ||
+          type.toLowerCase().contains('new_booking') ||
+          type.toLowerCase().contains('cancellation_requested');
+
+      final isExplicitCustomer = roleTarget.contains('customer') ||
+          type.toLowerCase().contains('customer_notification');
+
+      if (isExplicitGroomerOrAdmin ||
+          (!isExplicitCustomer && session.isGroomerLoggedIn)) {
+        await session.saveGroomerPortalNotification(
+          notifJson,
+          groomerId: targetGroomerId,
+        );
+        if (ServicesLocator.isGroomerSocketServiceRegistered) {
+          ServicesLocator.groomerSocketService
+              .handleDirectNotification(notification);
+        }
+      }
+
+      if (isExplicitCustomer ||
+          (!isExplicitGroomerOrAdmin && session.isLoggedIn)) {
+        await session.saveCustomerPortalNotification(
+          notifJson,
+          customerId: targetUserId,
+        );
+        if (ServicesLocator.isCustomerSocketServiceRegistered) {
+          ServicesLocator.customerSocketService
+              .handleDirectNotification(notification);
+        }
+      }
+
+      return notification;
+    } catch (e) {
+      _log.w('PushNotificationService::handleRemotePayload::Error: $e');
+      return null;
+    }
+  }
+
+  /// Displays a local heads-up notification with built-in deduplication so the same
+  /// notification is never shown twice within a 5-second window.
+  Future<void> showLocalNotification({
     required int id,
     required String title,
     required String body,
     String? payload,
   }) async {
+    final now = DateTime.now();
+    _recentDisplayedKeys.removeWhere(
+      (_, timestamp) => now.difference(timestamp).inSeconds > 5,
+    );
+    final dedupKey = '$id|${title.trim()}|${body.trim()}';
+    final contentKey = '${title.trim()}|${body.trim()}';
+    if (_recentDisplayedKeys.containsKey(dedupKey) ||
+        (title.trim().isNotEmpty &&
+            body.trim().isNotEmpty &&
+            _recentDisplayedKeys.containsKey(contentKey))) {
+      _log.d(
+        'PushNotificationService::showLocalNotification::Skipping duplicate local notification ($dedupKey)',
+      );
+      return;
+    }
+    _recentDisplayedKeys[dedupKey] = now;
+    if (title.trim().isNotEmpty && body.trim().isNotEmpty) {
+      _recentDisplayedKeys[contentKey] = now;
+    }
+
     try {
+      await _initializeLocalNotifications();
       final androidDetails = AndroidNotificationDetails(
         highImportanceChannel.id,
         highImportanceChannel.name,
@@ -358,11 +635,35 @@ class PushNotificationService {
         payload: payload,
       );
     } catch (e) {
-      _log.w('PushNotificationService::_showLocalNotification::Error: $e');
+      _log.w('PushNotificationService::showLocalNotification::Error: $e');
     }
   }
 
   Future<void> _requestPermissions() async {
+    try {
+      if (!kIsWeb && Platform.isAndroid) {
+        final androidPlugin = _localNotifications
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >();
+        await androidPlugin?.requestNotificationsPermission();
+      } else if (!kIsWeb && Platform.isIOS) {
+        final iosPlugin = _localNotifications
+            .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin
+            >();
+        await iosPlugin?.requestPermissions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+      }
+    } catch (e) {
+      _log.d(
+        'PushNotificationService::_requestPermissions::Local permission request skipped: $e',
+      );
+    }
+
     try {
       final messaging = FirebaseMessaging.instance;
       final settings = await messaging.requestPermission(
@@ -532,6 +833,15 @@ class PushNotificationService {
       } else {
         final statusCode = response?['statusCode'] ?? response?['code'] ?? 400;
         final message = response?['message'] ?? 'Unknown error';
+        final isGroomerOnlySession =
+            isGroomer == true || (!session.isLoggedIn && session.isGroomerLoggedIn);
+        if (isGroomerOnlySession &&
+            message.toString().toLowerCase().contains('user not found')) {
+          _log.d(
+            '[FCM] Device token cached locally for groomer session (endpoint customer-scoped)',
+          );
+          return false;
+        }
         _log.e(
           '[FCM] Device token registration failed: Status $statusCode - $message',
         );

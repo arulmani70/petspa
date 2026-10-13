@@ -260,6 +260,15 @@ class _ForgotPasswordPageMobileState extends State<ForgotPasswordPageMobile> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
+
+        final isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0 ||
+            View.of(context).viewInsets.bottom > 0;
+        if (isKeyboardOpen) {
+          FocusManager.instance.primaryFocus?.unfocus();
+          FocusScope.of(context).unfocus();
+          return;
+        }
+
         _handleBack();
       },
       child: Scaffold(

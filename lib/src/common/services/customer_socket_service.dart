@@ -5,7 +5,9 @@ import 'package:logger/logger.dart';
 import 'package:shear_heaven_pet_spa/src/account/models/app_notification.dart';
 import 'package:shear_heaven_pet_spa/src/chat/models/chat_message_model.dart';
 import 'package:shear_heaven_pet_spa/src/common/common.dart';
+import 'package:shear_heaven_pet_spa/src/common/services/push_notification_service.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
+import 'package:shear_heaven_pet_spa/src/common/services/session_service.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
 /// Dedicated Socket.IO service for real-time Customer notifications and Customer Chat.
@@ -29,6 +31,7 @@ class CustomerSocketService {
       StreamController<bool>.broadcast();
 
   final Set<String> _joinedRooms = <String>{};
+  final Map<int, DateTime> _recentNotificationIds = <int, DateTime>{};
 
   /// Stream of real-time parsed notifications.
   Stream<AppNotification> get onNotification => _notificationController.stream;
@@ -60,10 +63,14 @@ class CustomerSocketService {
     'new_notification',
     'customer_notification',
     'booking_notification',
+    'booking_created',
+    'booking_requested',
     'booking_confirmed',
     'booking_accepted',
     'booking_cancelled',
     'booking_auto_cancelled',
+    'appointment_created',
+    'appointment_updated',
     'appointment_cancelled',
     'booking_timeout',
     'appointment_timeout',
@@ -79,6 +86,8 @@ class CustomerSocketService {
     'booking_status_change',
     'booking_status',
     'booking_update',
+    'groomer_assigned',
+    'groomer_updated',
     'offer_notification',
     'cancellation_approved',
     'cancellation_rejected',
@@ -462,9 +471,12 @@ class CustomerSocketService {
       return true;
     }
     if (eventLower.contains('notif') ||
-        eventLower.contains('booking_status') ||
+        eventLower.contains('booking') ||
+        eventLower.contains('appointment') ||
         eventLower.contains('cancellation') ||
-        eventLower.contains('offer')) {
+        eventLower.contains('offer') ||
+        eventLower == 'groomer_updated' ||
+        eventLower == 'groomer_assigned') {
       return true;
     }
     if (rawData is Map) {
@@ -500,19 +512,17 @@ class CustomerSocketService {
         eventLower.contains('message') ||
         eventLower.contains('reply') ||
         eventLower.contains('assistant') ||
-        eventLower.contains('agent') ||
-        eventLower.contains('groomer')) {
+        eventLower.contains('agent')) {
       return true;
     }
     if (rawData is Map) {
       final map = rawData;
       final hasExplicitChatEnvelope = map.containsKey('chat') ||
-          (map.containsKey('data') && map['data'] is Map && (map['data'] as Map).containsKey('message')) ||
+          (map.containsKey('data') && map['data'] is Map && (map['data'] as Map).containsKey('message') && !(map['data'] as Map).containsKey('title')) ||
           (map.containsKey('payload') && map['payload'] is Map);
 
       final hasChatKeys = hasExplicitChatEnvelope ||
           map.containsKey('sender') ||
-          map.containsKey('role') ||
           map.containsKey('from') ||
           map.containsKey('senderType') ||
           map.containsKey('sender_type') ||
@@ -648,6 +658,33 @@ class CustomerSocketService {
         payload = innerData;
       }
 
+      // Recipient validation: ignore notifications explicitly targeted at groomer-only or another customer
+      final targetRole = (payload['targetRole'] ?? payload['recipientRole'] ?? payload['role'] ?? '')
+          .toString()
+          .toLowerCase();
+      if (targetRole == 'groomer') {
+        _log.d('CustomerSocketService::_handleRawNotificationEventData::Ignoring groomer-only notification.');
+        return;
+      }
+
+      if (ServicesLocator.isRegistered<SessionService>()) {
+        final session = ServicesLocator.sessionService;
+        if (session.isLoggedIn) {
+          final currentUid = session.currentUserId?.trim();
+          final targetUid = (payload['userId'] ?? payload['user_id'] ?? payload['customerId'] ?? payload['customer_id'])
+              ?.toString()
+              .trim();
+          if (currentUid != null &&
+              currentUid.isNotEmpty &&
+              targetUid != null &&
+              targetUid.isNotEmpty &&
+              targetUid != currentUid) {
+            _log.d('CustomerSocketService::_handleRawNotificationEventData::Ignoring notification for another customer ($targetUid != $currentUid).');
+            return;
+          }
+        }
+      }
+
       // If id is missing, assign a unique timestamp-based fallback id
       if (!payload.containsKey('id') && !payload.containsKey('notificationId')) {
         payload['id'] = DateTime.now().millisecondsSinceEpoch;
@@ -668,6 +705,12 @@ class CustomerSocketService {
           payload['title'] = 'Booking Cancelled';
         } else if (eventLower.contains('reject') || typeLower.contains('reject')) {
           payload['title'] = 'Booking Request Declined';
+        } else if (eventLower.contains('start') || eventLower.contains('progress') || statusLower == 'in_progress') {
+          payload['title'] = 'Grooming Started';
+        } else if (eventLower.contains('complet') || statusLower == 'completed') {
+          payload['title'] = 'Grooming Completed';
+        } else if (eventLower.contains('groomer')) {
+          payload['title'] = 'Groomer Update';
         } else if (eventLower.contains('offer') || typeLower.contains('offer')) {
           payload['title'] = 'Special Offer';
         } else {
@@ -683,6 +726,18 @@ class CustomerSocketService {
           payload['message'] = bookingId != null
               ? 'Your booking #$bookingId has been confirmed by the groomer.'
               : 'Your booking has been confirmed by the groomer.';
+        } else if (eventLower.contains('cancel') || typeLower.contains('cancel') || statusLower == 'cancelled') {
+          payload['message'] = bookingId != null
+              ? 'Your booking #$bookingId has been cancelled.'
+              : 'Your booking has been cancelled.';
+        } else if (eventLower.contains('start') || eventLower.contains('progress') || statusLower == 'in_progress') {
+          payload['message'] = bookingId != null
+              ? 'Grooming session for booking #$bookingId is now in progress.'
+              : 'Your pet\'s grooming session is now in progress.';
+        } else if (eventLower.contains('complet') || statusLower == 'completed') {
+          payload['message'] = bookingId != null
+              ? 'Grooming session for booking #$bookingId is completed!'
+              : 'Your pet\'s grooming session is completed!';
         } else {
           payload['message'] = bookingId != null
               ? 'Your booking #$bookingId has been updated.'
@@ -694,7 +749,7 @@ class CustomerSocketService {
       if (!payload.containsKey('type') || payload['type'] == null) {
         if (eventLower.contains('confirm') || statusLower == 'confirmed') {
           payload['type'] = 'booking_confirmed';
-        } else if (eventLower.contains('booking')) {
+        } else if (eventLower.contains('booking') || eventLower.contains('appointment')) {
           payload['type'] = 'booking';
         } else if (eventLower.contains('offer') || eventLower.contains('promo')) {
           payload['type'] = 'offer';
@@ -706,10 +761,45 @@ class CustomerSocketService {
       }
 
       final notification = AppNotification.fromJson(payload);
+      if (_isDuplicateNotification(notification.id)) {
+        _log.d('CustomerSocketService::_handleRawNotificationEventData::Suppressed duplicate notification #${notification.id}');
+        return;
+      }
+
+      if (ServicesLocator.isRegistered<SessionService>()) {
+        final session = ServicesLocator.sessionService;
+        if (session.isLoggedIn) {
+          unawaited(session.saveCustomerPortalNotification(notification.toJson()));
+        }
+      }
+
+      if (ServicesLocator.isRegistered<PushNotificationService>()) {
+        unawaited(
+          ServicesLocator.pushNotificationService.showLocalNotification(
+            id: notification.id,
+            title: notification.title,
+            body: notification.message,
+            payload: jsonEncode(notification.toJson()),
+          ),
+        );
+      }
+
       _notificationController.add(notification);
     } catch (e) {
       _log.e('CustomerSocketService::_handleRawNotificationEventData::Error parsing event payload: $e');
     }
+  }
+
+  bool _isDuplicateNotification(int id) {
+    if (id <= 0) return false;
+    final now = DateTime.now();
+    _recentNotificationIds.removeWhere((_, ts) => now.difference(ts).inSeconds > 5);
+    final prev = _recentNotificationIds[id];
+    if (prev != null && now.difference(prev).inSeconds <= 3) {
+      return true;
+    }
+    _recentNotificationIds[id] = now;
+    return false;
   }
 
   /// Disconnects the socket and resets connection state.
@@ -717,6 +807,7 @@ class CustomerSocketService {
     _log.d('CustomerSocketService::disconnect::Disconnecting socket');
     _cleanSocket();
     _joinedRooms.clear();
+    _recentNotificationIds.clear();
     _connectionStatusController.add(false);
   }
 
@@ -745,6 +836,15 @@ class CustomerSocketService {
 
   /// Dispatches a notification directly into the customer notification stream.
   void handleDirectNotification(AppNotification notification) {
+    if (_isDuplicateNotification(notification.id)) {
+      return;
+    }
+    if (ServicesLocator.isRegistered<SessionService>()) {
+      final session = ServicesLocator.sessionService;
+      if (session.isLoggedIn) {
+        unawaited(session.saveCustomerPortalNotification(notification.toJson()));
+      }
+    }
     if (!_notificationController.isClosed) {
       _notificationController.add(notification);
     }

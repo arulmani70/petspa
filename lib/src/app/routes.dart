@@ -26,6 +26,7 @@ import 'package:shear_heaven_pet_spa/src/bookings/views/booking_service_page.dar
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/file_not_found.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/splashscreen.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_user.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/views/groomer_home_page.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/login/views/groomer_login_page.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/register/views/groomer_register_page.dart';
@@ -62,7 +63,27 @@ class Routes {
       // Protected Groomer routes
       if (loc.startsWith('/${RouteNames.groomerHome}')) {
         if (!isGroomerLoggedIn) {
-          return '/${RouteNames.groomerLogin}';
+          return '/${RouteNames.login}';
+        }
+        final groomerMap = session.getGroomerUser();
+        if (groomerMap != null) {
+          final groomer = GroomerUser.fromJson(groomerMap);
+          if (!groomer.isProfileCompleted) {
+            return '/${RouteNames.groomerRegister}';
+          }
+        }
+      }
+
+      // If groomer has already completed profile, prevent staying on or returning to groomerRegister
+      if (loc == '/${RouteNames.groomerRegister}') {
+        if (isGroomerLoggedIn) {
+          final groomerMap = session.getGroomerUser();
+          if (groomerMap != null) {
+            final groomer = GroomerUser.fromJson(groomerMap);
+            if (groomer.isProfileCompleted) {
+              return '/${RouteNames.groomerHome}';
+            }
+          }
         }
       }
 
@@ -358,7 +379,7 @@ class Routes {
 
   static void redirectToLogin({bool isGroomer = false}) {
     try {
-      final targetRoute = isGroomer ? '/${RouteNames.groomerLogin}' : '/${RouteNames.login}';
+      const targetRoute = '/${RouteNames.login}';
 
       // Clear all imperatively pushed modal/route layers on the root Navigator
       while (navigatorKey.currentState?.canPop() == true) {

@@ -135,6 +135,12 @@ class AuthRepository {
         final user = data['user'] ?? data; // Depending on API structure
 
         if (accessToken != null && refreshToken != null) {
+          if (_session.isGroomerLoggedIn) {
+            await _session.clearGroomerSession();
+            if (ServicesLocator.isGroomerSocketServiceRegistered) {
+              ServicesLocator.groomerSocketService.disconnect();
+            }
+          }
           await _session.saveTokens(
             accessToken: accessToken,
             refreshToken: refreshToken,
@@ -210,31 +216,48 @@ class AuthRepository {
       final accessToken = data['accessToken']?.toString();
       final refreshToken = data['refreshToken']?.toString();
 
-      if (userType == 'groomer') {
+      final isGroomerPortalAccount = userType == 'groomer' ||
+          ((userType == 'admin' || userType == 'staff' || userType == 'bather') &&
+              data['groomer'] != null);
+
+      if (isGroomerPortalAccount) {
+        if (_session.isLoggedIn) {
+          await _session.clearSession();
+          if (ServicesLocator.isCustomerSocketServiceRegistered) {
+            ServicesLocator.customerSocketService.disconnect();
+          }
+        }
+
         final groomerJson = data['groomer'] is Map<String, dynamic>
-            ? data['groomer'] as Map<String, dynamic>
+            ? Map<String, dynamic>.from(data['groomer'] as Map<String, dynamic>)
             : <String, dynamic>{};
+        if (userType == 'admin' && !groomerJson.containsKey('role')) {
+          groomerJson['role'] = 'admin';
+        }
         final mustChangePassword = data['mustChangePassword'] == true ||
             groomerJson['mustChangePassword'] == true;
 
-        if (accessToken != null && refreshToken != null) {
-          await _session.saveGroomerSession(
-            accessToken: accessToken,
-            refreshToken: refreshToken,
-            groomerData: groomerJson,
-          );
-        }
+        await _session.saveGroomerSession(
+          accessToken: accessToken ?? '',
+          refreshToken: refreshToken ?? '',
+          groomerData: groomerJson,
+        );
 
+        String? resolvedTempLoginId;
+        String? resolvedTempPassword;
         if (mustChangePassword) {
-          final tempLoginId = data['tempLoginId']?.toString() ??
+          resolvedTempLoginId = data['tempLoginId']?.toString() ??
+              groomerJson['tempLoginId']?.toString() ??
               groomerJson['email']?.toString() ??
               email.trim();
-          final tempPassword =
+          resolvedTempPassword =
               data['tempPassword']?.toString() ?? password;
           await _session.saveTempGroomerCredentials(
-            tempLoginId: tempLoginId,
-            tempPassword: tempPassword,
+            tempLoginId: resolvedTempLoginId,
+            tempPassword: resolvedTempPassword,
           );
+          groomerJson['tempLoginId'] = resolvedTempLoginId;
+          groomerJson['tempPassword'] = resolvedTempPassword;
         }
 
         // Connect Groomer real-time notifications on login
@@ -244,6 +267,7 @@ class AuthRepository {
             await ServicesLocator.groomerSocketService.connect(
               token: accessToken,
             );
+            ServicesLocator.groomerSocketService.joinGroomerRooms(groomerJson);
           } catch (e) {
             log.e(
               'AuthRepository::login::Groomer socket connection error: $e',
@@ -271,11 +295,20 @@ class AuthRepository {
           'userType': 'groomer',
           'mustChangePassword': mustChangePassword,
           'groomer': groomerJson,
+          'tempLoginId': resolvedTempLoginId,
+          'tempPassword': resolvedTempPassword,
           'accessToken': accessToken,
           'refreshToken': refreshToken,
         };
       } else {
         // Customer
+        if (_session.isGroomerLoggedIn) {
+          await _session.clearGroomerSession();
+          if (ServicesLocator.isGroomerSocketServiceRegistered) {
+            ServicesLocator.groomerSocketService.disconnect();
+          }
+        }
+
         final user = data['user'] is Map<String, dynamic>
             ? data['user'] as Map<String, dynamic>
             : data;
@@ -297,6 +330,7 @@ class AuthRepository {
             await ServicesLocator.customerSocketService.connect(
               token: accessToken,
             );
+            ServicesLocator.customerSocketService.joinUserRooms();
           } catch (e) {
             log.e(
               "AuthRepository::login::Customer socket connection error: $e",

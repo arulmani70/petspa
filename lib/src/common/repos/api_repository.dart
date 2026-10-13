@@ -31,7 +31,7 @@ class ApiRepository {
             session.isGroomerLoggedIn &&
             (path.contains('/api/groomer-availability') ||
                 path.contains('/api/availability') ||
-                path.contains('/api/notifications')));
+                (path.contains('/api/notifications') && !session.isLoggedIn)));
   }
 
   bool _isExcludedAuthPath(String path) {
@@ -284,6 +284,7 @@ class ApiRepository {
   Future<void> _handleGroomerAuthFailure() async {
     try {
       log.d('[AUTH] Clearing Groomer session');
+      setNotificationAuthRole(null);
       final session = ServicesLocator.sessionService;
       await session.clearGroomerSession();
 
@@ -292,11 +293,22 @@ class ApiRepository {
         ServicesLocator.groomerSocketService.disconnect();
       }
 
-      log.d('[AUTH] Redirecting to Groomer login');
-      Routes.redirectToLogin(isGroomer: true);
+      log.d('[AUTH] Redirecting to Login');
+      Routes.redirectToLogin(isGroomer: false);
     } catch (e) {
       log.e('[AUTH] _handleGroomerAuthFailure error: $e');
     }
+  }
+
+  bool _isGroomerNotificationUserNotFound(String path, dynamic responseData) {
+    if (!path.contains('/api/notifications')) return false;
+    if (responseData is Map) {
+      final msg = responseData['message']?.toString().toLowerCase() ?? '';
+      if (msg.contains('user not found')) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Future<void> initialize() async {
@@ -382,6 +394,14 @@ class ApiRepository {
             }
 
             if (isGroomer) {
+              if (_isGroomerNotificationUserNotFound(
+                response.requestOptions.path,
+                response.data,
+              )) {
+                log.d('[AUTH] Skipping Groomer token refresh for customer-scoped notification endpoint: ${response.requestOptions.path}');
+                return handler.next(response);
+              }
+
               log.d('[AUTH] Groomer API returned 401: ${response.requestOptions.path}');
               log.d('[AUTH] Groomer access token expired/invalid');
               final refreshed = await _refreshGroomerTokenWithMutex();
@@ -453,6 +473,14 @@ class ApiRepository {
             final isCustomer = !isGroomer && session.isLoggedIn;
 
             if (!isGroomer && !isCustomer) {
+              return handler.next(err);
+            }
+
+            if (isGroomer &&
+                _isGroomerNotificationUserNotFound(
+                  err.requestOptions.path,
+                  err.response?.data,
+                )) {
               return handler.next(err);
             }
 

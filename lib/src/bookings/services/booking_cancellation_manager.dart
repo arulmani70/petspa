@@ -185,7 +185,15 @@ class BookingCancellationManager {
 
       // 1. Call backend cancellation endpoint
       try {
-        await ServicesLocator.bookingRepository.cancelBookingApi(bookingId);
+        final session = ServicesLocator.sessionService;
+        if (session.isGroomerLoggedIn && !session.isLoggedIn) {
+          await ServicesLocator.apiRepository.post(
+            '/api/groomer-auth/bookings/$bookingId/reject',
+            {'reason': cancellationReason},
+          );
+        } else {
+          await ServicesLocator.bookingRepository.cancelBookingApi(bookingId);
+        }
       } catch (err) {
         log.w('BookingCancellationManager::autoCancelBooking::Backend API cancel note: $err');
       }

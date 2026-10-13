@@ -12,6 +12,7 @@ import 'package:shear_heaven_pet_spa/src/auth/views/mobile/login_page_mobile.dar
 import 'package:shear_heaven_pet_spa/src/common/repos/api_repository.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/device_id_service.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/session_service.dart';
+import 'package:shear_heaven_pet_spa/src/common/widgets/auth_pill_field.dart';
 
 class _MockApiRepository extends ApiRepository {
   Map<String, dynamic>? mockResponse;
@@ -142,10 +143,10 @@ void main() {
     expect(find.text('Staff / Groomer Portal Login'), findsNothing);
 
     // Verify main login elements remain
-    expect(find.text('Customer Login'), findsOneWidget);
+    expect(find.text("Log in to book your pet's appointment"), findsOneWidget);
     expect(find.text('Enter Email ID'), findsOneWidget);
     expect(find.text('Enter Password'), findsOneWidget);
-    expect(find.text('Login'), findsOneWidget);
+    expect(find.byType(BlackPillButton), findsOneWidget);
   });
 
   testWidgets('LoginPageMobile routes to home for customer login and groomerHome for groomer login', (tester) async {
@@ -217,7 +218,7 @@ void main() {
     await tester.enterText(passField, 'Password@123');
     await tester.pump();
 
-    await tester.tap(find.text('Login'));
+    await tester.tap(find.byType(BlackPillButton));
     await tester.pumpAndSettle();
 
     expect(navigatedRoute, equals(RouteNames.home));
@@ -242,7 +243,7 @@ void main() {
     await tester.enterText(passField, 'Groomer@123');
     await tester.pump();
 
-    await tester.tap(find.text('Login'));
+    await tester.tap(find.byType(BlackPillButton));
     await tester.pumpAndSettle();
 
     expect(navigatedRoute, equals(RouteNames.groomerHome));

@@ -4,6 +4,7 @@ import 'package:logger/logger.dart';
 import 'package:shear_heaven_pet_spa/src/account/models/app_notification.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/push_notification_service.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
+import 'package:shear_heaven_pet_spa/src/common/services/session_service.dart';
 
 class NotificationRepository {
   final Logger _log = Logger();
@@ -12,6 +13,8 @@ class NotificationRepository {
   final ValueNotifier<int> unreadCountNotifier = ValueNotifier<int>(0);
 
   StreamSubscription<AppNotification>? _socketNotificationSub;
+  final List<AppNotification> _realtimeNotifications = <AppNotification>[];
+  final Set<int> _seenUnreadIds = <int>{};
 
   int get unreadCount => unreadCountNotifier.value;
 
@@ -25,7 +28,13 @@ class NotificationRepository {
     _socketNotificationSub?.cancel();
     _socketNotificationSub =
         ServicesLocator.customerSocketService.onNotification.listen((notif) {
-      if (!notif.isRead) {
+      final existingIdx = _realtimeNotifications.indexWhere((n) => n.id == notif.id);
+      if (existingIdx >= 0) {
+        _realtimeNotifications[existingIdx] = notif;
+      } else {
+        _realtimeNotifications.insert(0, notif);
+      }
+      if (!notif.isRead && _seenUnreadIds.add(notif.id)) {
         unreadCountNotifier.value += 1;
         _log.d('NotificationRepository::Socket notification received #${notif.id} — unread incremented to ${unreadCountNotifier.value}');
       }
@@ -80,40 +89,133 @@ class NotificationRepository {
   /// Requires Bearer accessToken (handled automatically by ApiRepository).
   Future<List<AppNotification>> getNotifications() async {
     try {
+      if (ServicesLocator.isPushNotificationServiceRegistered) {
+        await ServicesLocator.pushNotificationService.ingestPendingBackgroundNotifications();
+      }
+
       _log.d('NotificationRepository::getNotifications::Fetching notifications from /api/notifications');
       final response = await ServicesLocator.apiRepository.get('/api/notifications');
 
-      if (response == null || response['success'] == false) {
+      final List<AppNotification> apiNotifications = [];
+
+      if (response != null && response['success'] != false) {
+        final dynamic data = response['data'] ?? response['notifications'];
+        List<dynamic>? rawList;
+        if (data is List) {
+          rawList = data;
+        } else if (data is Map) {
+          if (data['notifications'] is List) {
+            rawList = data['notifications'] as List;
+          } else if (data['items'] is List) {
+            rawList = data['items'] as List;
+          } else if (data['rows'] is List) {
+            rawList = data['rows'] as List;
+          } else if (data['data'] is List) {
+            rawList = data['data'] as List;
+          }
+        }
+        if (rawList != null) {
+          for (final item in rawList) {
+            if (item is Map) {
+              apiNotifications.add(
+                AppNotification.fromJson(Map<String, dynamic>.from(item)),
+              );
+            }
+          }
+        }
+      } else {
         _log.w('NotificationRepository::getNotifications::API returned unsuccessful response');
-        return [];
       }
 
-      final dynamic data = response['data'];
-      final List<AppNotification> notifications = [];
-
-      if (data is List) {
-        for (final item in data) {
-          if (item is Map) {
-            notifications.add(AppNotification.fromJson(Map<String, dynamic>.from(item)));
-          }
-        }
-      } else if (data is Map<String, dynamic> && data['notifications'] is List) {
-        for (final item in data['notifications']) {
-          if (item is Map) {
-            notifications.add(AppNotification.fromJson(Map<String, dynamic>.from(item)));
-          }
+      // Merge real-time in-memory notifications and persisted portal notifications (when logged in)
+      final List<AppNotification> persistedNotifications = [];
+      if (ServicesLocator.isRegistered<SessionService>() &&
+          ServicesLocator.sessionService.isLoggedIn) {
+        final savedMaps = ServicesLocator.sessionService.getCustomerPortalNotifications();
+        for (final map in savedMaps) {
+          persistedNotifications.add(AppNotification.fromJson(map));
         }
       }
 
-      final unread = notifications.where((n) => !n.isRead).length;
+      final merged = _mergeNotifications(
+        apiList: apiNotifications,
+        realtimeList: _realtimeNotifications,
+        persistedList: persistedNotifications,
+      );
+
+      _seenUnreadIds
+        ..clear()
+        ..addAll(merged.where((n) => !n.isRead).map((n) => n.id));
+      final unread = merged.where((n) => !n.isRead).length;
       unreadCountNotifier.value = unread;
 
-      _log.d('NotificationRepository::getNotifications::Retrieved ${notifications.length} notifications ($unread unread)');
-      return notifications;
+      _log.d('NotificationRepository::getNotifications::Retrieved ${merged.length} notifications ($unread unread)');
+      return merged;
     } catch (error) {
       _log.e('NotificationRepository::getNotifications::Error fetching notifications: $error');
-      return [];
+      return List<AppNotification>.from(_realtimeNotifications);
     }
+  }
+
+  List<AppNotification> _mergeNotifications({
+    required List<AppNotification> apiList,
+    required List<AppNotification> realtimeList,
+    required List<AppNotification> persistedList,
+  }) {
+    final Map<int, AppNotification> byId = <int, AppNotification>{};
+    final List<AppNotification> ordered = <AppNotification>[];
+
+    void upsert(AppNotification item, {bool preferExistingRead = true}) {
+      if (byId.containsKey(item.id)) {
+        final existing = byId[item.id]!;
+        final resolvedRead = preferExistingRead
+            ? (existing.isRead || item.isRead)
+            : item.isRead;
+        final updated = existing.copyWith(isRead: resolvedRead);
+        byId[item.id] = updated;
+        final idx = ordered.indexWhere((e) => e.id == item.id);
+        if (idx >= 0) ordered[idx] = updated;
+        return;
+      }
+
+      // Avoid duplicating local synthetic notification when API already returned the same bookingId + type
+      final itemBookingId = item.metadata?['bookingId'] ?? item.metadata?['booking_id'];
+      if (itemBookingId != null) {
+        final duplicateIdx = ordered.indexWhere((existing) {
+          final existingBookingId =
+              existing.metadata?['bookingId'] ?? existing.metadata?['booking_id'];
+          return existingBookingId != null &&
+              existingBookingId.toString() == itemBookingId.toString() &&
+              existing.type.toLowerCase() == item.type.toLowerCase() &&
+              existing.title.toLowerCase() == item.title.toLowerCase();
+        });
+        if (duplicateIdx >= 0) {
+          return;
+        }
+      }
+
+      byId[item.id] = item;
+      ordered.add(item);
+    }
+
+    for (final n in realtimeList) {
+      upsert(n);
+    }
+    for (final n in apiList) {
+      upsert(n);
+    }
+    for (final n in persistedList) {
+      upsert(n);
+    }
+
+    ordered.sort((a, b) {
+      if (a.createdAt != null && b.createdAt != null) {
+        return b.createdAt!.compareTo(a.createdAt!);
+      }
+      return 0;
+    });
+
+    return ordered;
   }
 
   /// Refreshes the unread count by calling getNotifications
@@ -134,9 +236,24 @@ class NotificationRepository {
   Future<bool> markAsRead(int id) async {
     try {
       _log.d('NotificationRepository::markAsRead::Marking notification $id as read');
+      bool updatedLocal = false;
+      final rtIdx = _realtimeNotifications.indexWhere((n) => n.id == id);
+      if (rtIdx >= 0) {
+        _realtimeNotifications[rtIdx] = _realtimeNotifications[rtIdx].copyWith(isRead: true);
+        updatedLocal = true;
+      }
+      _seenUnreadIds.remove(id);
+      if (ServicesLocator.isRegistered<SessionService>() &&
+          ServicesLocator.sessionService.isLoggedIn) {
+        await ServicesLocator.sessionService.markPortalNotificationRead(
+          id,
+          isGroomer: false,
+        );
+      }
+
       final success = await ServicesLocator.apiRepository.put('/api/notifications/$id/read', {});
 
-      if (success) {
+      if (success || updatedLocal) {
         _log.d('NotificationRepository::markAsRead::Successfully marked notification $id as read');
         if (unreadCountNotifier.value > 0) {
           unreadCountNotifier.value -= 1;
@@ -159,6 +276,17 @@ class NotificationRepository {
   Future<bool> markAllAsRead() async {
     try {
       _log.d('NotificationRepository::markAllAsRead::Marking all notifications as read');
+      for (int i = 0; i < _realtimeNotifications.length; i++) {
+        _realtimeNotifications[i] = _realtimeNotifications[i].copyWith(isRead: true);
+      }
+      _seenUnreadIds.clear();
+      if (ServicesLocator.isRegistered<SessionService>() &&
+          ServicesLocator.sessionService.isLoggedIn) {
+        await ServicesLocator.sessionService.markAllPortalNotificationsRead(
+          isGroomer: false,
+        );
+      }
+
       final success = await ServicesLocator.apiRepository.put('/api/notifications/read-all', {});
 
       if (success) {
@@ -181,6 +309,16 @@ class NotificationRepository {
   Future<bool> deleteNotification(int id) async {
     try {
       _log.d('NotificationRepository::deleteNotification::Deleting notification $id');
+      _realtimeNotifications.removeWhere((n) => n.id == id);
+      _seenUnreadIds.remove(id);
+      if (ServicesLocator.isRegistered<SessionService>() &&
+          ServicesLocator.sessionService.isLoggedIn) {
+        await ServicesLocator.sessionService.deletePortalNotification(
+          id,
+          isGroomer: false,
+        );
+      }
+
       final success = await ServicesLocator.apiRepository.delete('/api/notifications/$id');
 
       if (success) {

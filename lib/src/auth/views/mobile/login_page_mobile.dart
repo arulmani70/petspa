@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
 import 'package:shear_heaven_pet_spa/src/auth/bloc/auth_bloc.dart';
+import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/toast_util.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/auth_pill_field.dart';
+import 'package:shear_heaven_pet_spa/src/common/widgets/exit_confirmation_dialog.dart';
 
 class LoginPageMobile extends StatefulWidget {
   const LoginPageMobile({super.key});
@@ -30,12 +33,20 @@ class _LoginPageMobileState extends State<LoginPageMobile> {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
+      onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
-        if (context.canPop()) {
-          context.pop();
-        } else {
-          context.goNamed(RouteNames.welcome);
+
+        final isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0 ||
+            View.of(context).viewInsets.bottom > 0;
+        if (isKeyboardOpen) {
+          FocusManager.instance.primaryFocus?.unfocus();
+          FocusScope.of(context).unfocus();
+          return;
+        }
+
+        final shouldExit = await ExitConfirmationDialog.show(context);
+        if (shouldExit && context.mounted) {
+          SystemNavigator.pop();
         }
       },
       child: Scaffold(
@@ -82,7 +93,19 @@ class _LoginPageMobileState extends State<LoginPageMobile> {
                           state.mustChangePassword ||
                           state.user?['mustChangePassword'] == true;
                       if (mustChange) {
-                        context.goNamed(RouteNames.groomerRegister);
+                        final tempCreds = ServicesLocator.sessionService.getTempGroomerCredentials();
+                        final tempLoginId = tempCreds?['tempLoginId'] ??
+                            state.user?['tempLoginId']?.toString();
+                        final tempPassword = tempCreds?['tempPassword'] ??
+                            state.user?['tempPassword']?.toString();
+                        context.goNamed(
+                          RouteNames.groomerRegister,
+                          extra: {
+                            if (tempLoginId != null) 'tempLoginId': tempLoginId,
+                            if (tempPassword != null) 'tempPassword': tempPassword,
+                            if (state.user != null) 'groomer': state.user,
+                          },
+                        );
                       } else {
                         context.goNamed(RouteNames.groomerHome);
                       }

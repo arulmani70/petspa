@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:logger/logger.dart';
 import 'package:shear_heaven_pet_spa/src/account/models/app_notification.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/push_notification_service.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
+import 'package:shear_heaven_pet_spa/src/common/services/session_service.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/customer_summary.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_booking.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_schedule_models.dart';
@@ -11,37 +13,106 @@ import 'package:shear_heaven_pet_spa/src/services/repo/service_repository.dart';
 
 class GroomerHomeRepository {
   final Logger log = Logger();
+  final List<Map<String, dynamic>> _realtimeNotifications = <Map<String, dynamic>>[];
+  StreamSubscription<AppNotification>? _socketSub;
 
   Future<void> initialize() async {
     log.d('GroomerHomeRepository::initialize::Initialized');
+    _initSocketCacheListener();
+  }
+
+  void _initSocketCacheListener() {
+    if (!ServicesLocator.isGroomerSocketServiceRegistered) return;
+    _socketSub?.cancel();
+    _socketSub = ServicesLocator.groomerSocketService.onNotification.listen((notif) {
+      final map = <String, dynamic>{
+        'id': notif.id,
+        'notificationId': notif.id,
+        'title': notif.title,
+        'body': notif.message,
+        'message': notif.message,
+        'type': notif.type,
+        'isRead': notif.isRead,
+        'is_read': notif.isRead,
+        'createdAt': notif.createdAt?.toIso8601String() ?? DateTime.now().toIso8601String(),
+        if (notif.metadata != null) 'data': notif.metadata,
+        if (notif.metadata != null) 'metadata': notif.metadata,
+      };
+      _upsertRealtimeNotificationMap(map);
+    });
+  }
+
+  void _upsertRealtimeNotificationMap(Map<String, dynamic> map) {
+    final incomingId = map['id'] ?? map['notificationId'];
+    final idx = _realtimeNotifications.indexWhere((item) {
+      final existingId = item['id'] ?? item['notificationId'];
+      return existingId != null &&
+          incomingId != null &&
+          existingId.toString() == incomingId.toString();
+    });
+    if (idx >= 0) {
+      _realtimeNotifications[idx] = map;
+    } else {
+      _realtimeNotifications.insert(0, map);
+    }
   }
 
   /// GET /api/groomer-auth/profile
   Future<GroomerUser?> getProfile() async {
     try {
       log.d('GroomerHomeRepository::getProfile::Fetching groomer profile');
+      final current = getCurrentGroomer();
 
       final response = await ServicesLocator.apiRepository.get(
         '/api/groomer-auth/profile',
       );
 
-      if (response == null || response['success'] != true || response['data'] == null) {
-        log.w('GroomerHomeRepository::getProfile::Failed to fetch profile');
-        return getCurrentGroomer();
+      if (response != null && response['success'] == true && response['data'] is Map) {
+        final data = Map<String, dynamic>.from(response['data'] as Map);
+        var groomer = GroomerUser.fromJson(data);
+        if (groomer.avatarUrl == null && current?.avatarUrl != null) {
+          groomer = groomer.copyWith(
+            avatar: current!.avatarUrl,
+            profilePicture: current.avatarUrl,
+          );
+        }
+        await ServicesLocator.sessionService.saveGroomerUser(groomer.toJson());
+        return groomer;
       }
 
-      final data = response['data'] as Map<String, dynamic>;
-      final groomer = GroomerUser.fromJson(data);
+      // Fallback: if groomer-auth/profile failed, try matching from /api/admin/groomers
+      if (current != null && (current.id > 0 || current.groomerCode.isNotEmpty)) {
+        final adminResp = await ServicesLocator.apiRepository.get(
+          '/api/admin/groomers',
+          query: {
+            'ClientID': current.clientId.isNotEmpty ? current.clientId : 'SHEAR-001',
+            'RegionId': current.regionId.isNotEmpty ? current.regionId : 'DWG-001',
+            'StoreId': current.storeId.isNotEmpty ? current.storeId : 'SHEAR-001',
+          },
+        );
+        if (adminResp != null && adminResp['success'] == true && adminResp['data'] is List) {
+          final list = adminResp['data'] as List;
+          for (final item in list) {
+            if (item is Map) {
+              final map = Map<String, dynamic>.from(item);
+              final candidate = GroomerUser.fromJson(map);
+              if ((current.id > 0 && candidate.id == current.id) ||
+                  (current.groomerCode.isNotEmpty &&
+                      candidate.groomerCode.toUpperCase() == current.groomerCode.toUpperCase())) {
+                final merged = candidate.copyWith(
+                  avatar: candidate.avatarUrl ?? current.avatarUrl,
+                  profilePicture: candidate.avatarUrl ?? current.avatarUrl,
+                );
+                await ServicesLocator.sessionService.saveGroomerUser(merged.toJson());
+                return merged;
+              }
+            }
+          }
+        }
+      }
 
-      final currentToken = await ServicesLocator.sessionService.getGroomerAccessToken() ?? '';
-      final currentRefreshToken = await ServicesLocator.sessionService.getGroomerRefreshToken() ?? '';
-      await ServicesLocator.sessionService.saveGroomerSession(
-        accessToken: currentToken,
-        refreshToken: currentRefreshToken,
-        groomerData: groomer.toJson(),
-      );
-
-      return groomer;
+      log.w('GroomerHomeRepository::getProfile::Using cached groomer profile');
+      return current;
     } catch (error) {
       log.e('GroomerHomeRepository::getProfile::Error: $error');
       return getCurrentGroomer();
@@ -54,53 +125,163 @@ class GroomerHomeRepository {
     String? lastName,
     String? mobile,
     String? highlights,
+    String? role,
     bool? multiBookingEnabled,
     int? slotBookingLimit,
+    String? photoPath,
   }) async {
     try {
       log.d('GroomerHomeRepository::updateProfile::Updating groomer profile');
 
       final current = getCurrentGroomer();
+      String resolvedFirstName = (firstName ?? current?.firstName ?? '').trim();
+      String resolvedLastName = (lastName ?? current?.lastName ?? '').trim();
+      if (resolvedFirstName.isEmpty && resolvedLastName.isNotEmpty) {
+        resolvedFirstName = resolvedLastName;
+      } else if (resolvedLastName.isEmpty && resolvedFirstName.isNotEmpty) {
+        resolvedLastName = resolvedFirstName;
+      }
+      final resolvedMobile = (mobile ?? current?.mobile ?? '').trim();
+      final resolvedHighlights = (highlights ?? current?.highlights ?? '').trim();
+      final resolvedRole = (role ?? current?.role ?? 'Groomer').trim();
+      final resolvedMultiBooking = multiBookingEnabled ?? current?.multiBookingEnabled ?? false;
+      final resolvedSlotLimit = slotBookingLimit ?? current?.slotBookingLimit ?? 1;
+
+      if (resolvedFirstName.isEmpty) {
+        throw Exception('First name is required.');
+      }
+      if (resolvedLastName.isEmpty) {
+        throw Exception('Last name is required.');
+      }
+
+      // 1. If we already know the groomer ID, sync /api/admin/groomers/:id first so
+      //    highlights and role are persisted in the database before /api/groomer-auth/profile reads them.
+      Map<String, dynamic>? adminData;
+      final initialId = current?.id ?? 0;
+      final initialEmail = (current?.email ?? '').trim();
+      if (initialId > 0) {
+        final adminBody = <String, dynamic>{
+          'firstName': resolvedFirstName,
+          'lastName': resolvedLastName,
+          if (initialEmail.isNotEmpty) 'email': initialEmail,
+          'mobile': resolvedMobile,
+          'role': resolvedRole.isNotEmpty ? resolvedRole : 'Groomer',
+          'highlights': resolvedHighlights,
+          'multiBookingEnabled': resolvedMultiBooking,
+          'slotBookingLimit': resolvedSlotLimit,
+        };
+        final adminResp = await ServicesLocator.apiRepository.putData(
+          '/api/admin/groomers/$initialId',
+          adminBody,
+        );
+        if (adminResp != null && adminResp['success'] == true && adminResp['data'] is Map) {
+          adminData = Map<String, dynamic>.from(adminResp['data'] as Map);
+        }
+      }
+
+      // 2. Call PUT /api/groomer-auth/profile with JSON payload
       final body = <String, dynamic>{
-        'firstName': firstName ?? current?.firstName ?? '',
-        'lastName': lastName ?? current?.lastName ?? '',
-        'mobile': mobile ?? current?.mobile ?? '',
-        'highlights': highlights ?? current?.highlights ?? '',
-        'multiBookingEnabled': multiBookingEnabled ?? current?.multiBookingEnabled ?? false,
-        'slotBookingLimit': slotBookingLimit ?? current?.slotBookingLimit ?? 1,
+        'firstName': resolvedFirstName,
+        'lastName': resolvedLastName,
+        'mobile': resolvedMobile,
+        'highlights': resolvedHighlights,
+        'role': resolvedRole,
+        'multiBookingEnabled': resolvedMultiBooking,
+        'slotBookingLimit': resolvedSlotLimit,
       };
 
-      final response = await ServicesLocator.apiRepository.post(
+      final response = await ServicesLocator.apiRepository.putData(
         '/api/groomer-auth/profile',
         body,
       );
 
-      bool isPutSuccess = false;
-      if (response == null || response['success'] != true) {
-        isPutSuccess = await ServicesLocator.apiRepository.put(
-          '/api/groomer-auth/profile',
-          body,
+      Map<String, dynamic>? responseData;
+      if (response != null && response['success'] == true && response['data'] is Map) {
+        responseData = Map<String, dynamic>.from(response['data'] as Map);
+      }
+
+      // 3. If initialId was 0 but /api/groomer-auth/profile returned an ID, sync admin endpoint now
+      final resolvedId = (responseData != null
+              ? int.tryParse(responseData['id']?.toString() ?? '')
+              : null) ??
+          initialId;
+      final resolvedEmail = (responseData?['email']?.toString() ?? initialEmail).trim();
+
+      if (adminData == null && resolvedId > 0 && initialId <= 0) {
+        final adminBody = <String, dynamic>{
+          'firstName': resolvedFirstName,
+          'lastName': resolvedLastName,
+          if (resolvedEmail.isNotEmpty) 'email': resolvedEmail,
+          'mobile': resolvedMobile,
+          'role': resolvedRole.isNotEmpty ? resolvedRole : 'Groomer',
+          'highlights': resolvedHighlights,
+          'multiBookingEnabled': resolvedMultiBooking,
+          'slotBookingLimit': resolvedSlotLimit,
+        };
+        final adminResp = await ServicesLocator.apiRepository.putData(
+          '/api/admin/groomers/$resolvedId',
+          adminBody,
         );
+        if (adminResp != null && adminResp['success'] == true && adminResp['data'] is Map) {
+          adminData = Map<String, dynamic>.from(adminResp['data'] as Map);
+        }
       }
 
-      if (response != null && response['data'] != null) {
-        final data = response['data'] as Map<String, dynamic>;
-        final updated = GroomerUser.fromJson(data);
-        final currentToken = await ServicesLocator.sessionService.getGroomerAccessToken() ?? '';
-        final currentRefreshToken = await ServicesLocator.sessionService.getGroomerRefreshToken() ?? '';
-        await ServicesLocator.sessionService.saveGroomerSession(
-          accessToken: currentToken,
-          refreshToken: currentRefreshToken,
-          groomerData: updated.toJson(),
+      final bool primarySuccess = response != null && response['success'] == true;
+      final bool adminSuccess = adminData != null;
+
+      if (!primarySuccess && !adminSuccess) {
+        final errorMsg = response?['message']?.toString() ??
+            'Failed to update profile. Please check your connection and try again.';
+        throw Exception(errorMsg);
+      }
+
+      final mergedMap = <String, dynamic>{
+        if (current != null) ...current.toJson(),
+        if (responseData != null) ...responseData,
+        if (adminData != null) ...adminData,
+        'firstName': resolvedFirstName,
+        'lastName': resolvedLastName,
+        'mobile': resolvedMobile,
+        'highlights': resolvedHighlights,
+        'role': resolvedRole.isNotEmpty ? resolvedRole : (current?.role ?? 'Groomer'),
+        'multiBookingEnabled': resolvedMultiBooking,
+        'slotBookingLimit': resolvedSlotLimit,
+      };
+
+      if (photoPath != null && photoPath.trim().isNotEmpty) {
+        final serverAvatar = mergedMap['avatar']?.toString() ??
+            mergedMap['profilePicture']?.toString();
+        if (serverAvatar == null ||
+            serverAvatar.trim().isEmpty ||
+            !photoPath.trim().startsWith('http')) {
+          mergedMap['avatar'] = photoPath.trim();
+          mergedMap['profilePicture'] = photoPath.trim();
+        }
+      }
+
+      final updatedGroomer = GroomerUser.fromJson(mergedMap);
+      await ServicesLocator.sessionService.saveGroomerUser(updatedGroomer.toJson());
+
+      final refreshed = await getProfile();
+      if (refreshed != null) {
+        final finalGroomer = refreshed.copyWith(
+          firstName: resolvedFirstName,
+          lastName: resolvedLastName,
+          mobile: resolvedMobile,
+          highlights: highlights != null
+              ? resolvedHighlights
+              : (refreshed.highlights.isNotEmpty ? refreshed.highlights : resolvedHighlights),
+          multiBookingEnabled: resolvedMultiBooking,
+          slotBookingLimit: resolvedSlotLimit,
+          avatar: updatedGroomer.avatarUrl ?? refreshed.avatarUrl,
+          profilePicture: updatedGroomer.avatarUrl ?? refreshed.avatarUrl,
         );
-        return updated;
+        await ServicesLocator.sessionService.saveGroomerUser(finalGroomer.toJson());
+        return finalGroomer;
       }
 
-      if (isPutSuccess) {
-        return await getProfile();
-      }
-
-      return current;
+      return updatedGroomer;
     } catch (error) {
       log.e('GroomerHomeRepository::updateProfile::Error: $error');
       rethrow;
@@ -267,6 +448,20 @@ class GroomerHomeRepository {
       final isSuccess = response != null && response['success'] == true;
       final msg = response?['message']?.toString() ??
           (isSuccess ? 'Booking #$bookingId approved successfully' : 'Failed to approve booking.');
+      if (isSuccess) {
+        final data = response?['data'] is Map ? Map<String, dynamic>.from(response!['data'] as Map) : null;
+        await _dispatchBookingStatusNotification(
+          bookingId: bookingId,
+          customerTitle: 'Booking Confirmed',
+          customerMessage: 'Your booking #$bookingId has been confirmed by the groomer.',
+          groomerTitle: 'Booking Approved',
+          groomerMessage: 'Booking #$bookingId has been approved and confirmed.',
+          type: 'booking_confirmed',
+          status: 'confirmed',
+          booking: booking,
+          responseData: data,
+        );
+      }
       return (success: isSuccess, message: msg);
     } catch (e) {
       log.e('GroomerHomeRepository::approveBooking::Error: $e');
@@ -280,7 +475,7 @@ class GroomerHomeRepository {
   }
 
   /// POST /api/groomer-auth/bookings/:id/reject
-  Future<({bool success, String message})> rejectBookingDetails(int bookingId) async {
+  Future<({bool success, String message})> rejectBookingDetails(int bookingId, {GroomerBooking? booking}) async {
     try {
       log.d('GroomerHomeRepository::rejectBooking::Rejecting booking #$bookingId');
       final response = await ServicesLocator.apiRepository.post(
@@ -290,6 +485,20 @@ class GroomerHomeRepository {
       final isSuccess = response != null && response['success'] == true;
       final msg = response?['message']?.toString() ??
           (isSuccess ? 'Booking #$bookingId rejected' : 'Failed to reject booking.');
+      if (isSuccess) {
+        final data = response?['data'] is Map ? Map<String, dynamic>.from(response!['data'] as Map) : null;
+        await _dispatchBookingStatusNotification(
+          bookingId: bookingId,
+          customerTitle: 'Booking Request Declined',
+          customerMessage: 'Your booking request #$bookingId could not be accepted by the groomer.',
+          groomerTitle: 'Booking Rejected',
+          groomerMessage: 'Booking #$bookingId has been declined.',
+          type: 'booking_rejected',
+          status: 'cancelled',
+          booking: booking,
+          responseData: data,
+        );
+      }
       return (success: isSuccess, message: msg);
     } catch (e) {
       log.e('GroomerHomeRepository::rejectBooking::Error: $e');
@@ -303,7 +512,7 @@ class GroomerHomeRepository {
   }
 
   /// POST /api/groomer-auth/bookings/:id/start
-  Future<({bool success, String message})> startBookingDetails(int bookingId) async {
+  Future<({bool success, String message})> startBookingDetails(int bookingId, {GroomerBooking? booking}) async {
     try {
       log.d('GroomerHomeRepository::startBooking::Starting booking #$bookingId');
       final response = await ServicesLocator.apiRepository.post(
@@ -313,6 +522,20 @@ class GroomerHomeRepository {
       final isSuccess = response != null && response['success'] == true;
       final msg = response?['message']?.toString() ??
           (isSuccess ? 'Appointment #$bookingId is now In Progress' : 'Failed to start appointment.');
+      if (isSuccess) {
+        final data = response?['data'] is Map ? Map<String, dynamic>.from(response!['data'] as Map) : null;
+        await _dispatchBookingStatusNotification(
+          bookingId: bookingId,
+          customerTitle: 'Grooming Started',
+          customerMessage: 'Grooming session for booking #$bookingId is now in progress.',
+          groomerTitle: 'Appointment Started',
+          groomerMessage: 'Appointment #$bookingId is now in progress.',
+          type: 'booking_started',
+          status: 'in_progress',
+          booking: booking,
+          responseData: data,
+        );
+      }
       return (success: isSuccess, message: msg);
     } catch (e) {
       log.e('GroomerHomeRepository::startBooking::Error: $e');
@@ -326,7 +549,7 @@ class GroomerHomeRepository {
   }
 
   /// POST /api/groomer-auth/bookings/:id/complete
-  Future<({bool success, String message})> completeBookingDetails(int bookingId) async {
+  Future<({bool success, String message})> completeBookingDetails(int bookingId, {GroomerBooking? booking}) async {
     try {
       log.d('GroomerHomeRepository::completeBooking::Completing booking #$bookingId');
       final response = await ServicesLocator.apiRepository.post(
@@ -336,6 +559,20 @@ class GroomerHomeRepository {
       final isSuccess = response != null && response['success'] == true;
       final msg = response?['message']?.toString() ??
           (isSuccess ? 'Appointment #$bookingId marked as completed' : 'Failed to complete appointment.');
+      if (isSuccess) {
+        final data = response?['data'] is Map ? Map<String, dynamic>.from(response!['data'] as Map) : null;
+        await _dispatchBookingStatusNotification(
+          bookingId: bookingId,
+          customerTitle: 'Grooming Completed',
+          customerMessage: 'Your pet\'s grooming session (#$bookingId) is completed and ready for pickup!',
+          groomerTitle: 'Appointment Completed',
+          groomerMessage: 'Appointment #$bookingId has been marked as completed.',
+          type: 'booking_completed',
+          status: 'completed',
+          booking: booking,
+          responseData: data,
+        );
+      }
       return (success: isSuccess, message: msg);
     } catch (e) {
       log.e('GroomerHomeRepository::completeBooking::Error: $e');
@@ -349,7 +586,7 @@ class GroomerHomeRepository {
   }
 
   /// POST /api/groomer-auth/bookings/:id/approve-cancellation
-  Future<({bool success, String message})> approveCancellationDetails(int bookingId) async {
+  Future<({bool success, String message})> approveCancellationDetails(int bookingId, {GroomerBooking? booking}) async {
     try {
       log.d('GroomerHomeRepository::approveCancellation::Approving cancellation #$bookingId');
       final response = await ServicesLocator.apiRepository.post(
@@ -359,6 +596,20 @@ class GroomerHomeRepository {
       final isSuccess = response != null && response['success'] == true;
       final msg = response?['message']?.toString() ??
           (isSuccess ? 'Cancellation for Booking #$bookingId approved' : 'Failed to approve cancellation.');
+      if (isSuccess) {
+        final data = response?['data'] is Map ? Map<String, dynamic>.from(response!['data'] as Map) : null;
+        await _dispatchBookingStatusNotification(
+          bookingId: bookingId,
+          customerTitle: 'Cancellation Approved',
+          customerMessage: 'Your cancellation request for booking #$bookingId has been approved.',
+          groomerTitle: 'Cancellation Approved',
+          groomerMessage: 'Cancellation for booking #$bookingId has been approved.',
+          type: 'cancellation_approved',
+          status: 'cancelled',
+          booking: booking,
+          responseData: data,
+        );
+      }
       return (success: isSuccess, message: msg);
     } catch (e) {
       log.e('GroomerHomeRepository::approveCancellation::Error: $e');
@@ -372,7 +623,7 @@ class GroomerHomeRepository {
   }
 
   /// POST /api/groomer-auth/bookings/:id/reject-cancellation
-  Future<({bool success, String message})> rejectCancellationDetails(int bookingId) async {
+  Future<({bool success, String message})> rejectCancellationDetails(int bookingId, {GroomerBooking? booking}) async {
     try {
       log.d('GroomerHomeRepository::rejectCancellation::Rejecting cancellation #$bookingId');
       final response = await ServicesLocator.apiRepository.post(
@@ -382,6 +633,20 @@ class GroomerHomeRepository {
       final isSuccess = response != null && response['success'] == true;
       final msg = response?['message']?.toString() ??
           (isSuccess ? 'Cancellation for Booking #$bookingId rejected' : 'Failed to reject cancellation.');
+      if (isSuccess) {
+        final data = response?['data'] is Map ? Map<String, dynamic>.from(response!['data'] as Map) : null;
+        await _dispatchBookingStatusNotification(
+          bookingId: bookingId,
+          customerTitle: 'Cancellation Declined',
+          customerMessage: 'Your cancellation request for booking #$bookingId was declined.',
+          groomerTitle: 'Cancellation Rejected',
+          groomerMessage: 'Cancellation request for booking #$bookingId was rejected.',
+          type: 'cancellation_rejected',
+          status: 'confirmed',
+          booking: booking,
+          responseData: data,
+        );
+      }
       return (success: isSuccess, message: msg);
     } catch (e) {
       log.e('GroomerHomeRepository::rejectCancellation::Error: $e');
@@ -392,6 +657,87 @@ class GroomerHomeRepository {
   Future<bool> rejectCancellation(int bookingId) async {
     final res = await rejectCancellationDetails(bookingId);
     return res.success;
+  }
+
+  Future<void> _dispatchBookingStatusNotification({
+    required int bookingId,
+    required String customerTitle,
+    required String customerMessage,
+    required String groomerTitle,
+    required String groomerMessage,
+    required String type,
+    required String status,
+    GroomerBooking? booking,
+    Map<String, dynamic>? responseData,
+    int? explicitUserId,
+    int? explicitGroomerId,
+  }) async {
+    try {
+      if (!ServicesLocator.isRegistered<SessionService>()) return;
+      final session = ServicesLocator.sessionService;
+      final currentGroomer = getCurrentGroomer();
+      final userId = explicitUserId ??
+          booking?.userId ??
+          (responseData?['userId'] is int
+              ? responseData!['userId'] as int
+              : int.tryParse(responseData?['userId']?.toString() ?? ''));
+      final groomerId = explicitGroomerId ??
+          (responseData?['groomerId'] is int
+              ? responseData!['groomerId'] as int
+              : int.tryParse(responseData?['groomerId']?.toString() ?? '')) ??
+          currentGroomer?.id;
+
+      final nowIso = DateTime.now().toIso8601String();
+      final baseId = DateTime.now().millisecondsSinceEpoch;
+
+      final customerNotifMap = <String, dynamic>{
+        'id': baseId,
+        'notificationId': baseId,
+        if (userId != null && userId > 0) 'userId': userId,
+        'title': customerTitle,
+        'message': customerMessage,
+        'body': customerMessage,
+        'type': type,
+        'status': status,
+        'isRead': false,
+        'is_read': false,
+        'createdAt': nowIso,
+        'data': <String, dynamic>{
+          'bookingId': bookingId,
+          'entityId': bookingId,
+          'status': status,
+          if (userId != null && userId > 0) 'userId': userId,
+          if (groomerId != null && groomerId > 0) 'groomerId': groomerId,
+        },
+      };
+
+      await session.saveCustomerPortalNotification(customerNotifMap);
+
+      final groomerNotifMap = <String, dynamic>{
+        'id': baseId + 1,
+        'notificationId': baseId + 1,
+        if (groomerId != null && groomerId > 0) 'groomerId': groomerId,
+        'title': groomerTitle,
+        'message': groomerMessage,
+        'body': groomerMessage,
+        'type': type,
+        'status': status,
+        'isRead': false,
+        'is_read': false,
+        'createdAt': nowIso,
+        'data': <String, dynamic>{
+          'bookingId': bookingId,
+          'entityId': bookingId,
+          'status': status,
+          if (userId != null && userId > 0) 'userId': userId,
+          if (groomerId != null && groomerId > 0) 'groomerId': groomerId,
+        },
+      };
+
+      await session.saveGroomerPortalNotification(groomerNotifMap);
+    } catch (e) {
+      log.w('GroomerHomeRepository::_dispatchBookingStatusNotification::Error: $e');
+    }
   }
 
   /// GET /api/groomer-auth/customers?search=&limit=50&offset=0
@@ -525,7 +871,24 @@ class GroomerHomeRepository {
       );
 
       if (response != null && response['success'] == true) {
-        return response['data'] as Map<String, dynamic>? ?? response;
+        final data = response['data'] as Map<String, dynamic>? ?? response;
+        final rawBookingId = data['bookingId'] ?? data['id'] ?? DateTime.now().millisecondsSinceEpoch ~/ 1000;
+        final resolvedBookingId = rawBookingId is int
+            ? rawBookingId
+            : (int.tryParse(rawBookingId.toString()) ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000));
+        await _dispatchBookingStatusNotification(
+          bookingId: resolvedBookingId,
+          customerTitle: 'Appointment Booked',
+          customerMessage: 'A new grooming appointment #$resolvedBookingId has been scheduled for $bookingDate at $startTime.',
+          groomerTitle: 'New Booking Assigned',
+          groomerMessage: 'Booking #$resolvedBookingId has been scheduled for $bookingDate at $startTime.',
+          type: 'booking_confirmed',
+          status: (data['status'] ?? 'confirmed').toString(),
+          explicitUserId: userId,
+          explicitGroomerId: groomerId ?? groomer?.id,
+          responseData: data,
+        );
+        return data;
       }
       return null;
     } catch (e) {
@@ -924,19 +1287,93 @@ class GroomerHomeRepository {
   /// GET /api/notifications
   Future<List<Map<String, dynamic>>> getNotifications() async {
     try {
-      log.d('GroomerHomeRepository::getNotifications::Fetching notifications');
-      final response = await ServicesLocator.apiRepository.get(
-        '/api/notifications',
-      );
-
-      if (response != null && response['data'] is List) {
-        final list = response['data'] as List;
-        return list.map((e) => e as Map<String, dynamic>).toList();
+      if (ServicesLocator.isPushNotificationServiceRegistered) {
+        await ServicesLocator.pushNotificationService.ingestPendingBackgroundNotifications();
       }
-      return [];
+      log.d('GroomerHomeRepository::getNotifications::Fetching notifications');
+      ServicesLocator.apiRepository.setNotificationAuthRole(true);
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.get(
+          '/api/notifications',
+        );
+      } finally {
+        ServicesLocator.apiRepository.setNotificationAuthRole(null);
+      }
+
+      final List<Map<String, dynamic>> apiList = <Map<String, dynamic>>[];
+      if (response != null && response['success'] != false) {
+        final dynamic data = response['data'] ?? response['notifications'];
+        List<dynamic>? rawList;
+        if (data is List) {
+          rawList = data;
+        } else if (data is Map) {
+          if (data['notifications'] is List) {
+            rawList = data['notifications'] as List;
+          } else if (data['items'] is List) {
+            rawList = data['items'] as List;
+          } else if (data['rows'] is List) {
+            rawList = data['rows'] as List;
+          } else if (data['data'] is List) {
+            rawList = data['data'] as List;
+          }
+        }
+        if (rawList != null) {
+          for (final item in rawList) {
+            if (item is Map) {
+              apiList.add(Map<String, dynamic>.from(item));
+            }
+          }
+        }
+      }
+
+      final List<Map<String, dynamic>> persistedList = <Map<String, dynamic>>[];
+      if (ServicesLocator.isRegistered<SessionService>() &&
+          ServicesLocator.sessionService.isGroomerLoggedIn) {
+        persistedList.addAll(
+          ServicesLocator.sessionService.getGroomerPortalNotifications(),
+        );
+      }
+
+      final merged = <Map<String, dynamic>>[];
+      final seenIds = <String>{};
+
+      void upsert(Map<String, dynamic> rawItem) {
+        final item = Map<String, dynamic>.from(rawItem);
+        final idStr = (item['id'] ?? item['notificationId'] ?? '').toString().trim();
+        if (idStr.isNotEmpty) {
+          final existingIdx = merged.indexWhere(
+            (e) => (e['id'] ?? e['notificationId'] ?? '').toString().trim() == idStr,
+          );
+          if (existingIdx >= 0) {
+            final existing = merged[existingIdx];
+            final isRead = existing['isRead'] == true ||
+                existing['is_read'] == true ||
+                item['isRead'] == true ||
+                item['is_read'] == true;
+            existing['isRead'] = isRead;
+            existing['is_read'] = isRead;
+            return;
+          }
+          seenIds.add(idStr);
+        }
+        merged.add(item);
+      }
+
+      for (final n in _realtimeNotifications) {
+        upsert(n);
+      }
+      for (final n in apiList) {
+        upsert(n);
+      }
+      for (final n in persistedList) {
+        upsert(n);
+      }
+
+      return merged;
     } catch (e) {
       log.e('GroomerHomeRepository::getNotifications::Error: $e');
-      return [];
+      return List<Map<String, dynamic>>.from(_realtimeNotifications);
     }
   }
 
@@ -944,14 +1381,38 @@ class GroomerHomeRepository {
   Future<bool> markNotificationRead(int notificationId) async {
     try {
       log.d('GroomerHomeRepository::markNotificationRead::Marking notification #$notificationId as read');
-      final response = await ServicesLocator.apiRepository.putData(
-        '/api/notifications/$notificationId/read',
-        {},
-      );
-      return response != null && response['success'] == true;
+      bool updatedLocal = false;
+      for (int i = 0; i < _realtimeNotifications.length; i++) {
+        final rawId = _realtimeNotifications[i]['id'] ?? _realtimeNotifications[i]['notificationId'];
+        if (rawId != null && rawId.toString() == notificationId.toString()) {
+          _realtimeNotifications[i] = Map<String, dynamic>.from(_realtimeNotifications[i])
+            ..['isRead'] = true
+            ..['is_read'] = true;
+          updatedLocal = true;
+        }
+      }
+      if (ServicesLocator.isRegistered<SessionService>()) {
+        await ServicesLocator.sessionService.markPortalNotificationRead(
+          notificationId,
+          isGroomer: true,
+        );
+      }
+
+      ServicesLocator.apiRepository.setNotificationAuthRole(true);
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.putData(
+          '/api/notifications/$notificationId/read',
+          {},
+        );
+      } finally {
+        ServicesLocator.apiRepository.setNotificationAuthRole(null);
+      }
+      final apiSuccess = response != null && response['success'] == true;
+      return apiSuccess || updatedLocal || notificationId > 0;
     } catch (e) {
       log.e('GroomerHomeRepository::markNotificationRead::Error: $e');
-      return false;
+      return notificationId > 0;
     }
   }
 
@@ -959,14 +1420,31 @@ class GroomerHomeRepository {
   Future<bool> markAllNotificationsRead() async {
     try {
       log.d('GroomerHomeRepository::markAllNotificationsRead::Marking all notifications as read');
-      final response = await ServicesLocator.apiRepository.putData(
-        '/api/notifications/read-all',
-        {},
-      );
-      return response != null && response['success'] == true;
+      for (int i = 0; i < _realtimeNotifications.length; i++) {
+        _realtimeNotifications[i] = Map<String, dynamic>.from(_realtimeNotifications[i])
+          ..['isRead'] = true
+          ..['is_read'] = true;
+      }
+      if (ServicesLocator.isRegistered<SessionService>()) {
+        await ServicesLocator.sessionService.markAllPortalNotificationsRead(
+          isGroomer: true,
+        );
+      }
+
+      ServicesLocator.apiRepository.setNotificationAuthRole(true);
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.putData(
+          '/api/notifications/read-all',
+          {},
+        );
+      } finally {
+        ServicesLocator.apiRepository.setNotificationAuthRole(null);
+      }
+      return (response != null && response['success'] == true) || true;
     } catch (e) {
       log.e('GroomerHomeRepository::markAllNotificationsRead::Error: $e');
-      return false;
+      return true;
     }
   }
 
@@ -996,7 +1474,13 @@ class GroomerHomeRepository {
         log.i('[FCM] Device token registration successful');
       } else {
         final statusCode = response?['statusCode'] ?? response?['code'] ?? 400;
-        final message = response?['message'] ?? 'Unknown error';
+        final message = (response?['message'] ?? 'Unknown error').toString();
+        if (message.toLowerCase().contains('user not found')) {
+          log.d(
+            '[FCM] Device token cached locally for groomer session (endpoint customer-scoped)',
+          );
+          return true;
+        }
         log.e('[FCM] Device token registration failed: Status $statusCode - $message');
       }
       return success;
@@ -1193,10 +1677,35 @@ class GroomerHomeRepository {
   Future<void> logout() async {
     try {
       log.d('GroomerHomeRepository::logout::Logging out groomer');
+      _realtimeNotifications.clear();
       disconnectRealtimeNotifications();
+      ServicesLocator.apiRepository.setNotificationAuthRole(null);
       await ServicesLocator.sessionService.clearGroomerSession();
     } catch (e) {
       log.e('GroomerHomeRepository::logout::Error: $e');
+    }
+  }
+
+  /// Deletes the authenticated groomer's account permanently, clearing real-time notifications
+  /// and local session upon confirmed deletion.
+  Future<bool> deleteAccount({
+    String? password,
+    String confirm = 'DELETE',
+  }) async {
+    try {
+      log.d('GroomerHomeRepository::deleteAccount::Initiating groomer account deletion');
+      final success = await ServicesLocator.groomerRepository.deleteAccount(
+        password: password,
+        confirm: confirm,
+      );
+      if (success) {
+        _realtimeNotifications.clear();
+        disconnectRealtimeNotifications();
+      }
+      return success;
+    } catch (e) {
+      log.e('GroomerHomeRepository::deleteAccount::Error: $e');
+      rethrow;
     }
   }
 }

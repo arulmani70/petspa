@@ -11,11 +11,30 @@ import 'package:shear_heaven_pet_spa/src/app/routes.dart';
 import 'package:shear_heaven_pet_spa/src/auth/bloc/auth_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/auth/repo/auth_repository.dart';
 import 'package:shear_heaven_pet_spa/src/auth/views/mobile/login_page_mobile.dart';
+import 'package:responsive_framework/responsive_framework.dart';
 import 'package:shear_heaven_pet_spa/src/common/repos/api_repository.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/device_id_service.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/session_service.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/exit_confirmation_dialog.dart';
+
+Widget _wrapWithResponsive(Widget child) {
+  return ResponsiveBreakpoints.builder(
+    child: child,
+    breakpoints: const [
+      Breakpoint(start: 0, end: 450, name: MOBILE),
+      Breakpoint(start: 451, end: 800, name: TABLET),
+      Breakpoint(start: 801, end: 1920, name: DESKTOP),
+    ],
+  );
+}
+
+Widget _buildTestApp({required RouterConfig<Object> routerConfig}) {
+  return MaterialApp.router(
+    builder: (context, child) => _wrapWithResponsive(child!),
+    routerConfig: routerConfig,
+  );
+}
 
 class _MockApiRepository extends ApiRepository {
   Map<String, dynamic>? mockResponse;
@@ -51,11 +70,15 @@ void main() {
   late DeviceIdService deviceIdService;
   late AuthRepository authRepository;
 
+  setUpAll(() async {
+    FlutterSecureStorage.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({});
+    await ServicesLocator.initialize();
+  });
+
   setUp(() async {
     FlutterSecureStorage.setMockInitialValues({});
     SharedPreferences.setMockInitialValues({});
-
-    await ServicesLocator.initialize();
 
     mockApi = _MockApiRepository();
     sessionService = SessionService();
@@ -110,10 +133,14 @@ void main() {
       },
     );
 
-    test(
+    testWidgets(
       '2. Routes.redirectToLogin clears navigator stack and navigates to login route',
-      () async {
+      (WidgetTester tester) async {
+        await tester.pumpWidget(_buildTestApp(routerConfig: Routes.globalRouter));
+        await tester.pumpAndSettle();
+
         Routes.redirectToLogin(isGroomer: false);
+        await tester.pumpAndSettle();
 
         final currentUri = Routes
             .globalRouter
@@ -126,10 +153,14 @@ void main() {
       },
     );
 
-    test(
-      '3. Routes.redirectToLogin for groomer redirects to groomerLogin route',
-      () async {
+    testWidgets(
+      '3. Routes.redirectToLogin for groomer redirects to main login route',
+      (WidgetTester tester) async {
+        await tester.pumpWidget(_buildTestApp(routerConfig: Routes.globalRouter));
+        await tester.pumpAndSettle();
+
         Routes.redirectToLogin(isGroomer: true);
+        await tester.pumpAndSettle();
 
         final currentUri = Routes
             .globalRouter
@@ -137,18 +168,22 @@ void main() {
             .currentConfiguration
             .uri
             .toString();
-        expect(currentUri, equals('/${RouteNames.groomerLogin}'));
+        expect(currentUri, equals('/${RouteNames.login}'));
         expect(Routes.navigatorKey.currentState?.canPop() ?? false, isFalse);
       },
     );
 
-    test(
+    testWidgets(
       '4. Protected route guard redirects unauthenticated user from /profile to /login',
-      () async {
+      (WidgetTester tester) async {
         expect(sessionService.isLoggedIn, isFalse);
+
+        await tester.pumpWidget(_buildTestApp(routerConfig: Routes.globalRouter));
+        await tester.pumpAndSettle();
 
         // Attempt to navigate to protected profile route while logged out
         Routes.globalRouter.go('/${RouteNames.profile}');
+        await tester.pumpAndSettle();
 
         final currentUri = Routes
             .globalRouter
@@ -165,13 +200,17 @@ void main() {
       },
     );
 
-    test(
-      '5. Protected route guard redirects unauthenticated user from /groomer-home to /groomer-login',
-      () async {
+    testWidgets(
+      '5. Protected route guard redirects unauthenticated user from /groomer-home to /login',
+      (WidgetTester tester) async {
         expect(sessionService.isGroomerLoggedIn, isFalse);
+
+        await tester.pumpWidget(_buildTestApp(routerConfig: Routes.globalRouter));
+        await tester.pumpAndSettle();
 
         // Attempt to navigate to protected groomer-home route while logged out
         Routes.globalRouter.go('/${RouteNames.groomerHome}');
+        await tester.pumpAndSettle();
 
         final currentUri = Routes
             .globalRouter
@@ -181,9 +220,9 @@ void main() {
             .toString();
         expect(
           currentUri,
-          equals('/${RouteNames.groomerLogin}'),
+          equals('/${RouteNames.login}'),
           reason:
-              'Unauthenticated user accessing /groomer-home must be redirected to /groomer-login',
+              'Unauthenticated user accessing /groomer-home must be redirected to /login',
         );
       },
     );
@@ -195,6 +234,7 @@ void main() {
 
         await tester.pumpWidget(
           MaterialApp(
+            builder: (context, child) => _wrapWithResponsive(child!),
             home: BlocProvider<AuthBloc>.value(
               value: authBloc,
               child: const LoginPageMobile(),
@@ -203,10 +243,10 @@ void main() {
         );
         await tester.pump();
 
-        final popScopeFinder = find.byType(PopScope);
+        final popScopeFinder = find.byWidgetPredicate((w) => w is PopScope);
         expect(popScopeFinder, findsOneWidget);
 
-        final popScope = tester.widget<PopScope>(popScopeFinder);
+        final popScope = tester.widget(popScopeFinder) as PopScope;
         expect(
           popScope.canPop,
           isFalse,
@@ -237,7 +277,7 @@ void main() {
           ],
         );
 
-        await tester.pumpWidget(MaterialApp.router(routerConfig: testRouter));
+        await tester.pumpWidget(_buildTestApp(routerConfig: testRouter));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 100));
 
@@ -257,6 +297,7 @@ void main() {
 
         await tester.pumpWidget(
           MaterialApp(
+            builder: (context, child) => _wrapWithResponsive(child!),
             home: BlocProvider<AuthBloc>.value(
               value: authBloc,
               child: const ProfilePageMobile(),

@@ -129,4 +129,6 @@ class ServicesLocator {
   static BookingDraft get bookingDraft => serviceLocator<BookingDraft>();
   static BookingCancellationManager get bookingCancellationManager => serviceLocator<BookingCancellationManager>();
   static bool get isBookingCancellationManagerRegistered => serviceLocator.isRegistered<BookingCancellationManager>();
+  static bool get isSessionServiceRegistered => serviceLocator.isRegistered<SessionService>();
+  static bool isRegistered<T extends Object>() => serviceLocator.isRegistered<T>();
 }

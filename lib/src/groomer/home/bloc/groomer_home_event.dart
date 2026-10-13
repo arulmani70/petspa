@@ -22,6 +22,7 @@ final class GroomerHomeUpdateProfileEvent extends GroomerHomeEvent {
   final String? highlights;
   final bool? multiBookingEnabled;
   final int? slotBookingLimit;
+  final String? photoPath;
 
   const GroomerHomeUpdateProfileEvent({
     this.firstName,
@@ -30,6 +31,7 @@ final class GroomerHomeUpdateProfileEvent extends GroomerHomeEvent {
     this.highlights,
     this.multiBookingEnabled,
     this.slotBookingLimit,
+    this.photoPath,
   });
 
   @override
@@ -40,6 +42,7 @@ final class GroomerHomeUpdateProfileEvent extends GroomerHomeEvent {
         highlights,
         multiBookingEnabled,
         slotBookingLimit,
+        photoPath,
       ];
 }
 
@@ -254,9 +257,19 @@ final class GroomerHomeCheckAvailabilityEvent extends GroomerHomeEvent {
   @override
   List<Object?> get props => [date, groomerId, serviceId, packageId, addOnIds];
 }
-
 final class GroomerHomeResetBookingDialogEvent extends GroomerHomeEvent {
   const GroomerHomeResetBookingDialogEvent();
 }
 
+final class GroomerHomeDeleteAccountEvent extends GroomerHomeEvent {
+  final String? password;
+  final String confirm;
 
+  const GroomerHomeDeleteAccountEvent({
+    this.password,
+    this.confirm = 'DELETE',
+  });
+
+  @override
+  List<Object?> get props => [password, confirm];
+}

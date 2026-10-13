@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import 'package:shear_heaven_pet_spa/src/account/models/app_notification.dart';
@@ -9,8 +11,11 @@ import 'package:shear_heaven_pet_spa/src/app/routes.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/utils/booking_date_utils.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
+import 'package:shear_heaven_pet_spa/src/common/utils/app_formatters.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/toast_util.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/exit_confirmation_dialog.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/bloc/groomer_bloc.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/home/bloc/groomer_home_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_booking.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_schedule_models.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_user.dart';
@@ -152,6 +157,29 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
     super.dispose();
   }
 
+  Future<void> _refreshProfile() async {
+    final cached = ServicesLocator.groomerHomeRepository.getCurrentGroomer();
+    if (cached != null && mounted) {
+      setState(() {
+        _groomer = cached;
+      });
+    }
+    try {
+      final latest = await ServicesLocator.groomerHomeRepository.getProfile();
+      if (latest != null && mounted) {
+        setState(() {
+          _groomer = latest;
+        });
+      }
+      if (mounted) {
+        try {
+          context.read<GroomerHomeBloc>().add(const GroomerHomeFetchProfileEvent());
+          context.read<GroomerBloc>().add(const GroomerFetchProfileEvent());
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+
   Future<void> _loadAllData() async {
     if (!mounted) return;
     setState(() {
@@ -176,8 +204,38 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
 
       if (mounted) {
         final fetchedServiceHours = results[6] as List<StoreServiceHour>? ?? [];
+        final fetchedNotifications =
+            results[8] as List<Map<String, dynamic>>? ?? [];
         final fetchedGroomerHours =
             results[9] as List<GroomerWorkingHour>? ?? [];
+
+        final mergedNotifications = <Map<String, dynamic>>[];
+        for (final item in [..._notifications, ...fetchedNotifications]) {
+          final idStr =
+              (item['id'] ?? item['notificationId'] ?? '').toString().trim();
+          if (idStr.isNotEmpty) {
+            final existingIdx = mergedNotifications.indexWhere(
+              (e) =>
+                  (e['id'] ?? e['notificationId'] ?? '').toString().trim() ==
+                  idStr,
+            );
+            if (existingIdx >= 0) {
+              final existing = mergedNotifications[existingIdx];
+              final isRead = existing['isRead'] == true ||
+                  existing['is_read'] == true ||
+                  item['isRead'] == true ||
+                  item['is_read'] == true;
+              mergedNotifications[existingIdx] = <String, dynamic>{
+                ...existing,
+                ...item,
+                'isRead': isRead,
+                'is_read': isRead,
+              };
+              continue;
+            }
+          }
+          mergedNotifications.add(Map<String, dynamic>.from(item));
+        }
 
         setState(() {
           _groomer = results[0] as GroomerUser? ?? _groomer;
@@ -188,7 +246,7 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
           _cancellationRequests = results[5] as List<GroomerBooking>? ?? [];
           _serviceHours = List<StoreServiceHour>.from(fetchedServiceHours);
           _holidays = results[7] as List<StoreHoliday>? ?? [];
-          _notifications = results[8] as List<Map<String, dynamic>>? ?? [];
+          _notifications = mergedNotifications;
           _groomerHours = List<GroomerWorkingHour>.from(fetchedGroomerHours);
           _isLoading = false;
         });
@@ -667,156 +725,645 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
     }
   }
 
+  Widget _buildThemedEditField({
+    required String label,
+    required TextEditingController controller,
+    bool isRequired = false,
+    String? hintText,
+    String? errorText,
+    TextInputType keyboardType = TextInputType.text,
+    TextCapitalization textCapitalization = TextCapitalization.none,
+    List<TextInputFormatter>? inputFormatters,
+    int maxLines = 1,
+    ValueChanged<String>? onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        RichText(
+          text: TextSpan(
+            text: label,
+            style: AppFonts.poppins(
+              size: 12.5,
+              weight: FontWeight.w600,
+              color: const Color(0xFF374151),
+            ),
+            children: isRequired
+                ? [
+                    TextSpan(
+                      text: ' *',
+                      style: AppFonts.poppins(
+                        size: 12.5,
+                        weight: FontWeight.w600,
+                        color: const Color(0xFFDC2626),
+                      ),
+                    ),
+                  ]
+                : const [],
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          keyboardType: keyboardType,
+          textCapitalization: textCapitalization,
+          inputFormatters: inputFormatters,
+          maxLines: maxLines,
+          onChanged: onChanged,
+          style: AppFonts.poppins(
+            size: 13.5,
+            weight: FontWeight.w500,
+            color: const Color(0xFF111827),
+          ),
+          decoration: InputDecoration(
+            hintText: hintText,
+            hintStyle: AppFonts.poppins(
+              size: 13,
+              color: const Color(0xFF9CA3AF),
+            ),
+            errorText: errorText,
+            errorStyle: AppFonts.poppins(
+              size: 11.5,
+              color: const Color(0xFFDC2626),
+            ),
+            filled: true,
+            fillColor: const Color(0xFFF9FAFB),
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 12,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(
+                color: Color(0xFF111827),
+                width: 1.4,
+              ),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFFDC2626)),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(
+                color: Color(0xFFDC2626),
+                width: 1.4,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGroomerAvatar({
+    required double size,
+    String? avatarPath,
+  }) {
+    final resolvedPath = (avatarPath ?? _groomer?.avatarUrl ?? '').trim();
+    Widget imageWidget;
+
+    if (resolvedPath.startsWith('http://') || resolvedPath.startsWith('https://')) {
+      imageWidget = Image.network(
+        resolvedPath,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Image.asset(
+          'assets/images/common/avatar.png',
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+        ),
+      );
+    } else if (resolvedPath.isNotEmpty && File(resolvedPath).existsSync()) {
+      imageWidget = Image.file(
+        File(resolvedPath),
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Image.asset(
+          'assets/images/common/avatar.png',
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+        ),
+      );
+    } else {
+      imageWidget = Image.asset(
+        'assets/images/common/avatar.png',
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+      );
+    }
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: const Color(0xFFF3F4F6),
+        border: Border.all(color: const Color(0xFFE5E7EB), width: 1.5),
+      ),
+      child: ClipOval(child: imageWidget),
+    );
+  }
+
   Future<void> _handleEditProfileDialog() async {
-    final groomer = _groomer;
+    final groomer = ServicesLocator.groomerHomeRepository.getCurrentGroomer() ?? _groomer;
     if (groomer == null) return;
 
     final firstCtrl = TextEditingController(text: groomer.firstName);
     final lastCtrl = TextEditingController(text: groomer.lastName);
-    final mobileCtrl = TextEditingController(text: groomer.mobile);
-    bool multiBooking = groomer.multiBookingEnabled;
-    int slotLimit = groomer.slotBookingLimit;
+    final initialMobileDigits = UsPhoneInputFormatter.cleanDigits(groomer.mobile);
+    final initialFormattedMobile = initialMobileDigits.isNotEmpty
+        ? UsPhoneInputFormatter.formatDigits(initialMobileDigits)
+        : groomer.mobile.trim();
+    final mobileCtrl = TextEditingController(text: initialFormattedMobile);
+    final highlightsCtrl = TextEditingController(text: groomer.highlights);
 
-    final updated = await showDialog<bool>(
+    bool multiBooking = groomer.multiBookingEnabled;
+    int slotLimit = groomer.slotBookingLimit.clamp(1, 5);
+    bool isSaving = false;
+    String? dialogError;
+    String? firstNameError;
+    String? lastNameError;
+    String? mobileError;
+
+    final updatedGroomer = await showDialog<GroomerUser>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          title: Text(
-            'Edit Groomer Profile',
-            style: AppFonts.parkinsans(size: 18, weight: FontWeight.w700),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: firstCtrl,
-                  decoration: const InputDecoration(labelText: 'First Name'),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: lastCtrl,
-                  decoration: const InputDecoration(labelText: 'Last Name'),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: mobileCtrl,
-                  keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: 'Mobile Number'),
-                ),
-                const SizedBox(height: 14),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    'Multi-Booking Enabled',
-                    style: AppFonts.poppins(
-                      size: 13.5,
-                      weight: FontWeight.w600,
-                    ),
-                  ),
-                  value: multiBooking,
-                  onChanged: (val) {
-                    setDialogState(() {
-                      multiBooking = val;
-                    });
-                  },
-                ),
-                if (multiBooking) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Simultaneous Slot Limit:',
-                        style: AppFonts.poppins(size: 13),
-                      ),
-                      DropdownButton<int>(
-                        value: slotLimit,
-                        items: [1, 2, 3, 4, 5]
-                            .map(
-                              (e) => DropdownMenuItem(
-                                value: e,
-                                child: Text('$e pets'),
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          Future<void> submitProfileUpdate() async {
+            if (isSaving) return;
+
+            final trimmedFirst = firstCtrl.text.trim();
+            final trimmedLast = lastCtrl.text.trim();
+            final rawMobile = mobileCtrl.text.trim();
+            final mobileDigits = UsPhoneInputFormatter.cleanDigits(rawMobile);
+            final trimmedHighlights = highlightsCtrl.text.trim();
+
+            String? fErr;
+            String? lErr;
+            String? mErr;
+
+            if (trimmedFirst.isEmpty) {
+              fErr = 'First name is required';
+            }
+            if (trimmedLast.isEmpty) {
+              lErr = 'Last name is required';
+            }
+            if (rawMobile.isNotEmpty && mobileDigits.length != 10) {
+              mErr = 'Enter a valid 10-digit US phone number';
+            }
+
+            if (fErr != null || lErr != null || mErr != null) {
+              setDialogState(() {
+                firstNameError = fErr;
+                lastNameError = lErr;
+                mobileError = mErr;
+                dialogError = 'Please fix the highlighted fields before saving.';
+              });
+              return;
+            }
+
+            final formattedMobile = mobileDigits.length == 10
+                ? UsPhoneInputFormatter.formatDigits(mobileDigits)
+                : '';
+
+            setDialogState(() {
+              isSaving = true;
+              dialogError = null;
+              firstNameError = null;
+              lastNameError = null;
+              mobileError = null;
+            });
+
+            try {
+              final result = await ServicesLocator.groomerHomeRepository.updateProfile(
+                firstName: trimmedFirst,
+                lastName: trimmedLast,
+                mobile: formattedMobile,
+                highlights: trimmedHighlights,
+                multiBookingEnabled: multiBooking,
+                slotBookingLimit: multiBooking ? slotLimit : 1,
+              );
+
+              if (result == null) {
+                throw Exception('Failed to save profile changes. Please try again.');
+              }
+
+              if (dialogContext.mounted) {
+                Navigator.of(dialogContext).pop(result);
+              }
+            } catch (e) {
+              final cleanMsg = e.toString().replaceAll('Exception:', '').trim();
+              setDialogState(() {
+                isSaving = false;
+                dialogError = cleanMsg.isNotEmpty
+                    ? cleanMsg
+                    : 'Unable to update profile. Please try again.';
+              });
+            }
+          }
+
+          return Dialog(
+            backgroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 24,
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 460),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Modal Header
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Edit Groomer Profile',
+                                style: AppFonts.parkinsans(
+                                  size: 18,
+                                  weight: FontWeight.w700,
+                                  color: const Color(0xFF111827),
+                                ),
                               ),
-                            )
-                            .toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setDialogState(() {
-                              slotLimit = val;
-                            });
-                          }
-                        },
+                              const SizedBox(height: 3),
+                              Text(
+                                'Update your personal details & booking capacity',
+                                style: AppFonts.poppins(
+                                  size: 12,
+                                  color: const Color(0xFF6B7280),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        InkWell(
+                          onTap: isSaving
+                              ? null
+                              : () => Navigator.of(dialogContext).pop(),
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFF3F4F6),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.close_rounded,
+                              size: 18,
+                              color: Color(0xFF4B5563),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+
+                    // Validation / API Error Banner
+                    if (dialogError != null) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF2F2),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFFECACA)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.error_outline_rounded,
+                              size: 18,
+                              color: Color(0xFFDC2626),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                dialogError!,
+                                style: AppFonts.poppins(
+                                  size: 12,
+                                  weight: FontWeight.w500,
+                                  color: const Color(0xFFDC2626),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
+                      const SizedBox(height: 14),
                     ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(
-                'Cancel',
-                style: AppFonts.poppins(
-                  size: 14,
-                  weight: FontWeight.w500,
-                  color: const Color(0xFF6B7280),
+
+                    // First & Last Name Fields
+                    _buildThemedEditField(
+                      label: 'First Name',
+                      controller: firstCtrl,
+                      isRequired: true,
+                      hintText: 'Enter first name',
+                      errorText: firstNameError,
+                      textCapitalization: TextCapitalization.words,
+                      onChanged: (_) {
+                        if (firstNameError != null || dialogError != null) {
+                          setDialogState(() {
+                            firstNameError = null;
+                            dialogError = null;
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _buildThemedEditField(
+                      label: 'Last Name',
+                      controller: lastCtrl,
+                      isRequired: true,
+                      hintText: 'Enter last name',
+                      errorText: lastNameError,
+                      textCapitalization: TextCapitalization.words,
+                      onChanged: (_) {
+                        if (lastNameError != null || dialogError != null) {
+                          setDialogState(() {
+                            lastNameError = null;
+                            dialogError = null;
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Mobile Number Field with US Formatter
+                    _buildThemedEditField(
+                      label: 'Phone Number',
+                      controller: mobileCtrl,
+                      hintText: '+1 (555) 000-0000',
+                      errorText: mobileError,
+                      keyboardType: TextInputType.phone,
+                      inputFormatters: [UsPhoneInputFormatter()],
+                      onChanged: (_) {
+                        if (mobileError != null || dialogError != null) {
+                          setDialogState(() {
+                            mobileError = null;
+                            dialogError = null;
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Bio / Highlights Field
+                    _buildThemedEditField(
+                      label: 'Bio / Highlights',
+                      controller: highlightsCtrl,
+                      hintText: 'e.g., Lead Groomer • Master Stylist',
+                      maxLines: 2,
+                      textCapitalization: TextCapitalization.sentences,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Multi-Booking & Capacity Card
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF9FAFB),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Multi-Booking Mode',
+                                      style: AppFonts.poppins(
+                                        size: 13.5,
+                                        weight: FontWeight.w600,
+                                        color: const Color(0xFF111827),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Allow multiple pets per time slot',
+                                      style: AppFonts.poppins(
+                                        size: 11.5,
+                                        color: const Color(0xFF6B7280),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Switch.adaptive(
+                                value: multiBooking,
+                                activeTrackColor: const Color(0xFF111827),
+                                activeThumbColor: Colors.white,
+                                onChanged: isSaving
+                                    ? null
+                                    : (val) {
+                                        setDialogState(() {
+                                          multiBooking = val;
+                                          if (multiBooking && slotLimit < 2) {
+                                            slotLimit = groomer.slotBookingLimit > 1
+                                                ? groomer.slotBookingLimit.clamp(1, 5)
+                                                : 2;
+                                          }
+                                        });
+                                      },
+                              ),
+                            ],
+                          ),
+                          if (multiBooking) ...[
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 10),
+                              child: Divider(
+                                height: 1,
+                                color: Color(0xFFE5E7EB),
+                              ),
+                            ),
+                            Text(
+                              'Simultaneous Slot Limit (Pets / Slot)',
+                              style: AppFonts.poppins(
+                                size: 12,
+                                weight: FontWeight.w600,
+                                color: const Color(0xFF374151),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [1, 2, 3, 4, 5].map((count) {
+                                final isSelected = slotLimit == count;
+                                return Expanded(
+                                  child: Padding(
+                                    padding: EdgeInsets.only(
+                                      right: count == 5 ? 0 : 6,
+                                    ),
+                                    child: GestureDetector(
+                                      onTap: isSaving
+                                          ? null
+                                          : () {
+                                              setDialogState(() {
+                                                slotLimit = count;
+                                              });
+                                            },
+                                      child: Container(
+                                        height: 36,
+                                        decoration: BoxDecoration(
+                                          color: isSelected
+                                              ? const Color(0xFF111827)
+                                              : Colors.white,
+                                          borderRadius: BorderRadius.circular(10),
+                                          border: Border.all(
+                                            color: isSelected
+                                                ? const Color(0xFF111827)
+                                                : const Color(0xFFD1D5DB),
+                                          ),
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: Text(
+                                          '$count',
+                                          style: AppFonts.poppins(
+                                            size: 13,
+                                            weight: FontWeight.w600,
+                                            color: isSelected
+                                                ? Colors.white
+                                                : const Color(0xFF374151),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+
+                    // Action Buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: 46,
+                            child: TextButton(
+                              onPressed: isSaving
+                                  ? null
+                                  : () => Navigator.of(dialogContext).pop(),
+                              style: TextButton.styleFrom(
+                                foregroundColor: const Color(0xFF111827),
+                                padding: EdgeInsets.zero,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                  side: const BorderSide(
+                                    color: Color(0xFFE5E7EB),
+                                    width: 1.2,
+                                  ),
+                                ),
+                              ),
+                              child: Text(
+                                'Cancel',
+                                style: AppFonts.poppins(
+                                  size: 14,
+                                  weight: FontWeight.w500,
+                                  color: const Color(0xFF6B7280),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: SizedBox(
+                            height: 46,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF111827),
+                                foregroundColor: Colors.white,
+                                disabledBackgroundColor: const Color(0xFF111827)
+                                    .withValues(alpha: 0.6),
+                                elevation: 0,
+                                padding: EdgeInsets.zero,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                              ),
+                              onPressed: isSaving ? null : submitProfileUpdate,
+                              child: isSaving
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : Text(
+                                      'Save Changes',
+                                      style: AppFonts.parkinsans(
+                                        size: 14,
+                                        weight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF111827),
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(
-                'Save Changes',
-                style: AppFonts.parkinsans(
-                  size: 14,
-                  weight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
 
-    if (updated == true && mounted) {
-      setState(() => _isLoading = true);
+    if (updatedGroomer != null && mounted) {
+      setState(() {
+        _groomer = updatedGroomer;
+      });
       try {
-        final result = await ServicesLocator.groomerHomeRepository
-            .updateProfile(
-              firstName: firstCtrl.text.trim(),
-              lastName: lastCtrl.text.trim(),
-              mobile: mobileCtrl.text.trim(),
-              multiBookingEnabled: multiBooking,
-              slotBookingLimit: slotLimit,
-            );
-        if (mounted) {
-          setState(() {
-            _groomer = result ?? _groomer;
-            _isLoading = false;
-          });
-          ToastUtil.showSuccessToast(
-            context,
-            'Groomer profile updated successfully',
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          setState(() => _isLoading = false);
-          ToastUtil.showErrorToast(context, 'Failed to update profile: $e');
-        }
-      }
+        context.read<GroomerHomeBloc>().add(const GroomerHomeFetchProfileEvent());
+        context.read<GroomerBloc>().add(const GroomerFetchProfileEvent());
+      } catch (_) {}
+      ToastUtil.showSuccessToast(
+        context,
+        'Groomer profile updated successfully',
+      );
     }
   }
 
@@ -905,8 +1452,329 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
     );
 
     if (shouldLogout == true) {
+      _realtimeNotificationSub?.cancel();
+      _realtimeNotificationSub = null;
+      _timeTickerTimer?.cancel();
+      _timeTickerTimer = null;
+
       await ServicesLocator.groomerHomeRepository.logout();
-      Routes.redirectToLogin(isGroomer: true);
+
+      if (mounted) {
+        setState(() {
+          _groomer = null;
+          _upcomingBookings = [];
+          _pendingBookings = [];
+          _pastBookings = [];
+          _cancelledBookings = [];
+          _cancellationRequests = [];
+          _serviceHours = [];
+          _groomerHours = [];
+          _holidays = [];
+          _notifications = [];
+          _processingBookingIds.clear();
+        });
+      }
+
+      Routes.redirectToLogin(isGroomer: false);
+    }
+  }
+
+  Future<void> _handleDeleteAccount() async {
+    // 1. Business rules: Verify active, in-progress, or upcoming bookings
+    final activeAppointments = _upcomingBookings.where((b) {
+      final s = b.status.toLowerCase().trim();
+      return s != 'completed' && s != 'cancelled' && s != 'rejected';
+    }).toList();
+
+    if (activeAppointments.isNotEmpty) {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogCtx) => Dialog(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEE2E2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.warning_amber_rounded,
+                        color: Color(0xFFDC2626),
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Active Bookings Present',
+                        style: AppFonts.parkinsans(
+                          size: 18,
+                          weight: FontWeight.w600,
+                          color: const Color(0xFF111827),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'You have ${activeAppointments.length} active or upcoming appointment(s) scheduled. To protect salon operations and client reservations, all appointments must be completed, cancelled, or reassigned before deleting your groomer account.',
+                  style: AppFonts.poppins(
+                    size: 13,
+                    color: const Color(0xFF4B5563),
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF111827),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                    onPressed: () => Navigator.pop(dialogCtx),
+                    child: Text(
+                      'Understood',
+                      style: AppFonts.parkinsans(
+                        size: 14,
+                        weight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    // 2. Permanent Account Deletion Confirmation Dialog
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => Dialog(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEE2E2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.delete_forever_rounded,
+                      color: Color(0xFFDC2626),
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Delete Groomer Account',
+                      style: AppFonts.parkinsans(
+                        size: 18,
+                        weight: FontWeight.w600,
+                        color: const Color(0xFF111827),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Are you sure you want to permanently delete your groomer account? This action is permanent and cannot be undone. All your profile data, schedule settings, and portal access will be permanently deleted.',
+                style: AppFonts.poppins(
+                  size: 13,
+                  color: const Color(0xFF4B5563),
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 46,
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(dialogCtx, false),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.black,
+                          padding: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                            side: const BorderSide(
+                              color: Color(0xFFE5E7EB),
+                              width: 1.2,
+                            ),
+                          ),
+                        ),
+                        child: Text(
+                          'Cancel',
+                          style: AppFonts.poppins(
+                            size: 14,
+                            weight: FontWeight.w500,
+                            color: const Color(0xFF6B7280),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 46,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFDC2626),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                        ),
+                        onPressed: () => Navigator.pop(dialogCtx, true),
+                        child: Text(
+                          'Delete Account',
+                          style: AppFonts.parkinsans(
+                            size: 14,
+                            weight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    // 3. Perform Backend Account Deletion with Loading Indicator
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (loadingCtx) => PopScope(
+        canPop: false,
+        child: Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            child: Row(
+              children: [
+                const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFDC2626)),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    'Deleting account...',
+                    style: AppFonts.poppins(size: 14, color: const Color(0xFF111827)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final success = await ServicesLocator.groomerHomeRepository.deleteAccount();
+
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+
+      if (success) {
+        _realtimeNotificationSub?.cancel();
+        _realtimeNotificationSub = null;
+        _timeTickerTimer?.cancel();
+        _timeTickerTimer = null;
+
+        if (mounted) {
+          setState(() {
+            _groomer = null;
+            _upcomingBookings = [];
+            _pendingBookings = [];
+            _pastBookings = [];
+            _cancelledBookings = [];
+            _cancellationRequests = [];
+            _serviceHours = [];
+            _groomerHours = [];
+            _holidays = [];
+            _notifications = [];
+            _processingBookingIds.clear();
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Your groomer account has been permanently deleted.'),
+              backgroundColor: Color(0xFF111827),
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+
+        Routes.redirectToLogin(isGroomer: false);
+      } else {
+        if (mounted) {
+          ToastUtil.showErrorToast(
+            context,
+            'Failed to delete account. Please try again.',
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        final rawMsg = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+        ToastUtil.showErrorToast(context, rawMsg);
+      }
     }
   }
 
@@ -3264,26 +4132,89 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
 
   // ── TAB 3: Profile (Live Groomer Data & Edit Profile) ──
   Widget _buildProfileTab() {
-    final groomer = _groomer;
-    final name = groomer?.fullName ?? 'Staff Member';
-    final role = groomer?.role ?? 'Lead Groomer';
-    final code = groomer?.groomerCode ?? 'G001';
-    final email = groomer?.email ?? 'g001@shearheaven.com';
-    final phone = groomer?.mobile.isNotEmpty == true
-        ? groomer!.mobile
-        : '+1 (555) 234-5678';
-    final highlights = groomer?.highlights.isNotEmpty == true
-        ? groomer!.highlights
-        : 'Lead Groomer';
+    final groomer = _groomer ?? ServicesLocator.groomerHomeRepository.getCurrentGroomer();
+    final name = (groomer != null && groomer.fullName.trim().isNotEmpty)
+        ? groomer.fullName.trim()
+        : 'Staff Member';
+    final role = (groomer != null && groomer.role.trim().isNotEmpty)
+        ? groomer.role.trim()
+        : 'Groomer';
+    final code = (groomer != null && groomer.groomerCode.trim().isNotEmpty)
+        ? groomer.groomerCode.trim()
+        : '—';
+    final email = (groomer != null && groomer.email.trim().isNotEmpty)
+        ? groomer.email.trim()
+        : 'Not provided';
+
+    final rawMobile = groomer?.mobile.trim() ?? '';
+    final mobileDigits = UsPhoneInputFormatter.cleanDigits(rawMobile);
+    final hasPhone = rawMobile.isNotEmpty;
+    final phone = mobileDigits.length == 10
+        ? UsPhoneInputFormatter.formatDigits(mobileDigits)
+        : (hasPhone ? rawMobile : 'Not provided');
+
+    final rawHighlights = groomer?.highlights.trim() ?? '';
+    final hasHighlights = rawHighlights.isNotEmpty;
+    final highlights = hasHighlights ? rawHighlights : role;
+
     final multiBooking = groomer?.multiBookingEnabled ?? false;
     final slotLimit = groomer?.slotBookingLimit ?? 1;
+    final isActive = groomer?.isActive ?? true;
+    final storeCode = (groomer != null && groomer.storeId.trim().isNotEmpty)
+        ? groomer.storeId.trim()
+        : 'SHEAR-001';
 
     return RefreshIndicator(
       color: const Color(0xFF111827),
-      onRefresh: _loadAllData,
+      onRefresh: () async {
+        await _refreshProfile();
+        await _loadAllData();
+      },
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 120),
         children: [
+          // Section Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Staff Profile',
+                    style: AppFonts.parkinsans(
+                      size: 20,
+                      weight: FontWeight.w700,
+                      color: const Color(0xFF111827),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Manage your groomer account & slot capacity',
+                    style: AppFonts.poppins(
+                      size: 12.5,
+                      color: const Color(0xFF6B7280),
+                    ),
+                  ),
+                ],
+              ),
+              IconButton(
+                onPressed: _refreshProfile,
+                tooltip: 'Refresh Profile',
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  side: const BorderSide(color: Color(0xFFE5E7EB)),
+                ),
+                icon: const Icon(
+                  Icons.refresh_rounded,
+                  size: 18,
+                  color: Color(0xFF111827),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
           // Profile Info Header Card
           Container(
             padding: const EdgeInsets.all(20),
@@ -3291,73 +4222,83 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: const Color(0xFFE5E7EB)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Column(
               children: [
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    image: DecorationImage(
-                      image: AssetImage('assets/images/common/avatar.png'),
-                      fit: BoxFit.cover,
-                    ),
-                  ),
+                _buildGroomerAvatar(
+                  size: 76,
+                  avatarPath: groomer?.avatarUrl,
                 ),
                 const SizedBox(height: 12),
                 Text(
                   name,
+                  textAlign: TextAlign.center,
                   style: AppFonts.parkinsans(
                     size: 18,
                     weight: FontWeight.w700,
                     color: const Color(0xFF111827),
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
                   '$role • Staff Code: $code',
+                  textAlign: TextAlign.center,
                   style: AppFonts.poppins(
                     size: 13,
                     color: const Color(0xFF6B7280),
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
+                    horizontal: 12,
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                    color: isActive
+                        ? const Color(0xFF10B981).withValues(alpha: 0.12)
+                        : const Color(0xFF6B7280).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    'Active Staff Member',
+                    isActive ? 'Active Staff Member' : 'Inactive Staff Member',
                     style: AppFonts.poppins(
-                      size: 11,
+                      size: 11.5,
                       weight: FontWeight.w600,
-                      color: const Color(0xFF059669),
+                      color: isActive
+                          ? const Color(0xFF059669)
+                          : const Color(0xFF4B5563),
                     ),
                   ),
                 ),
-                const SizedBox(height: 14),
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF111827),
-                    side: const BorderSide(color: Color(0xFFD1D5DB)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 40,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF111827),
+                      side: const BorderSide(color: Color(0xFFD1D5DB)),
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
                     ),
-                  ),
-                  onPressed: _handleEditProfileDialog,
-                  icon: const Icon(Icons.edit_outlined, size: 16),
-                  label: Text(
-                    'Edit Profile',
-                    style: AppFonts.poppins(
-                      size: 13,
-                      weight: FontWeight.w600,
-                      color: const Color(0xFF111827),
+                    onPressed: _handleEditProfileDialog,
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: Text(
+                      'Edit Profile',
+                      style: AppFonts.parkinsans(
+                        size: 13,
+                        weight: FontWeight.w600,
+                        color: const Color(0xFF111827),
+                      ),
                     ),
                   ),
                 ),
@@ -3372,22 +4313,53 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(color: const Color(0xFFE5E7EB)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildProfileDetailRow(Icons.email_outlined, 'Email', email),
-                const Divider(height: 20, color: Color(0xFFF3F4F6)),
-                _buildProfileDetailRow(Icons.phone_outlined, 'Phone', phone),
-                const Divider(height: 20, color: Color(0xFFF3F4F6)),
+                Text(
+                  'Account & Capacity Details',
+                  style: AppFonts.parkinsans(
+                    size: 15,
+                    weight: FontWeight.w700,
+                    color: const Color(0xFF111827),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _buildProfileDetailRow(
+                  Icons.badge_outlined,
+                  'Full Name',
+                  name,
+                ),
+                const Divider(height: 22, color: Color(0xFFF3F4F6)),
+                _buildProfileDetailRow(
+                  Icons.email_outlined,
+                  'Email',
+                  email,
+                ),
+                const Divider(height: 22, color: Color(0xFFF3F4F6)),
+                _buildProfileDetailRow(
+                  Icons.phone_outlined,
+                  'Phone',
+                  phone,
+                  isMuted: !hasPhone,
+                ),
+                const Divider(height: 22, color: Color(0xFFF3F4F6)),
                 _buildProfileDetailRow(
                   Icons.storefront_outlined,
                   'Store Location',
-                  'Shear Heaven - Darwin (${groomer?.storeId ?? "SHEAR-001"})',
+                  'Shear Heaven - Darwin ($storeCode)',
                 ),
-                const Divider(height: 20, color: Color(0xFFF3F4F6)),
+                const Divider(height: 22, color: Color(0xFFF3F4F6)),
                 _buildProfileDetailRow(
                   Icons.calendar_month_outlined,
                   'Simultaneous Capacity',
@@ -3395,7 +4367,7 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                       ? 'Multi-Booking Active ($slotLimit pets / slot)'
                       : 'Single Booking Mode (1 pet / slot)',
                 ),
-                const Divider(height: 20, color: Color(0xFFF3F4F6)),
+                const Divider(height: 22, color: Color(0xFFF3F4F6)),
                 _buildProfileDetailRow(
                   Icons.stars_rounded,
                   'Bio / Highlights',
@@ -3423,7 +4395,38 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
               icon: const Icon(Icons.logout_rounded, size: 18),
               label: Text(
                 'Logout from Staff Portal',
-                style: AppFonts.poppins(size: 14, weight: FontWeight.w600),
+                style: AppFonts.parkinsans(
+                  size: 14,
+                  weight: FontWeight.w600,
+                  color: const Color(0xFFDC2626),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Delete Account Button
+          SizedBox(
+            height: 48,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                backgroundColor: const Color(0xFFFEF2F2),
+                foregroundColor: const Color(0xFFDC2626),
+                side: const BorderSide(color: Color(0xFFFECACA), width: 1.2),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+              ),
+              onPressed: _handleDeleteAccount,
+              icon: const Icon(Icons.delete_forever_rounded, size: 18, color: Color(0xFFDC2626)),
+              label: Text(
+                'Delete Account',
+                style: AppFonts.parkinsans(
+                  size: 14,
+                  weight: FontWeight.w600,
+                  color: const Color(0xFFDC2626),
+                ),
               ),
             ),
           ),
@@ -3433,11 +4436,24 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
     );
   }
 
-  Widget _buildProfileDetailRow(IconData icon, String label, String value) {
+  Widget _buildProfileDetailRow(
+    IconData icon,
+    String label,
+    String value, {
+    bool isMuted = false,
+  }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: const Color(0xFF6B7280)),
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF3F4F6),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 17, color: const Color(0xFF4B5563)),
+        ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -3447,7 +4463,7 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                 label,
                 style: AppFonts.poppins(
                   size: 12,
-                  color: const Color(0xFF9CA3AF),
+                  color: const Color(0xFF6B7280),
                 ),
               ),
               const SizedBox(height: 2),
@@ -3455,8 +4471,10 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                 value,
                 style: AppFonts.poppins(
                   size: 13.5,
-                  weight: FontWeight.w500,
-                  color: const Color(0xFF111827),
+                  weight: isMuted ? FontWeight.w400 : FontWeight.w600,
+                  color: isMuted
+                      ? const Color(0xFF9CA3AF)
+                      : const Color(0xFF111827),
                 ),
               ),
             ],
@@ -3589,6 +4607,9 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
           setState(() {
             _currentTabIndex = index;
           });
+          if (index == 3) {
+            _refreshProfile();
+          }
         },
         child: Center(child: content),
       ),
@@ -3624,18 +4645,11 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
               setState(() {
                 _currentTabIndex = 3;
               });
+              _refreshProfile();
             },
-            child: Container(
-              width: 48,
-              height: 48,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: Color(0xFFE5E7EB),
-                image: DecorationImage(
-                  image: AssetImage('assets/images/common/avatar.png'),
-                  fit: BoxFit.cover,
-                ),
-              ),
+            child: _buildGroomerAvatar(
+              size: 48,
+              avatarPath: _groomer?.avatarUrl,
             ),
           ),
           const SizedBox(width: 12),

@@ -59,7 +59,7 @@ class _SplashScreenState extends State<SplashScreen>
       final groomer = ServicesLocator.groomerAuthRepository.getCurrentGroomer();
       if (groomer != null) {
         _log.d('SplashScreen::_navigate::Groomer session active (${groomer.fullName})');
-        if (groomer.mustChangePassword) {
+        if (!groomer.isProfileCompleted) {
           context.goNamed(RouteNames.groomerRegister);
         } else {
           context.goNamed(RouteNames.groomerHome);

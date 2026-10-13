@@ -66,6 +66,6 @@ class GroomerLoginBloc extends Bloc<GroomerLoginEvent, GroomerLoginState> {
   ) async {
     await repository.logout();
     emit(GroomerLoginState.initial);
-    Routes.redirectToLogin(isGroomer: true);
+    Routes.redirectToLogin(isGroomer: false);
   }
 }

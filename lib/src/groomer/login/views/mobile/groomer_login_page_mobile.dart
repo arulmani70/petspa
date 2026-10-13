@@ -77,11 +77,23 @@ class _GroomerLoginPageMobileState extends State<GroomerLoginPageMobile> {
 
       // Check mustChangePassword flow
       if (loginResponse.mustChangePassword) {
+        final resolvedTempLoginId = (loginResponse.tempLoginId != null &&
+                loginResponse.tempLoginId!.trim().isNotEmpty)
+            ? loginResponse.tempLoginId!.trim()
+            : (loginResponse.groomer.tempLoginId != null &&
+                    loginResponse.groomer.tempLoginId!.trim().isNotEmpty
+                ? loginResponse.groomer.tempLoginId!.trim()
+                : email.trim());
+        final resolvedTempPassword = (loginResponse.tempPassword != null &&
+                loginResponse.tempPassword!.isNotEmpty)
+            ? loginResponse.tempPassword!
+            : password;
         context.goNamed(
           RouteNames.groomerRegister,
           extra: {
-            'tempLoginId': email,
-            'tempPassword': password,
+            'tempLoginId': resolvedTempLoginId,
+            'tempPassword': resolvedTempPassword,
+            'groomer': loginResponse.groomer.toJson(),
           },
         );
       } else {
@@ -103,6 +115,15 @@ class _GroomerLoginPageMobileState extends State<GroomerLoginPageMobile> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
+
+        final isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0 ||
+            View.of(context).viewInsets.bottom > 0;
+        if (isKeyboardOpen) {
+          FocusManager.instance.primaryFocus?.unfocus();
+          FocusScope.of(context).unfocus();
+          return;
+        }
+
         if (context.canPop()) {
           context.pop();
         } else {
