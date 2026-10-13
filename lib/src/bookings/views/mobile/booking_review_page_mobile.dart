@@ -581,8 +581,35 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
 
       int groomerId = 0;
       final gId = _draft.groomer?['id']?.toString() ?? '';
+      final gName = _draft.groomer?['name']?.toString() ?? '';
+      final gCode = _draft.groomer?['groomerCode']?.toString();
       if (gId.isNotEmpty && gId != 'any') {
-        groomerId = int.tryParse(gId) ?? 0;
+        final parsed = int.tryParse(gId) ?? 0;
+        groomerId = BookingDateUtils.resolveCanonicalGroomerId(
+          parsed,
+          groomerCode: gCode,
+          groomerName: gName,
+        ) ?? parsed;
+        if (groomerId > 0 && _draft.groomer != null) {
+          _draft.groomer!['id'] = groomerId.toString();
+        }
+      }
+
+      if (_draft.selectedSlot != null && _draft.selectedSlot!['groomerId'] != null) {
+        final rawSlotGroomId = _draft.selectedSlot!['groomerId'];
+        final slotGroomName = _draft.selectedSlot!['groomerName']?.toString();
+        final slotGroomCode = _draft.selectedSlot!['groomerCode']?.toString();
+        final canonSlotGroomId = BookingDateUtils.resolveCanonicalGroomerId(
+          rawSlotGroomId,
+          groomerCode: slotGroomCode,
+          groomerName: slotGroomName,
+        );
+        if (canonSlotGroomId != null && canonSlotGroomId > 0) {
+          _draft.selectedSlot!['groomerId'] = canonSlotGroomId;
+          if (groomerId == 0) {
+            groomerId = canonSlotGroomId;
+          }
+        }
       }
 
       final addOnIds = _draft.extractAddOnIds();

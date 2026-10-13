@@ -1,4 +1,5 @@
 import 'package:intl/intl.dart';
+import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 
 /// Utilities for enforcing customer booking date constraints.
 ///
@@ -288,6 +289,112 @@ class BookingDateUtils {
     final period = h < 12 ? 'AM' : 'PM';
     final displayH = h == 0 ? 12 : (h > 12 ? h - 12 : h);
     return '$displayH:${m.toString().padLeft(2, '0')} $period';
+  }
+
+  /// Resolves the canonical salon booking/availability groomer ID (1..4)
+  /// from any groomer representation (portal database ID, groomerCode, or name).
+  ///
+  /// Background:
+  /// The salon's booking and availability engine (/api/availability, /api/bookings)
+  /// indexes the core salon staff by canonical catalog IDs:
+  ///   1: Merisa Brown (Lead Groomer, code: G001)
+  ///   2: Richard Cooke (Senior Groomer, code: G002)
+  ///   3: Tracie Jamison (Groomer, code: G003)
+  ///   4: Jeremiah Smith (Junior Bather, code: B001)
+  ///
+  /// In the groomer portal auth/admin database, re-registered or newly created groomer
+  /// accounts may receive higher auto-increment IDs (e.g. Merisa Brown = 11, code G001).
+  /// This method maps all representations to the canonical ID expected by the booking engine.
+  static int? resolveCanonicalGroomerId(
+    dynamic groomerId, {
+    String? groomerCode,
+    String? groomerName,
+    Map<String, int>? dynamicGroomerMap,
+  }) {
+    if (groomerId == null && groomerCode == null && groomerName == null) return null;
+
+    final idInt = groomerId is int
+        ? groomerId
+        : (int.tryParse(groomerId?.toString() ?? '') ?? 0);
+
+    // 1. Dynamic groomer map match (populated directly from API response)
+    if (dynamicGroomerMap != null && dynamicGroomerMap.isNotEmpty) {
+      final cleanName = (groomerName ?? '').toLowerCase().trim();
+      if (cleanName.isNotEmpty && dynamicGroomerMap.containsKey(cleanName)) {
+        return dynamicGroomerMap[cleanName];
+      }
+      final cleanCode = (groomerCode ?? '').toUpperCase().trim();
+      if (cleanCode.isNotEmpty && dynamicGroomerMap.containsKey(cleanCode)) {
+        return dynamicGroomerMap[cleanCode];
+      }
+      if (idInt > 0 && dynamicGroomerMap.containsKey(idInt.toString())) {
+        return dynamicGroomerMap[idInt.toString()];
+      }
+    }
+
+    // 2. Dynamic store repository catalog match (from GET /api/groomers)
+    try {
+      final cached = ServicesLocator.storeRepository.cachedGroomers;
+      if (cached.isNotEmpty) {
+        final cleanName = (groomerName ?? '').toLowerCase().trim();
+        final cleanCode = (groomerCode ?? '').toUpperCase().trim();
+        for (final g in cached) {
+          final gName = (g['name'] ?? '').toString().toLowerCase().trim();
+          final gCode = (g['groomerCode'] ?? g['GroomerId'] ?? g['BatherId'] ?? '')
+              .toString()
+              .toUpperCase()
+              .trim();
+          final gId = int.tryParse(g['id']?.toString() ?? '');
+          if (gId != null && gId > 0) {
+            if (cleanCode.isNotEmpty && gCode.isNotEmpty && cleanCode == gCode) {
+              return gId;
+            }
+            if (cleanName.isNotEmpty && gName.isNotEmpty &&
+                (cleanName == gName || cleanName.contains(gName) || gName.contains(cleanName))) {
+              return gId;
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 3. Dynamic groomer code extraction (e.g. G001 -> 1, B001 -> 4)
+    final cleanCode = (groomerCode ?? '').toUpperCase().trim();
+    if (cleanCode.isNotEmpty) {
+      final digits = cleanCode.replaceAll(RegExp(r'[^0-9]'), '');
+      final numVal = int.tryParse(digits);
+      if (numVal != null && numVal > 0) {
+        if (cleanCode.startsWith('B')) {
+          return numVal + 3; // Bathers follow groomers (B001 -> 4)
+        }
+        return numVal; // G001 -> 1, G002 -> 2, etc.
+      }
+    }
+
+    // 4. Catalog range ID (1-4 are valid catalog IDs)
+    if (idInt >= 1 && idInt <= 4) {
+      return idInt;
+    }
+
+    // 5. Fallback name-based token match against known catalog roles/names
+    final cleanName = (groomerName ?? '').toLowerCase().trim();
+    if (cleanName.contains('merisa') || cleanName.contains('brown')) {
+      return 1;
+    }
+    if (cleanName.contains('richard') || cleanName.contains('cooke')) {
+      return 2;
+    }
+    if (cleanName.contains('tracie') || cleanName.contains('jamison')) {
+      return 3;
+    }
+    if (cleanName.contains('jeremiah') || cleanName.contains('smith')) {
+      return 4;
+    }
+
+    // 6. Fallback known ID mapping
+    if (idInt == 11) return 1;
+
+    return idInt > 0 ? idInt : null;
   }
 
   /// Safely deduplicates a list of time slot maps while preserving original order and capacity rules.

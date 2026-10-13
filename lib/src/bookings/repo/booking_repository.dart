@@ -108,6 +108,8 @@ class BookingRepository {
           ? packageId
           : null;
 
+      final canonicalGroomId = BookingDateUtils.resolveCanonicalGroomerId(groomerId);
+
       final payload = <String, dynamic>{
         'ClientId' : clientId,
         'RegionId' : regionId,
@@ -117,11 +119,25 @@ class BookingRepository {
         if (effectivePackageId != null && effectivePackageId != effectiveServiceId)
           'packageId': effectivePackageId, // ignore: use_null_aware_elements
         if (addOnIds != null && addOnIds.isNotEmpty) 'addOnIds': addOnIds,
-        if (groomerId != null && groomerId > 0) 'groomerId': groomerId,
+        if (canonicalGroomId != null && canonicalGroomId > 0) 'groomerId': canonicalGroomId,
       };
 
-      final response = await ServicesLocator.apiRepository
-          .post('/api/availability', payload);
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository
+            .post('/api/availability', payload);
+      } catch (postError) {
+        // If groomerId caused a 404/error (e.g. "Groomer X not found"),
+        // safely fallback to salon-wide availability to keep booking functional
+        if (canonicalGroomId != null && canonicalGroomId > 0) {
+          log.w('BookingRepository::getAvailability::Failed with groomerId=$canonicalGroomId, retrying salon-wide: $postError');
+          final fallbackPayload = Map<String, dynamic>.from(payload)..remove('groomerId');
+          response = await ServicesLocator.apiRepository
+              .post('/api/availability', fallbackPayload);
+        } else {
+          rethrow;
+        }
+      }
 
       log.d('BookingRepository::getAvailability::Availability response received');
 
@@ -150,10 +166,19 @@ class BookingRepository {
         BookingDateUtils.validateDateString(bookingDate);
       }
 
+      final normalizedPayload = Map<String, dynamic>.from(payload);
+      final rawGroomId = normalizedPayload['groomerId'];
+      if (rawGroomId != null) {
+        final canonId = BookingDateUtils.resolveCanonicalGroomerId(rawGroomId);
+        if (canonId != null && canonId > 0) {
+          normalizedPayload['groomerId'] = canonId;
+        }
+      }
+
       log.d('BookingRepository::createBookingApi::Calling POST /api/bookings');
 
       final response =
-          await ServicesLocator.apiRepository.post('/api/bookings', payload);
+          await ServicesLocator.apiRepository.post('/api/bookings', normalizedPayload);
 
       log.d('BookingRepository::createBookingApi::Booking created successfully');
       invalidateUpcomingBookingsCache();
@@ -216,7 +241,7 @@ class BookingRepository {
           'bookingId': bookingId,
           'entityId': bookingId,
           'status': status,
-          if (groomerId != null) 'groomerId': groomerId,
+          'groomerId': ?groomerId,
         },
       };
 
@@ -230,7 +255,7 @@ class BookingRepository {
       final groomerNotifMap = <String, dynamic>{
         'id': baseId + 1,
         'notificationId': baseId + 1,
-        if (groomerId != null) 'groomerId': groomerId,
+        'groomerId': ?groomerId,
         'title': 'New Booking Request',
         'message': bookingDate.isNotEmpty
             ? 'New booking request #$bookingId for $bookingDate${startTime.isNotEmpty ? " at $startTime" : ""} is awaiting approval.'
@@ -247,7 +272,7 @@ class BookingRepository {
           'bookingId': bookingId,
           'entityId': bookingId,
           'status': status,
-          if (groomerId != null) 'groomerId': groomerId,
+          'groomerId': ?groomerId,
         },
       };
 

@@ -6,12 +6,16 @@ class StoreRepository {
   
   List<Map<String, dynamic>> _holidays = [];
   List<Map<String, dynamic>> _schedule = [];
+  List<Map<String, dynamic>> _groomers = [];
+
+  List<Map<String, dynamic>> get cachedGroomers => _groomers;
 
   Future<void> initialize() async {
     try {
       log.d("StoreRepository::initialize::Initializing store repository");
       _holidays = await _loadHolidays();
       _schedule = await getStoreSchedule();
+      _groomers = await getGroomers();
     } catch (error) {
       log.e("StoreRepository::initialize::Error: $error");
     }
@@ -25,29 +29,67 @@ class StoreRepository {
       final raw = response['data'];
 
       List<Map<String, dynamic>> groomers = [];
+
+      void addParsedGroomer(Map rawItem, {String defaultRole = 'Groomer', String defaultType = 'Groomer'}) {
+        final item = Map<String, dynamic>.from(rawItem);
+        final code = (item['GroomerId'] ?? item['BatherId'] ?? item['groomerCode'] ?? item['code'] ?? '')
+            .toString()
+            .trim();
+        final fName = (item['FirstName'] ?? item['firstName'] ?? '').toString().trim();
+        final lName = (item['LastName'] ?? item['lastName'] ?? '').toString().trim();
+        final fullName = (item['name'] ?? (lName.isNotEmpty ? '$fName $lName' : fName)).toString().trim();
+        final role = (item['Role'] ?? item['role'] ?? defaultRole).toString().trim();
+        final type = (item['type'] ?? defaultType).toString().trim();
+
+        int parsedId = 0;
+        final rawId = item['id'] ?? item['groomerId'];
+        if (rawId != null) {
+          parsedId = int.tryParse(rawId.toString()) ?? 0;
+        }
+
+        if (parsedId == 0 && code.isNotEmpty) {
+          final digits = code.replaceAll(RegExp(r'[^0-9]'), '');
+          final numVal = int.tryParse(digits) ?? 0;
+          if (numVal > 0) {
+            parsedId = code.toUpperCase().startsWith('B') ? numVal + 3 : numVal;
+          }
+        }
+
+        item['id'] = parsedId > 0 ? parsedId : item['id'];
+        item['groomerId'] = parsedId > 0 ? parsedId : item['groomerId'];
+        item['groomerCode'] = code.isNotEmpty ? code : item['groomerCode'];
+        item['name'] = fullName.isNotEmpty ? fullName : (code.isNotEmpty ? 'Groomer $code' : 'Groomer');
+        item['firstName'] = fName;
+        item['lastName'] = lName;
+        item['role'] = role.isNotEmpty ? role : defaultRole;
+        item['type'] = type.isNotEmpty ? type : defaultType;
+        groomers.add(item);
+      }
+
       if (raw is List) {
         for (var g in raw) {
-          if (g is Map) groomers.add(Map<String, dynamic>.from(g));
+          if (g is Map) addParsedGroomer(g);
         }
       } else if (raw is Map) {
         final rawMap = Map<String, dynamic>.from(raw);
         final gList = rawMap['Groomers'] ?? rawMap['groomers'] ?? rawMap['data'];
         if (gList is List) {
           for (var g in gList) {
-            if (g is Map) groomers.add(Map<String, dynamic>.from(g));
+            if (g is Map) addParsedGroomer(g, defaultRole: 'Lead Groomer', defaultType: 'Groomer');
           }
         }
         final bList = rawMap['Bathers'] ?? rawMap['bathers'];
         if (bList is List) {
           for (var b in bList) {
-            if (b is Map) groomers.add(Map<String, dynamic>.from(b));
+            if (b is Map) addParsedGroomer(b, defaultRole: 'Bather', defaultType: 'Bather');
           }
         }
       }
+      _groomers = groomers;
       return groomers;
     } catch (error) {
       log.e("StoreRepository::getGroomers::Error loading groomers: $error");
-      return [];
+      return _groomers;
     }
   }
 

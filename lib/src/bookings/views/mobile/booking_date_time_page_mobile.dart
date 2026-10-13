@@ -111,6 +111,7 @@ class _BookingDateTimePageMobileState
   // Multi-booking slot capacity data from Step 1 POST /api/availability
   Map<String, Map<String, dynamic>> _step1SlotDataByStartTime = {};
   Map<String, int> _step1BookingCounts = {};
+  Map<String, int> _dynamicGroomerMap = {};
 
   // Active bookings for current authenticated customer (used strictly for duplicate booking validation)
   List<Map<String, dynamic>> _userActiveBookings = [];
@@ -205,6 +206,7 @@ class _BookingDateTimePageMobileState
       await Future.wait([
         ServicesLocator.storeRepository.getStoreSchedule(),
         ServicesLocator.storeRepository.getHolidays(),
+        ServicesLocator.storeRepository.getGroomers(),
       ]);
       if (mounted) {
         if (_draft.date == null || _isDateUnavailable(_draft.date!)) {
@@ -291,7 +293,8 @@ class _BookingDateTimePageMobileState
     int groomerId = 0;
     final gId = _selectedGroomerId;
     if (gId != 'any') {
-      groomerId = int.tryParse(gId) ?? 0;
+      final parsed = int.tryParse(gId) ?? 0;
+      groomerId = BookingDateUtils.resolveCanonicalGroomerId(parsed) ?? parsed;
     }
 
     // Fetch active bookings for current authenticated user (for duplicate validation)
@@ -372,12 +375,32 @@ class _BookingDateTimePageMobileState
             }
           }
         }
+        final rawApiGroomers = d['groomers'] as List<dynamic>? ?? [];
+
+        final dynGroomerMap = <String, int>{};
+        for (final ag in rawApiGroomers.whereType<Map>()) {
+          final aId = int.tryParse(ag['id']?.toString() ?? '');
+          final aName = ag['name']?.toString().toLowerCase().trim() ?? '';
+          if (aId != null && aId > 0 && aName.isNotEmpty) {
+            dynGroomerMap[aName] = aId;
+          }
+        }
+        for (final s in rawAvailSlots.whereType<Map>()) {
+          final sId = int.tryParse(s['groomerId']?.toString() ?? '');
+          final sName = s['groomerName']?.toString().toLowerCase().trim() ?? '';
+          if (sId != null && sId > 0 && sName.isNotEmpty) {
+            dynGroomerMap[sName] = sId;
+          }
+        }
+        _dynamicGroomerMap = dynGroomerMap;
+
         _step1SlotDataByStartTime = slotMap;
         _step1BookingCounts = countMap;
 
         _log.d('BookingDateTimePageMobile::_loadAvailability::Step1 result'
             ' totalDurationMinutes=$durationMinutes totalPrice=${_draft.apiTotalPrice}'
-            ' availableSlotsCount=${rawAvailSlots.length}');
+            ' availableSlotsCount=${rawAvailSlots.length}'
+            ' apiGroomersCount=${rawApiGroomers.length}');
       } else {
         _draft.apiDurationMinutes = durationMinutes;
         _log.w('BookingDateTimePageMobile::_loadAvailability::Step1 failed or empty'
@@ -441,8 +464,18 @@ class _BookingDateTimePageMobileState
         final firstName = g['firstName']?.toString() ?? g['name']?.toString() ?? '';
         final lastName  = g['lastName']?.toString() ?? '';
         final fullName  = lastName.isNotEmpty ? '$firstName $lastName' : firstName;
+        final rawId     = g['id'];
+        final gCode     = g['groomerCode']?.toString();
+        final canonId   = BookingDateUtils.resolveCanonicalGroomerId(
+          g['groomerId'] ?? rawId,
+          groomerCode: gCode,
+          groomerName: fullName,
+          dynamicGroomerMap: _dynamicGroomerMap,
+        ) ?? rawId;
+        g['id'] = canonId;
         chips.add(<String, dynamic>{
-          'id'          : (g['id'] ?? '').toString(),
+          'id'          : (canonId ?? '').toString(),
+          'groomerCode' : gCode ?? '',
           'initial'     : fullName.isNotEmpty ? fullName[0].toUpperCase() : 'G',
           'name'        : fullName,
           'role'        : g['role']?.toString() ?? '',
@@ -1037,23 +1070,37 @@ class _BookingDateTimePageMobileState
         ' remaining=${slot.capacity.remaining} isAvailable=${slot.capacity.isAvailable}'
         ' isSelectable=true');
 
+    final canonicalSlotGroomId = BookingDateUtils.resolveCanonicalGroomerId(
+      slot.groomerId,
+      groomerName: slot.groomerName,
+      dynamicGroomerMap: _dynamicGroomerMap,
+    ) ?? slot.groomerId;
+
     _draft.setSelectedSlot({
       'startTime'  : slot.startTime,
       'endTime'    : slot.endTime,
-      'groomerId'  : slot.groomerId,
+      'groomerId'  : canonicalSlotGroomId,
       'groomerName': slot.groomerName ?? '',
     });
 
     // If "No Preference" and slot carries a groomer, pin that groomer in draft
     if (_selectedGroomerId == 'any' &&
-        slot.groomerId != null &&
-        slot.groomerId! > 0) {
+        canonicalSlotGroomId != null &&
+        canonicalSlotGroomId > 0) {
+      final matchedChip = _groomerList.firstWhere(
+        (c) => c['id'] == canonicalSlotGroomId.toString(),
+        orElse: () => <String, dynamic>{},
+      );
       _draft.setGroomer({
-        'id'     : slot.groomerId.toString(),
-        'name'   : slot.groomerName ?? '',
-        'initial': (slot.groomerName?.isNotEmpty == true)
+        'id'         : canonicalSlotGroomId.toString(),
+        'groomerCode': matchedChip['groomerCode'] ?? '',
+        'name'       : (slot.groomerName?.isNotEmpty == true)
+            ? slot.groomerName!
+            : (matchedChip['name'] ?? ''),
+        'initial'    : (slot.groomerName?.isNotEmpty == true)
             ? slot.groomerName![0].toUpperCase()
-            : 'G',
+            : (matchedChip['initial'] ?? 'G'),
+        'role'       : matchedChip['role'] ?? '',
       });
     }
 
