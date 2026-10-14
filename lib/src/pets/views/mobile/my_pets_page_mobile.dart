@@ -125,6 +125,8 @@ class MyPetsPageMobile extends StatelessWidget {
                   gender: gender,
                   photoUrl: pet[Constants.database.COLUMN_PHOTO_URL]?.toString() ??
                       pet['profilePictureUrl']?.toString() ??
+                      pet['profilePicture']?.toString() ??
+                      pet['petProfilePicture']?.toString() ??
                       pet['photo_url']?.toString(),
                   assetFallback: index.isEven
                       ? 'assets/images/common/pet_1.png'

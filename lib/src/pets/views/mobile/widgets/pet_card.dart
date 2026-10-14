@@ -272,7 +272,7 @@ class PetCard extends StatelessWidget {
 
   Widget _buildPhoto() {
     final raw = photoUrl?.trim();
-    final hasPhoto = raw != null && raw.isNotEmpty && raw != 'null';
+    final hasPhoto = raw != null && raw.isNotEmpty && raw != 'null' && raw != 'undefined';
     if (!hasPhoto) {
       return _fallback();
     }

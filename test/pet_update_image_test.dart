@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
@@ -13,6 +14,7 @@ class MockApiRepository extends ApiRepository {
   String? lastPostMultipartPath;
 
   List<Map<String, dynamic>> mockPets = [];
+  Map<int, Map<String, dynamic>> mockPetById = {};
 
   @override
   Future<Map<String, dynamic>?> get(String path, {Map<String, dynamic>? query}) async {
@@ -23,6 +25,12 @@ class MockApiRepository extends ApiRepository {
           'pets': mockPets,
         },
       };
+    }
+    if (path.startsWith('/api/pets/')) {
+      final id = int.tryParse(path.replaceFirst('/api/pets/', ''));
+      if (id != null && mockPetById.containsKey(id)) {
+        return mockPetById[id];
+      }
     }
     return null;
   }
@@ -166,6 +174,81 @@ void main() {
               s.pets.first[Constants.database.COLUMN_PHOTO_URL] == 'https://example.com/uploads/rocky.jpg'),
         ]),
       );
+    });
+
+    test('getPetById extracts pet profile picture correctly from nested data.pet structure', () async {
+      mockApi.mockPetById[55] = {
+        'success': true,
+        'data': {
+          'pet': {
+            'id': 55,
+            'petName': 'Daisy',
+            'breed': 'Shih Tzu',
+            'weight': '6kg',
+            'petProfilePicture': '/uploads/pets/daisy_profile.jpg',
+            'age': '3 Years',
+            'gender': 'female',
+            'allVaccinatedCurrent': true,
+          }
+        }
+      };
+
+      final pet = await petRepo.getPetById(55);
+      expect(pet, isNotNull);
+      expect(pet!['name'], equals('Daisy'));
+      expect(pet[Constants.database.COLUMN_PHOTO_URL], equals('/uploads/pets/daisy_profile.jpg'));
+      expect(pet['profilePictureUrl'], equals('/uploads/pets/daisy_profile.jpg'));
+      expect(pet['petProfilePicture'], equals('/uploads/pets/daisy_profile.jpg'));
+    });
+
+    test('updatePet with local file attaches MultipartFile without sending invalid HTTP GET', () async {
+      final tempDir = Directory.systemTemp.createTempSync('pet_test_');
+      final localFile = File('${tempDir.path}/test_pet_avatar.jpg');
+      localFile.writeAsBytesSync([1, 2, 3, 4, 5]);
+
+      try {
+        final petData = <String, dynamic>{
+          Constants.database.COLUMN_PET_NAME: 'Buddy',
+          Constants.database.COLUMN_BREED: 'Golden Retriever',
+          Constants.database.COLUMN_WEIGHT: '30kg',
+          'age': '2 Years',
+          'gender': 'male',
+          Constants.database.COLUMN_PHOTO_URL: localFile.path,
+        };
+
+        final result = await petRepo.updatePet(99, petData);
+        expect(result, equals(1));
+        expect(mockApi.lastPutMultipartPath, equals('/api/pets/99'));
+        expect(mockApi.lastPutMultipartFormData, isNotNull);
+
+        final files = mockApi.lastPutMultipartFormData!.files;
+        expect(files.any((f) => f.key == 'profilePicture'), isTrue);
+      } finally {
+        tempDir.deleteSync(recursive: true);
+      }
+    });
+
+    test('updatePet preserves existing remote photo URL and does not overwrite with default asset', () async {
+      final petData = <String, dynamic>{
+        Constants.database.COLUMN_PET_NAME: 'Max',
+        Constants.database.COLUMN_BREED: 'Poodle',
+        Constants.database.COLUMN_WEIGHT: '12kg',
+        'age': '3 Years',
+        'gender': 'male',
+        Constants.database.COLUMN_PHOTO_URL: 'https://example.com/uploads/max_existing.jpg',
+      };
+
+      final result = await petRepo.updatePet(101, petData);
+      expect(result, equals(1));
+      expect(mockApi.lastPutMultipartPath, equals('/api/pets/101'));
+      expect(mockApi.lastPutMultipartFormData, isNotNull);
+
+      final files = mockApi.lastPutMultipartFormData!.files;
+      // When existing remote photo is unchanged, no new profilePicture binary file is attached
+      expect(files.any((f) => f.key == 'profilePicture'), isFalse);
+      // Photo URL is passed in fields so server knows the current picture
+      final fields = Map.fromEntries(mockApi.lastPutMultipartFormData!.fields);
+      expect(fields['profilePictureUrl'], equals('https://example.com/uploads/max_existing.jpg'));
     });
   });
 }

@@ -132,6 +132,24 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
       _isEdit = true;
       _populateForm(_editingPet!);
     }
+
+    if (targetId != null && targetId > 0) {
+      _fetchPetProfile(targetId);
+    }
+  }
+
+  Future<void> _fetchPetProfile(int petId) async {
+    try {
+      final pet = await ServicesLocator.petRepository.getPetById(petId);
+      if (mounted && pet != null && pet.isNotEmpty) {
+        setState(() {
+          final merged = Map<String, dynamic>.from(_editingPet ?? {});
+          merged.addAll(pet);
+          _editingPet = merged;
+          _populateForm(_editingPet!);
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -202,15 +220,22 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
     final rawPhoto = pet[Constants.database.COLUMN_PHOTO_URL]?.toString() ??
         pet['profilePictureUrl']?.toString() ??
         pet['profilePicture']?.toString() ??
+        pet['petProfilePicture']?.toString() ??
+        pet['petProfilePictureUrl']?.toString() ??
+        pet['pet_profile_picture']?.toString() ??
         pet['profile_picture']?.toString() ??
         pet['profile_picture_url']?.toString() ??
         pet['photo_url']?.toString() ??
         pet['photoUrl']?.toString() ??
+        pet['petPhoto']?.toString() ??
+        pet['pet_photo']?.toString() ??
+        pet['photo']?.toString() ??
+        pet['picture']?.toString() ??
         pet['image']?.toString() ??
         pet['avatar']?.toString() ??
         pet['petImage']?.toString() ??
         pet['pet_image']?.toString();
-    _photoPath = (rawPhoto != null && rawPhoto.trim().isNotEmpty && rawPhoto.trim() != 'null')
+    _photoPath = (rawPhoto != null && rawPhoto.trim().isNotEmpty && rawPhoto.trim().toLowerCase() != 'null')
         ? rawPhoto.trim()
         : null;
 
@@ -391,13 +416,14 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
     super.dispose();
   }
 
-  Future<void> _pickPhoto() async {
+  Future<void> _pickPhoto([ImageSource source = ImageSource.gallery]) async {
     try {
       final picker = ImagePicker();
       final file = await picker.pickImage(
-        source: ImageSource.gallery,
+        source: source,
         maxWidth: 800,
         maxHeight: 800,
+        imageQuality: 85,
       );
       if (file != null && mounted) {
         setState(() => _photoPath = file.path);
@@ -405,6 +431,65 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
     } catch (error) {
       // ignore
     }
+  }
+
+  void _showPhotoSourceModal() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE5E7EB),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Select Pet Profile Picture',
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF111827),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  leading: const Icon(Icons.camera_alt_outlined, color: Color(0xFF0F766E)),
+                  title: const Text('Take a Photo', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w500)),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _pickPhoto(ImageSource.camera);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_library_outlined, color: Color(0xFF0F766E)),
+                  title: const Text('Choose from Gallery', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w500)),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _pickPhoto(ImageSource.gallery);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _showCalendarModal(bool isBirthDate) {
@@ -540,6 +625,8 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
       Constants.database.COLUMN_PHOTO_URL: _photoPath,
       'profilePicture': _photoPath,
       'profilePictureUrl': _photoPath,
+      'petProfilePicture': _photoPath,
+      'petProfilePictureUrl': _photoPath,
       'photo_url': _photoPath,
       Constants.database.COLUMN_USER_ID: userId,
       'age': _selectedAge ?? '',
@@ -1015,7 +1102,7 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
     return Column(
       children: [
         GestureDetector(
-          onTap: _pickPhoto,
+          onTap: _showPhotoSourceModal,
           child: Stack(
             children: [
               Container(
@@ -1054,7 +1141,7 @@ class _CreatePetPageMobileState extends State<CreatePetPageMobile> {
   }
 
   Widget _buildPhotoWidget() {
-    if (_photoPath == null || _photoPath!.trim().isEmpty || _photoPath == 'null') {
+    if (_photoPath == null || _photoPath!.trim().isEmpty || _photoPath == 'null' || _photoPath == 'undefined') {
       return Center(
         child: SvgPicture.asset(
           'assets/images/pets/fi_2956744_1_1903.svg',

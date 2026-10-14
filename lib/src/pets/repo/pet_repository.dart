@@ -20,23 +20,49 @@ class PetRepository {
 
   // Maps backend API keys back to the Constants.database keys for UI compatibility
   Map<String, dynamic> _mapFromApi(Map<String, dynamic> apiData) {
-    final pet = (apiData['data'] is Map ? (apiData['data']['pet'] ?? apiData['data']) : null) ??
-        apiData['pet'] ??
-        apiData;
+    dynamic pet;
+    if (apiData['data'] is Map) {
+      final dataMap = apiData['data'] as Map;
+      pet = dataMap['pet'] ?? dataMap['data'] ?? dataMap;
+    } else if (apiData['data'] is List && (apiData['data'] as List).isNotEmpty) {
+      pet = (apiData['data'] as List).first;
+    } else if (apiData['pet'] is Map) {
+      pet = apiData['pet'];
+    } else {
+      pet = apiData;
+    }
+
     final Map<String, dynamic> map = pet is Map<String, dynamic>
         ? pet
-        : Map<String, dynamic>.from(pet as Map);
+        : (pet is Map ? Map<String, dynamic>.from(pet) : <String, dynamic>{});
 
-    final photoUrl = map['profilePictureUrl'] ??
+    final rawPhoto = map['profilePictureUrl'] ??
         map['profilePicture'] ??
         map['profile_picture'] ??
         map['profile_picture_url'] ??
+        map['petProfilePicture'] ??
+        map['petProfilePictureUrl'] ??
+        map['pet_profile_picture'] ??
+        map['pet_profile_picture_url'] ??
         map['photo_url'] ??
         map['photoUrl'] ??
+        map['petPhoto'] ??
+        map['pet_photo'] ??
+        map['petPhotoUrl'] ??
+        map['pet_photo_url'] ??
+        map['photo'] ??
+        map['picture'] ??
         map['image'] ??
         map['avatar'] ??
         map['petImage'] ??
         map['pet_image'];
+
+    final String? photoUrl = (rawPhoto != null &&
+            rawPhoto.toString().trim().isNotEmpty &&
+            rawPhoto.toString().trim().toLowerCase() != 'null' &&
+            rawPhoto.toString().trim().toLowerCase() != 'undefined')
+        ? rawPhoto.toString().trim()
+        : null;
 
     final rawId = map['id'] ?? map['_id'] ?? map['petId'] ?? map['pet_id'];
     final int? intId = rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
@@ -66,8 +92,17 @@ class PetRepository {
       'profilePicture': photoUrl,
       'profile_picture': photoUrl,
       'profile_picture_url': photoUrl,
+      'petProfilePicture': photoUrl,
+      'petProfilePictureUrl': photoUrl,
+      'pet_profile_picture': photoUrl,
+      'pet_profile_picture_url': photoUrl,
       'photo_url': photoUrl,
       'photoUrl': photoUrl,
+      'petPhoto': photoUrl,
+      'pet_photo': photoUrl,
+      'petPhotoUrl': photoUrl,
+      'photo': photoUrl,
+      'picture': photoUrl,
       'image': photoUrl,
       'avatar': photoUrl,
       'petImage': photoUrl,
@@ -99,13 +134,20 @@ class PetRepository {
         petsList = response['pets'];
       }
       
+      if (petsList is Map) {
+        petsList = [petsList];
+      }
+
       if (petsList == null || petsList is! List) {
         log.w("PetRepository::getAllPets::No pets list found");
         return [];
       }
 
       log.d("PetRepository::getAllPets::Extracted ${petsList.length} pets from response");
-      return petsList.map((e) => _mapFromApi(e as Map<String, dynamic>)).toList();
+      return petsList
+          .whereType<Map>()
+          .map((e) => _mapFromApi(Map<String, dynamic>.from(e)))
+          .toList();
     } catch (error) {
       log.e("PetRepository::getAllPets::Error: $error");
       return [];
@@ -124,13 +166,49 @@ class PetRepository {
     }
   }
 
-  Future<MultipartFile?> _resolvePhotoMultipart(String? photoPath) async {
-    if (photoPath == null || photoPath.trim().isEmpty || photoPath == 'null') {
+  Future<MultipartFile?> _resolvePhotoMultipart(String? photoPath, {bool isUpdate = false}) async {
+    if (photoPath == null || photoPath.trim().isEmpty || photoPath == 'null' || photoPath == 'undefined') {
       return null;
     }
     final trimmed = photoPath.trim();
 
-    // 1. Network URL
+    // 1. Local file on device (e.g. chosen from gallery or camera)
+    // Checked FIRST so local files ending in .jpg/.png are never misidentified as remote URLs
+    if (!trimmed.startsWith('http://') &&
+        !trimmed.startsWith('https://') &&
+        !trimmed.startsWith('assets/')) {
+      try {
+        final file = File(trimmed);
+        if (file.existsSync()) {
+          final fileName = trimmed.split(RegExp(r'[/\\]')).last;
+          log.d("PetRepository::_resolvePhotoMultipart::Found local file: $fileName");
+          return await MultipartFile.fromFile(trimmed, filename: fileName);
+        }
+      } catch (e) {
+        log.w("PetRepository::_resolvePhotoMultipart::Error reading local file: $e");
+      }
+    }
+
+    // 2. Asset bundle file (e.g. 'assets/images/common/pet_1.png')
+    if (trimmed.startsWith('assets/')) {
+      try {
+        final byteData = await rootBundle.load(trimmed);
+        final bytes = byteData.buffer.asUint8List();
+        final fileName = trimmed.split('/').last;
+        log.d("PetRepository::_resolvePhotoMultipart::Loaded asset bundle: $fileName");
+        return MultipartFile.fromBytes(bytes, filename: fileName);
+      } catch (e) {
+        log.w("PetRepository::_resolvePhotoMultipart::Failed to load asset: $e");
+      }
+    }
+
+    // 3. For updatePet: if photoPath is already a remote URL, do NOT re-upload or overwrite
+    if (isUpdate) {
+      log.d("PetRepository::_resolvePhotoMultipart::Existing remote photo preserved on update: $trimmed");
+      return null;
+    }
+
+    // 4. Remote network URL (for createPet if user provided an online URL)
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
       try {
         final dio = Dio(BaseOptions(
@@ -151,17 +229,13 @@ class PetRepository {
       }
     }
 
-    // 2. Relative server upload URL (e.g. /uploads/pets/xyz.jpg)
+    // 5. Relative server upload URL (for createPet)
     if (trimmed.startsWith('/uploads/') ||
         trimmed.startsWith('uploads/') ||
-        trimmed.contains('/uploads/') ||
-        trimmed.endsWith('.jpg') ||
-        trimmed.endsWith('.jpeg') ||
-        trimmed.endsWith('.png') ||
-        trimmed.endsWith('.webp')) {
+        trimmed.contains('/uploads/')) {
       try {
         final clean = trimmed.startsWith('/') ? trimmed.substring(1) : trimmed;
-        final fullUrl = clean.startsWith('http') ? clean : '${Constants.app.BASE_URL}/$clean';
+        final fullUrl = '${Constants.app.BASE_URL}/$clean';
         final dio = Dio(BaseOptions(
           connectTimeout: const Duration(seconds: 10),
           receiveTimeout: const Duration(seconds: 10),
@@ -180,28 +254,17 @@ class PetRepository {
       }
     }
 
-    // 3. Local file
-    if (!trimmed.startsWith('assets/')) {
+    // 6. Asset bundle fallback (ONLY for createPet when creating a new pet profile)
+    if (!isUpdate) {
       try {
-        final file = File(trimmed);
-        if (file.existsSync()) {
-          final fileName = trimmed.split(RegExp(r'[/\\]')).last;
-          return await MultipartFile.fromFile(trimmed, filename: fileName);
-        }
+        const assetPath = 'assets/images/common/pet_1.png';
+        final byteData = await rootBundle.load(assetPath);
+        final bytes = byteData.buffer.asUint8List();
+        const fileName = 'pet_1.png';
+        return MultipartFile.fromBytes(bytes, filename: fileName);
       } catch (e) {
-        log.w("PetRepository::_resolvePhotoMultipart::Error reading local file: $e");
+        log.w("PetRepository::_resolvePhotoMultipart::Failed to load asset fallback: $e");
       }
-    }
-
-    // 4. Asset bundle fallback
-    try {
-      final assetPath = trimmed.startsWith('assets/') ? trimmed : 'assets/images/common/pet_1.png';
-      final byteData = await rootBundle.load(assetPath);
-      final bytes = byteData.buffer.asUint8List();
-      final fileName = assetPath.split('/').last;
-      return MultipartFile.fromBytes(bytes, filename: fileName);
-    } catch (e) {
-      log.w("PetRepository::_resolvePhotoMultipart::Failed to load asset fallback: $e");
     }
 
     return null;
@@ -235,6 +298,8 @@ class PetRepository {
       final photoPath = (petData[Constants.database.COLUMN_PHOTO_URL] ??
               petData['profilePicture'] ??
               petData['profilePictureUrl'] ??
+              petData['petProfilePicture'] ??
+              petData['petProfilePictureUrl'] ??
               petData['photo_url'] ??
               petData['photoUrl'] ??
               petData['image'])
@@ -243,7 +308,7 @@ class PetRepository {
 
       final formData = FormData.fromMap(map);
 
-      final photoFile = await _resolvePhotoMultipart(photoPath);
+      final photoFile = await _resolvePhotoMultipart(photoPath, isUpdate: false);
       if (photoFile != null) {
         formData.files.add(MapEntry('profilePicture', photoFile));
       }
@@ -292,6 +357,8 @@ class PetRepository {
       final photoPath = (petData[Constants.database.COLUMN_PHOTO_URL] ??
               petData['profilePicture'] ??
               petData['profilePictureUrl'] ??
+              petData['petProfilePicture'] ??
+              petData['petProfilePictureUrl'] ??
               petData['photo_url'] ??
               petData['photoUrl'] ??
               petData['image'])
@@ -300,9 +367,13 @@ class PetRepository {
 
       final formData = FormData.fromMap(map);
 
-      final photoFile = await _resolvePhotoMultipart(photoPath);
+      final photoFile = await _resolvePhotoMultipart(photoPath, isUpdate: true);
       if (photoFile != null) {
         formData.files.add(MapEntry('profilePicture', photoFile));
+      } else if (photoPath != null && photoPath.isNotEmpty && photoPath != 'null' && photoPath != 'undefined') {
+        formData.fields.add(MapEntry('profilePictureUrl', photoPath));
+        formData.fields.add(MapEntry('photo_url', photoPath));
+        formData.fields.add(MapEntry('petProfilePicture', photoPath));
       }
 
       final success = await _api.putMultipart('/api/pets/$petId', formData);

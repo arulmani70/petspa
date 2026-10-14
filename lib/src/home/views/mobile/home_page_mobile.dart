@@ -1689,6 +1689,8 @@ Widget _buildMyPets(BuildContext context) {
                       '';
                   final photoUrl = pet[Constants.database.COLUMN_PHOTO_URL]?.toString() ??
                       pet['profilePictureUrl']?.toString() ??
+                      pet['profilePicture']?.toString() ??
+                      pet['petProfilePicture']?.toString() ??
                       pet['photo_url']?.toString();
                   final fallbackAsset = entry.key.isEven
                       ? 'assets/images/common/pet_1.png'
@@ -1785,16 +1787,12 @@ Widget _buildPetAvatar(
         Container(
           width: 74,
           height: 74,
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(21),
-            image: DecorationImage(
-              image: (photoUrl != null && photoUrl.isNotEmpty)
-                  ? NetworkImage('${Constants.app.BASE_URL}$photoUrl')
-                        as ImageProvider
-                  : AssetImage(fallbackAsset),
-              fit: BoxFit.cover,
-            ),
+            color: const Color(0xFFF3F4F6),
           ),
+          child: _buildAvatarImage(photoUrl, fallbackAsset),
         ),
         const SizedBox(height: 9),
         Text(
@@ -1808,6 +1806,48 @@ Widget _buildPetAvatar(
         ),
       ],
     ),
+  );
+}
+
+Widget _buildAvatarImage(String? photoUrl, String fallbackAsset) {
+  final raw = photoUrl?.trim();
+  if (raw == null || raw.isEmpty || raw.toLowerCase() == 'null' || raw.toLowerCase() == 'undefined') {
+    return Image.asset(fallbackAsset, fit: BoxFit.cover);
+  }
+
+  if (raw.startsWith('assets/')) {
+    return Image.asset(
+      raw,
+      fit: BoxFit.cover,
+      errorBuilder: (ctx, err, st) => Image.asset(fallbackAsset, fit: BoxFit.cover),
+    );
+  }
+
+  if (raw.startsWith('http://') || raw.startsWith('https://')) {
+    return Image.network(
+      raw,
+      fit: BoxFit.cover,
+      errorBuilder: (ctx, err, st) => Image.asset(fallbackAsset, fit: BoxFit.cover),
+    );
+  }
+
+  try {
+    final file = File(raw);
+    if (file.existsSync()) {
+      return Image.file(
+        file,
+        fit: BoxFit.cover,
+        errorBuilder: (ctx, err, st) => Image.asset(fallbackAsset, fit: BoxFit.cover),
+      );
+    }
+  } catch (_) {}
+
+  final clean = raw.startsWith('/') ? raw.substring(1) : raw;
+  final fullUrl = '${Constants.app.BASE_URL}/$clean';
+  return Image.network(
+    fullUrl,
+    fit: BoxFit.cover,
+    errorBuilder: (ctx, err, st) => Image.asset(fallbackAsset, fit: BoxFit.cover),
   );
 }
 
