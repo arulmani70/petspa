@@ -10,7 +10,6 @@ import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/app_assets.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/shimmer_loading.dart';
 import 'package:shear_heaven_pet_spa/src/services/bloc/service_bloc.dart';
-import 'package:shear_heaven_pet_spa/src/services/repo/service_repository.dart';
 
 class PackagesPageMobile extends StatelessWidget {
   const PackagesPageMobile({super.key});
@@ -22,15 +21,19 @@ class PackagesPageMobile extends StatelessWidget {
           ServiceBloc(repository: ServicesLocator.serviceRepository)
             ..add(const GetAllPackages()),
       child: PopScope(
-        canPop: context.canPop(),
+        canPop: false,
         onPopInvokedWithResult: (didPop, result) {
           if (didPop) return;
-          context.goNamed(RouteNames.home);
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.goNamed(RouteNames.home);
+          }
         },
         child: Scaffold(
           backgroundColor: const Color(0xFFFAFAFA),
           appBar: AppBar(
-            backgroundColor: Colors.white,
+            backgroundColor: const Color(0xFFFAFAFA),
             elevation: 0,
             scrolledUnderElevation: 0,
             leading: IconButton(
@@ -65,15 +68,17 @@ class PackagesPageMobile extends StatelessWidget {
                 return ListView(
                   padding: const EdgeInsets.fromLTRB(17, 22, 17, 24),
                   children: const [
-                    PackageCardSkeleton(), SizedBox(height: 20),
-                    PackageCardSkeleton(), SizedBox(height: 20),
+                    PackageCardSkeleton(),
+                    SizedBox(height: 20),
+                    PackageCardSkeleton(),
+                    SizedBox(height: 20),
                     PackageCardSkeleton(),
                   ],
                 );
               }
 
               final packages = state.packages;
-              
+
               if (state.status == ServiceStatus.success && packages.isEmpty) {
                 return const Center(child: Text("No packages available"));
               }
@@ -100,43 +105,6 @@ class _PackageCard extends StatelessWidget {
 
   const _PackageCard({required this.package, required this.index});
 
-  Widget _buildBackground() {
-    String fallbackAsset;
-    if (index == 1) {
-      fallbackAsset = 'assets/images/home/package_banner_1.png';
-    } else if (index == 2) {
-      fallbackAsset = 'assets/images/home/package_banner_2.png';
-    } else {
-      fallbackAsset = 'assets/images/packages/package_banner.png';
-    }
-
-    final rawUrl = package['imageUrl'] ?? package['image_url'];
-    final resolvedUrl = ServiceRepository.resolveImageUrl(rawUrl);
-
-    Widget fallback() => DecoratedBox(
-      decoration: BoxDecoration(
-        color: const Color(0xFF1C1B1F),
-        image: figmaDecorationImage(fallbackAsset),
-      ),
-    );
-
-    if (resolvedUrl != null && resolvedUrl.isNotEmpty) {
-      if (resolvedUrl.startsWith('assets/')) {
-        return FigmaImage(
-          asset: resolvedUrl,
-          fit: BoxFit.cover,
-          fallback: fallback(),
-        );
-      }
-      return Image.network(
-        resolvedUrl,
-        fit: BoxFit.cover,
-        errorBuilder: (ctx, err, st) => fallback(),
-      );
-    }
-    return fallback();
-  }
-
   @override
   Widget build(BuildContext context) {
     final name =
@@ -144,11 +112,21 @@ class _PackageCard extends StatelessWidget {
     final description =
         package[Constants.database.COLUMN_DESCRIPTION]?.toString() ?? '';
     final priceRaw = package[Constants.database.COLUMN_PRICE];
-    final price = priceRaw is num ? priceRaw.toDouble() : (priceRaw != null ? double.tryParse(priceRaw.toString().replaceAll(RegExp(r'[^0-9.]'), '')) : null);
+    final price = priceRaw is num
+        ? priceRaw.toDouble()
+        : (priceRaw != null
+              ? double.tryParse(
+                  priceRaw.toString().replaceAll(RegExp(r'[^0-9.]'), ''),
+                )
+              : null);
     final breedList = package['breeds']?.toString() ?? '';
     final services = package['services']?.toString() ?? '';
     final hasExtra = package['extra'] == true;
-    final pkgId = package['packageId'] ?? package['id'] ?? package['package_id'] ?? (index + 1);
+    final pkgId =
+        package['packageId'] ??
+        package['id'] ??
+        package['package_id'] ??
+        (index + 1);
 
     final groomingPrice =
         package['grooming_price']?.toString() ??
@@ -224,7 +202,14 @@ class _PackageCard extends StatelessWidget {
                   child: Stack(
                     children: [
                       Positioned.fill(
-                        child: _buildBackground(),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1C1B1F),
+                            image: figmaDecorationImage(
+                              'assets/images/packages/package_banner.png',
+                            ),
+                          ),
+                        ),
                       ),
                       Positioned.fill(
                         child: DecoratedBox(
@@ -233,117 +218,123 @@ class _PackageCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(23, 28, 23, 21),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppFonts.poppins(
-                              size: 20,
-                              weight: FontWeight.w600,
-                              color: Colors.white,
-                              height: 20 / 20,
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(23, 28, 23, 21),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppFonts.poppins(
+                                size: 20,
+                                weight: FontWeight.w600,
+                                color: Colors.white,
+                                height: 20 / 20,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            breedList,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppFonts.poppins(
-                              size: 14,
-                              weight: FontWeight.w400,
-                              color: Colors.white,
-                              height: 20 / 14,
+                            const SizedBox(height: 4),
+                            Text(
+                              breedList,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppFonts.poppins(
+                                size: 14,
+                                weight: FontWeight.w400,
+                                color: Colors.white,
+                                height: 20 / 14,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 16),
-                          if (hasExtra)
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    services,
-                                    style: AppFonts.poppins(
-                                      size: 18,
-                                      weight: FontWeight.w400,
-                                      color: Colors.white,
-                                      height: 20 / 18,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      singlePrice,
-                                      style: AppFonts.montserrat(
-                                        size: 22,
-                                        weight: FontWeight.w700,
-                                        color: Colors.white,
-                                        height: 27.97 / 22,
-                                      ),
-                                    ),
-                                    Text(
-                                      "& UP",
+                            const SizedBox(height: 16),
+                            if (hasExtra)
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      services,
                                       style: AppFonts.poppins(
-                                        size: 14,
+                                        size: 18,
                                         weight: FontWeight.w400,
                                         color: Colors.white,
-                                        height: 20 / 14,
+                                        height: 20 / 18,
                                       ),
                                     ),
-                                  ],
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        singlePrice,
+                                        style: AppFonts.montserrat(
+                                          size: 22,
+                                          weight: FontWeight.w700,
+                                          color: Colors.white,
+                                          height: 27.97 / 22,
+                                        ),
+                                      ),
+                                      Text(
+                                        "& UP",
+                                        style: AppFonts.poppins(
+                                          size: 14,
+                                          weight: FontWeight.w400,
+                                          color: Colors.white,
+                                          height: 20 / 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              )
+                            else ...[
+                              _priceRow(
+                                label: "Grooming",
+                                price: groomingPrice,
+                              ),
+                              const SizedBox(height: 10),
+                              _priceRow(label: "Bath", price: bathPrice),
+                            ],
+                            const Spacer(),
+                            GestureDetector(
+                              onTap: () => context.pushNamed(
+                                RouteNames.bookingService,
+                                extra: {
+                                  'service': package,
+                                  'from_popular': true,
+                                },
+                              ),
+                              child: Container(
+                                width: double.infinity,
+                                height: 50,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(30),
                                 ),
-                              ],
-                            )
-                          else ...[
-                            _priceRow(label: "Grooming", price: groomingPrice),
-                            const SizedBox(height: 10),
-                            _priceRow(label: "Bath", price: bathPrice),
+                                child: Text(
+                                  "Book Now",
+                                  style: AppFonts.poppins(
+                                    size: 17.7,
+                                    weight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ],
-                          const Spacer(),
-                          GestureDetector(
-                            onTap: () => context.pushNamed(
-                              RouteNames.bookingService,
-                              extra: {'service': package, 'from_popular': true},
-                            ),
-                            child: Container(
-                              width: double.infinity,
-                              height: 50,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(30),
-                              ),
-                              child: Text(
-                                "Book Now",
-                                style: AppFonts.poppins(
-                                  size: 17.7,
-                                  weight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _priceRow({required String label, required String price}) {
     return Row(
@@ -382,4 +373,3 @@ class _PackageCard extends StatelessWidget {
     );
   }
 }
-
