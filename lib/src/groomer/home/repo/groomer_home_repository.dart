@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'package:intl/intl.dart';
 import 'package:logger/logger.dart';
 import 'package:shear_heaven_pet_spa/src/account/models/app_notification.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/utils/booking_date_utils.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/push_notification_service.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/session_service.dart';
@@ -403,6 +406,259 @@ class GroomerHomeRepository {
     }
   }
 
+  /// GET /api/groomer-auth/groomer-availability/:groomerId?date=YYYY-MM-DD&page=1&limit=10
+  /// Fetches availability appointments for a specific groomer.
+  Future<List<GroomerBooking>> getGroomerAvailabilityAppointments({
+    required int groomerId,
+    required String date,
+    int page = 1,
+    int limit = 10,
+  }) async {
+    try {
+      log.d('GroomerHomeRepository::getGroomerAvailabilityAppointments::Fetching availability for groomer #$groomerId on $date (page: $page, limit: $limit)');
+      final queryParams = <String, dynamic>{
+        'date': date,
+        'page': page,
+        'limit': limit,
+        'groomerId': groomerId,
+      };
+
+      final response = await ServicesLocator.apiRepository.get(
+        '/api/groomer-auth/groomer-availability/$groomerId',
+        query: queryParams,
+      );
+
+      return _parseAvailabilityAppointmentsResponse(
+        response,
+        targetGroomerId: groomerId,
+        date: date,
+      );
+    } catch (e) {
+      log.e('GroomerHomeRepository::getGroomerAvailabilityAppointments::Error: $e');
+      return [];
+    }
+  }
+
+  /// Fetches availability appointments across all salon groomers.
+  /// Calls GET /api/groomer-auth/groomer-availability/:groomerId for each groomer ID,
+  /// then combines the results without duplicate appointments.
+  Future<List<GroomerBooking>> getAllGroomersAvailabilityAppointments({
+    required List<int> groomerIds,
+    required String date,
+    int page = 1,
+    int limit = 10,
+  }) async {
+    try {
+      log.d('GroomerHomeRepository::getAllGroomersAvailabilityAppointments::Fetching for ${groomerIds.length} groomers on $date (page: $page, limit: $limit)');
+
+      List<int> idsToFetch = List.from(groomerIds.where((id) => id > 0).toSet());
+      if (idsToFetch.isEmpty) {
+        final salonGroomers = await getSalonGroomers();
+        idsToFetch = salonGroomers.map((g) => g.id).where((id) => id > 0).toSet().toList();
+      }
+
+      if (idsToFetch.isEmpty) {
+        return [];
+      }
+
+      final responses = await Future.wait(
+        idsToFetch.map((gid) => getGroomerAvailabilityAppointments(
+          groomerId: gid,
+          date: date,
+          page: page,
+          limit: limit,
+        )),
+      );
+
+      final Map<String, GroomerBooking> uniqueAppointments = {};
+      for (final list in responses) {
+        for (final booking in list) {
+          final key = booking.bookingId > 0
+              ? 'id_${booking.bookingId}'
+              : 'slot_${booking.groomerId}_${booking.bookingDate}_${booking.startTime}_${booking.endTime}';
+          if (!uniqueAppointments.containsKey(key)) {
+            uniqueAppointments[key] = booking;
+          }
+        }
+      }
+
+      final combined = uniqueAppointments.values.toList();
+      combined.sort((a, b) {
+        final da = BookingDateUtils.parseCalendarDate(a.bookingDate) ?? DateTime(1970);
+        final db = BookingDateUtils.parseCalendarDate(b.bookingDate) ?? DateTime(1970);
+        final dateComp = da.compareTo(db);
+        if (dateComp != 0) return dateComp;
+        final ta = BookingDateUtils.timeToMinutes(a.startTime) ?? 0;
+        final tb = BookingDateUtils.timeToMinutes(b.startTime) ?? 0;
+        return ta.compareTo(tb);
+      });
+
+      return combined;
+    } catch (e) {
+      log.e('GroomerHomeRepository::getAllGroomersAvailabilityAppointments::Error: $e');
+      return [];
+    }
+  }
+
+  /// Exposes response parsing for unit tests and availability mappings.
+  @visibleForTesting
+  List<GroomerBooking> parseAvailabilityAppointmentsResponse(
+    Map<String, dynamic>? response, {
+    int? targetGroomerId,
+    required String date,
+  }) {
+    return _parseAvailabilityAppointmentsResponse(
+      response,
+      targetGroomerId: targetGroomerId,
+      date: date,
+    );
+  }
+
+  /// Parses the response from /api/groomer-auth/groomer-availability/:groomerId
+  /// into a list of GroomerBooking objects.
+  List<GroomerBooking> _parseAvailabilityAppointmentsResponse(
+    Map<String, dynamic>? response, {
+    int? targetGroomerId,
+    required String date,
+  }) {
+    if (response == null || response['data'] == null) {
+      return [];
+    }
+
+    final data = response['data'];
+    final List<GroomerBooking> appointments = [];
+
+    void parseGroomerSlots(Map<dynamic, dynamic> groomerMap) {
+      final gId = int.tryParse(groomerMap['id']?.toString() ?? groomerMap['groomerId']?.toString() ?? '') ?? targetGroomerId;
+      final gName = groomerMap['name']?.toString() ??
+          groomerMap['fullName']?.toString() ??
+          (groomerMap['firstName'] != null
+              ? '${groomerMap['firstName']} ${groomerMap['lastName'] ?? ''}'.trim()
+              : null);
+      final gCode = groomerMap['groomerCode']?.toString();
+
+      final slotsRaw = groomerMap['busySlots'] ??
+          groomerMap['slots'] ??
+          groomerMap['appointments'] ??
+          groomerMap['bookings'];
+
+      if (slotsRaw is List) {
+        for (final slot in slotsRaw) {
+          if (slot is Map) {
+            final bId = int.tryParse(slot['bookingId']?.toString() ?? slot['id']?.toString() ?? '') ?? 0;
+            final bDate = slot['bookingDate']?.toString() ?? date;
+            final sTime = slot['startTime']?.toString() ?? '';
+            final eTime = slot['endTime']?.toString() ?? '';
+            final status = slot['status']?.toString() ?? 'pending';
+
+            if (bId > 0 || (sTime.isNotEmpty && eTime.isNotEmpty)) {
+              appointments.add(GroomerBooking(
+                bookingId: bId,
+                status: status,
+                bookingDate: bDate,
+                startTime: sTime,
+                endTime: eTime,
+                petName: slot['petName']?.toString() ??
+                    slot['pet_name']?.toString() ??
+                    (slot['pet'] is Map ? (slot['pet']['petName']?.toString() ?? slot['pet']['name']?.toString()) : null) ??
+                    'Pet',
+                breed: slot['breed']?.toString() ??
+                    (slot['pet'] is Map ? slot['pet']['breed']?.toString() : null) ??
+                    '',
+                profilePicture: slot['profilePicture']?.toString() ??
+                    (slot['pet'] is Map ? (slot['pet']['profilePicture']?.toString() ?? slot['pet']['profilePictureUrl']?.toString()) : null),
+                customerName: slot['customerName']?.toString() ??
+                    slot['customer_name']?.toString() ??
+                    (slot['user'] is Map ? (slot['user']['name']?.toString() ?? slot['user']['fullName']?.toString()) : null) ??
+                    (slot['customer'] is Map ? (slot['customer']['name']?.toString() ?? slot['customer']['fullName']?.toString()) : null) ??
+                    'Customer',
+                customerEmail: slot['customerEmail']?.toString() ??
+                    (slot['user'] is Map ? slot['user']['email']?.toString() : null) ??
+                    '',
+                customerMobile: slot['customerMobile']?.toString() ??
+                    slot['customer_mobile']?.toString() ??
+                    slot['mobile']?.toString() ??
+                    slot['phone']?.toString() ??
+                    slot['contactNumber']?.toString() ??
+                    slot['phoneNumber']?.toString() ??
+                    (slot['user'] is Map ? (slot['user']['mobile']?.toString() ?? slot['user']['phone']?.toString()) : null) ??
+                    (slot['customer'] is Map ? (slot['customer']['mobile']?.toString() ?? slot['customer']['phone']?.toString() ?? slot['customer']['phoneNumber']?.toString()) : null) ??
+                    '',
+                serviceName: slot['serviceName']?.toString() ??
+                    (slot['service'] is Map ? slot['service']['name']?.toString() : null) ??
+                    'Grooming',
+                packageName: slot['packageName']?.toString() ??
+                    (slot['package'] is Map ? slot['package']['name']?.toString() : null),
+                addOns: slot['addOns'] is List
+                    ? (slot['addOns'] as List).map((a) => a is Map ? a['name'].toString() : a.toString()).toList()
+                    : const [],
+                totalPrice: double.tryParse(slot['totalPrice']?.toString() ?? '') ?? 0.0,
+                totalDurationMinutes: int.tryParse(slot['totalDurationMinutes']?.toString() ?? '') ?? 60,
+                storeId: slot['storeId']?.toString() ?? '',
+                groomerId: gId,
+                groomerName: gName,
+                groomerCode: gCode,
+              ));
+            }
+          }
+        }
+      }
+    }
+
+    if (data is Map) {
+      if (data['groomers'] is List) {
+        final groomersList = data['groomers'] as List;
+        for (final g in groomersList) {
+          if (g is Map) {
+            final gid = int.tryParse(g['id']?.toString() ?? g['groomerId']?.toString() ?? '');
+            if (targetGroomerId == null || targetGroomerId <= 0 || gid == targetGroomerId) {
+              parseGroomerSlots(g);
+            }
+          }
+        }
+      } else if (data['busySlots'] is List || data['slots'] is List) {
+        parseGroomerSlots(data);
+      } else {
+        parseGroomerSlots(data);
+      }
+    } else if (data is List) {
+      for (final item in data) {
+        if (item is Map) {
+          parseGroomerSlots(item);
+        }
+      }
+    }
+
+    return appointments;
+  }
+
+  /// Dedicated method for All Groomers Schedule fetching.
+  /// Delegates directly to the groomer availability endpoint.
+  Future<List<GroomerBooking>> getAllGroomersBookings({
+    int? groomerId,
+    String? date,
+    int page = 1,
+    int limit = 10,
+    List<int>? groomerIds,
+  }) async {
+    final targetDate = date ?? DateFormat('yyyy-MM-dd').format(DateTime.now());
+    if (groomerId != null && groomerId > 0) {
+      return getGroomerAvailabilityAppointments(
+        groomerId: groomerId,
+        date: targetDate,
+        page: page,
+        limit: limit,
+      );
+    } else {
+      return getAllGroomersAvailabilityAppointments(
+        groomerIds: groomerIds ?? [],
+        date: targetDate,
+        page: page,
+        limit: limit,
+      );
+    }
+  }
+
   /// POST /api/groomer-auth/bookings/:id/approve
   Future<({bool success, String message})> approveBookingDetails(int bookingId, {GroomerBooking? booking}) async {
     try {
@@ -449,7 +705,7 @@ class GroomerHomeRepository {
       final msg = response?['message']?.toString() ??
           (isSuccess ? 'Booking #$bookingId approved successfully' : 'Failed to approve booking.');
       if (isSuccess) {
-        final data = response?['data'] is Map ? Map<String, dynamic>.from(response!['data'] as Map) : null;
+        final data = response['data'] is Map ? Map<String, dynamic>.from(response['data'] as Map) : null;
         await _dispatchBookingStatusNotification(
           bookingId: bookingId,
           customerTitle: 'Booking Confirmed',
@@ -486,7 +742,7 @@ class GroomerHomeRepository {
       final msg = response?['message']?.toString() ??
           (isSuccess ? 'Booking #$bookingId rejected' : 'Failed to reject booking.');
       if (isSuccess) {
-        final data = response?['data'] is Map ? Map<String, dynamic>.from(response!['data'] as Map) : null;
+        final data = response['data'] is Map ? Map<String, dynamic>.from(response['data'] as Map) : null;
         await _dispatchBookingStatusNotification(
           bookingId: bookingId,
           customerTitle: 'Booking Request Declined',
@@ -523,7 +779,7 @@ class GroomerHomeRepository {
       final msg = response?['message']?.toString() ??
           (isSuccess ? 'Appointment #$bookingId is now In Progress' : 'Failed to start appointment.');
       if (isSuccess) {
-        final data = response?['data'] is Map ? Map<String, dynamic>.from(response!['data'] as Map) : null;
+        final data = response['data'] is Map ? Map<String, dynamic>.from(response['data'] as Map) : null;
         await _dispatchBookingStatusNotification(
           bookingId: bookingId,
           customerTitle: 'Grooming Started',
@@ -560,7 +816,7 @@ class GroomerHomeRepository {
       final msg = response?['message']?.toString() ??
           (isSuccess ? 'Appointment #$bookingId marked as completed' : 'Failed to complete appointment.');
       if (isSuccess) {
-        final data = response?['data'] is Map ? Map<String, dynamic>.from(response!['data'] as Map) : null;
+        final data = response['data'] is Map ? Map<String, dynamic>.from(response['data'] as Map) : null;
         await _dispatchBookingStatusNotification(
           bookingId: bookingId,
           customerTitle: 'Grooming Completed',
@@ -597,7 +853,7 @@ class GroomerHomeRepository {
       final msg = response?['message']?.toString() ??
           (isSuccess ? 'Cancellation for Booking #$bookingId approved' : 'Failed to approve cancellation.');
       if (isSuccess) {
-        final data = response?['data'] is Map ? Map<String, dynamic>.from(response!['data'] as Map) : null;
+        final data = response['data'] is Map ? Map<String, dynamic>.from(response['data'] as Map) : null;
         await _dispatchBookingStatusNotification(
           bookingId: bookingId,
           customerTitle: 'Cancellation Approved',
@@ -634,7 +890,7 @@ class GroomerHomeRepository {
       final msg = response?['message']?.toString() ??
           (isSuccess ? 'Cancellation for Booking #$bookingId rejected' : 'Failed to reject cancellation.');
       if (isSuccess) {
-        final data = response?['data'] is Map ? Map<String, dynamic>.from(response!['data'] as Map) : null;
+        final data = response['data'] is Map ? Map<String, dynamic>.from(response['data'] as Map) : null;
         await _dispatchBookingStatusNotification(
           bookingId: bookingId,
           customerTitle: 'Cancellation Declined',

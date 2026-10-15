@@ -54,6 +54,7 @@ mixin RouteNames {
   static const groomerLogin = "groomer-login";
   static const groomerRegister = "groomer-register";
   static const groomerHome = "groomer-home";
+  static const groomerAllSchedule = "groomer-all-schedule";
 
   static const mainShell = "main-shell";
 }

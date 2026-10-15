@@ -28,6 +28,7 @@ import 'package:shear_heaven_pet_spa/src/common/widgets/file_not_found.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/splashscreen.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_user.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/views/groomer_home_page.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/home/views/all_groomers/all_groomers_schedule_page.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/login/views/groomer_login_page.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/register/views/groomer_register_page.dart';
 import 'package:shear_heaven_pet_spa/src/home/views/home_page.dart';
@@ -61,7 +62,8 @@ class Routes {
       final isGroomerLoggedIn = session.isGroomerLoggedIn;
 
       // Protected Groomer routes
-      if (loc.startsWith('/${RouteNames.groomerHome}')) {
+      if (loc.startsWith('/${RouteNames.groomerHome}') ||
+          loc.startsWith('/${RouteNames.groomerAllSchedule}')) {
         if (!isGroomerLoggedIn) {
           return '/${RouteNames.login}';
         }
@@ -377,6 +379,15 @@ class Routes {
         name: RouteNames.groomerHome,
         path: '/${RouteNames.groomerHome}',
         builder: (context, state) => const GroomerHomePage(),
+      ),
+
+      GoRoute(
+        name: RouteNames.groomerAllSchedule,
+        path: '/${RouteNames.groomerAllSchedule}',
+        builder: (context, state) {
+          final gid = state.uri.queryParameters['groomerId'];
+          return AllGroomersSchedulePage(initialGroomerFilterId: gid);
+        },
       ),
     ],
     errorBuilder: (context, state) {

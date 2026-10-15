@@ -26,6 +26,9 @@ class GroomerBooking {
   final String storeId;
   final String? createdAt;
   final String? cancellationReason;
+  final int? groomerId;
+  final String? groomerName;
+  final String? groomerCode;
 
   const GroomerBooking({
     required this.bookingId,
@@ -51,7 +54,25 @@ class GroomerBooking {
     this.storeId = '',
     this.createdAt,
     this.cancellationReason,
+    this.groomerId,
+    this.groomerName,
+    this.groomerCode,
   });
+
+  String get effectiveGroomerName {
+    if (groomerName != null && groomerName!.trim().isNotEmpty) {
+      return groomerName!.trim();
+    }
+    if (groomerId != null && groomerId! > 0) {
+      final name = BookingDateUtils.resolveGroomerNameById(groomerId!);
+      if (name != null && name.isNotEmpty) return name;
+      return 'Groomer #$groomerId';
+    }
+    if (groomerCode != null && groomerCode!.trim().isNotEmpty) {
+      return 'Groomer ${groomerCode!.trim()}';
+    }
+    return 'Assigned Staff';
+  }
 
   String get formattedBookingDate =>
       BookingDateUtils.formatBookingDateDisplay(bookingDate);
@@ -137,8 +158,13 @@ class GroomerBooking {
       pPic = _normalizeImageUrl(rawPic);
       pId ??= int.tryParse(petMap['id']?.toString() ?? petMap['petId']?.toString() ?? '');
     } else {
-      pName = json['petName']?.toString() ?? 'Pet';
-      pBreed = json['breed']?.toString() ?? json['petBreed']?.toString() ?? '';
+      pName = json['petName']?.toString() ??
+          json['pet_name']?.toString() ??
+          'Pet';
+      pBreed = json['breed']?.toString() ??
+          json['petBreed']?.toString() ??
+          json['pet_breed']?.toString() ??
+          '';
       final rawPic = json['petProfilePicture'] ??
           json['profilePictureUrl'] ??
           json['profilePicture'] ??
@@ -172,9 +198,21 @@ class GroomerBooking {
       cMobile = userMap['mobile']?.toString() ?? userMap['phone']?.toString() ?? '';
       uId = int.tryParse(userMap['id']?.toString() ?? '');
     } else {
-      cName = json['customerName']?.toString() ?? 'Customer';
-      cEmail = json['customerEmail']?.toString() ?? '';
-      cMobile = json['customerMobile']?.toString() ?? '';
+      cName = json['customerName']?.toString() ??
+          json['customer_name']?.toString() ??
+          json['userName']?.toString() ??
+          json['user_name']?.toString() ??
+          'Customer';
+      cEmail = json['customerEmail']?.toString() ??
+          json['customer_email']?.toString() ??
+          json['userEmail']?.toString() ??
+          json['user_email']?.toString() ??
+          '';
+      cMobile = json['customerMobile']?.toString() ??
+          json['customer_mobile']?.toString() ??
+          json['userMobile']?.toString() ??
+          json['phone']?.toString() ??
+          '';
     }
 
     // Parse Service
@@ -219,6 +257,30 @@ class GroomerBooking {
       price = double.tryParse(json['totalAmount'].toString()) ?? 0.0;
     }
 
+    // Parse Groomer
+    int? gId;
+    String? gName;
+    String? gCode;
+    if (json['groomer'] is Map<String, dynamic>) {
+      final gMap = json['groomer'] as Map<String, dynamic>;
+      gName = (gMap['name'] ?? '${gMap['firstName'] ?? ''} ${gMap['lastName'] ?? ''}').toString().trim();
+      gId = int.tryParse(gMap['id']?.toString() ?? gMap['groomerId']?.toString() ?? '');
+      gCode = (gMap['groomerCode'] ?? gMap['code'] ?? gMap['GroomerId'] ?? '').toString().trim();
+    } else {
+      gName = json['groomerName']?.toString() ??
+          json['assignedGroomer']?.toString() ??
+          (json['groomer'] is String ? json['groomer'] as String : null);
+      gId = int.tryParse(json['groomerId']?.toString() ?? json['groomer_id']?.toString() ?? '');
+      gCode = (json['groomerCode'] ?? json['groomer_code'] ?? '').toString().trim();
+    }
+
+    if (gId == null && (gCode.isNotEmpty || (gName != null && gName.isNotEmpty))) {
+      gId = BookingDateUtils.resolveCanonicalGroomerId(null, groomerCode: gCode, groomerName: gName);
+    }
+    if ((gName == null || gName.isEmpty) && gId != null && gId > 0) {
+      gName = BookingDateUtils.resolveGroomerNameById(gId);
+    }
+
     return GroomerBooking(
       bookingId: parsedId,
       status: json['status']?.toString() ?? 'pending',
@@ -243,6 +305,9 @@ class GroomerBooking {
       storeId: json['storeId']?.toString() ?? '',
       createdAt: json['createdAt']?.toString() ?? json['created_at']?.toString(),
       cancellationReason: json['cancellationReason']?.toString() ?? json['cancellation_reason']?.toString(),
+      groomerId: gId,
+      groomerName: (gName != null && gName.isNotEmpty) ? gName : null,
+      groomerCode: gCode.isNotEmpty ? gCode : null,
     );
   }
 
@@ -270,6 +335,9 @@ class GroomerBooking {
     'storeId': storeId,
     'createdAt': createdAt,
     'cancellationReason': cancellationReason,
+    if (groomerId != null) 'groomerId': groomerId,
+    if (groomerName != null) 'groomerName': groomerName,
+    if (groomerCode != null) 'groomerCode': groomerCode,
   };
 
   GroomerBooking copyWith({
@@ -296,6 +364,9 @@ class GroomerBooking {
     String? storeId,
     String? createdAt,
     String? cancellationReason,
+    int? groomerId,
+    String? groomerName,
+    String? groomerCode,
   }) {
     return GroomerBooking(
       bookingId: bookingId ?? this.bookingId,
@@ -321,6 +392,9 @@ class GroomerBooking {
       storeId: storeId ?? this.storeId,
       createdAt: createdAt ?? this.createdAt,
       cancellationReason: cancellationReason ?? this.cancellationReason,
+      groomerId: groomerId ?? this.groomerId,
+      groomerName: groomerName ?? this.groomerName,
+      groomerCode: groomerCode ?? this.groomerCode,
     );
   }
 }

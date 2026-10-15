@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:shear_heaven_pet_spa/src/account/models/app_notification.dart';
+import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
 import 'package:shear_heaven_pet_spa/src/app/routes.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/utils/booking_date_utils.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
@@ -1952,16 +1954,103 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
           // ── Main-Line Call Appointment Quick Action Banner ──
           _buildMainLineCallActionCard(),
 
+          const SizedBox(height: 14),
+
+          // ── All Groomers Schedule Quick Action Banner ──
+          _buildAllGroomersScheduleCard(),
+
           const SizedBox(height: 24),
 
           // ── Section 2: Booking List ──
-          Text(
-            'Booking List',
-            style: AppFonts.poppins(
-              size: 19,
-              weight: FontWeight.w700,
-              color: const Color(0xFF111827),
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Booking List',
+                style: AppFonts.parkinsans(
+                  size: 19,
+                  weight: FontWeight.w700,
+                  color: const Color(0xFF111827),
+                ),
+              ),
+              PopupMenuButton<String>(
+                tooltip: 'Select Groomer Schedule',
+                offset: const Offset(0, 36),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: const BorderSide(color: Color(0xFFE5E7EB)),
+                ),
+                onSelected: (val) {
+                  if (val == 'all') {
+                    context.push('/${RouteNames.groomerAllSchedule}?groomerId=all');
+                  }
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem<String>(
+                    value: 'login_groomer',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.check, size: 16, color: Color(0xFF0F766E)),
+                        const SizedBox(width: 8),
+                        Text(
+                          '$groomerName (You)',
+                          style: AppFonts.poppins(
+                            size: 13,
+                            weight: FontWeight.w600,
+                            color: const Color(0xFF0F766E),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuDivider(),
+                  PopupMenuItem<String>(
+                    value: 'all',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.people_alt_outlined, size: 16, color: Color(0xFF0F766E)),
+                        const SizedBox(width: 8),
+                        Text(
+                          'All Groomers',
+                          style: AppFonts.poppins(
+                            size: 13,
+                            weight: FontWeight.w600,
+                            color: const Color(0xFF1F2933),
+                          ),
+                        ),
+                        const Spacer(),
+                        const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: Color(0xFF0F766E)),
+                      ],
+                    ),
+                  ),
+                ],
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0FDFA),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFF0F766E).withValues(alpha: 0.25)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.person, size: 14, color: Color(0xFF0F766E)),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$groomerName (You)',
+                        style: AppFonts.poppins(
+                          size: 12,
+                          weight: FontWeight.w600,
+                          color: const Color(0xFF0F766E),
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      const Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: Color(0xFF0F766E)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
 
@@ -4874,6 +4963,97 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ── All Groomers Schedule Quick Action Card ──
+  Widget _buildAllGroomersScheduleCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => context.push('/${RouteNames.groomerAllSchedule}'),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F766E).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.calendar_month_rounded,
+                    size: 24,
+                    color: Color(0xFF0F766E),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'All Groomers Schedule',
+                        style: AppFonts.parkinsans(
+                          size: 14.5,
+                          weight: FontWeight.w700,
+                          color: const Color(0xFF111827),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'View and filter appointments for all salon staff',
+                        style: AppFonts.poppins(
+                          size: 11.5,
+                          color: const Color(0xFF6B7280),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F766E),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'View',
+                        style: AppFonts.parkinsans(
+                          size: 12,
+                          weight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 3),
+                      const Icon(Icons.arrow_forward_ios_rounded, size: 10, color: Colors.white),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

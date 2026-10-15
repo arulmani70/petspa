@@ -397,6 +397,33 @@ class BookingDateUtils {
     return idInt > 0 ? idInt : null;
   }
 
+  /// Resolves the human-readable groomer name from a catalog/numeric groomer ID.
+  static String? resolveGroomerNameById(int id) {
+    if (id <= 0) return null;
+    try {
+      final cached = ServicesLocator.storeRepository.cachedGroomers;
+      for (final g in cached) {
+        final gid = int.tryParse(g['id']?.toString() ?? g['groomerId']?.toString() ?? '');
+        if (gid == id) {
+          final name = (g['name'] ?? '${g['firstName'] ?? ''} ${g['lastName'] ?? ''}').toString().trim();
+          if (name.isNotEmpty) return name;
+        }
+      }
+    } catch (_) {}
+    switch (id) {
+      case 1:
+        return 'Merisa Brown';
+      case 2:
+        return 'Richard Cooke';
+      case 3:
+        return 'Tracie Jamison';
+      case 4:
+        return 'Jeremiah Smith';
+      default:
+        return null;
+    }
+  }
+
   /// Safely deduplicates a list of time slot maps while preserving original order and capacity rules.
   ///
   /// - Normalizes all startTime and endTime values to standard 'HH:mm'.
