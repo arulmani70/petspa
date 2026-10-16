@@ -7,6 +7,11 @@ import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/toast_util.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_booking.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/salon_groomer.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/home/views/widgets/groomer_check_in_dialog.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/home/views/widgets/groomer_milestone_dialog.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/home/views/widgets/groomer_final_checkout_dialog.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/models/booking_receipt.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/views/mobile/booking_receipt_page_mobile.dart';
 
 /// Dedicated screen for viewing salon-wide appointment schedules across all salon groomers.
 ///
@@ -35,7 +40,12 @@ class AllGroomersSchedulePage extends StatefulWidget {
 
 class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
   DateTime _selectedDate = DateTime.now();
-  String _selectedGroomerFilterId = 'all';
+  bool _isDateRangeMode = false;
+  DateTimeRange _selectedDateRange = DateTimeRange(
+    start: DateTime.now(),
+    end: DateTime.now().add(const Duration(days: 6)),
+  );
+  Set<String> _selectedGroomerFilterIds = {'all'};
   bool _isLoading = false;
   bool _isLoadingMore = false;
   bool _hasNextPage = false;
@@ -73,11 +83,11 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
     super.initState();
     final currentGroomer = ServicesLocator.groomerHomeRepository.getCurrentGroomer();
     if (widget.initialGroomerFilterId != null && widget.initialGroomerFilterId!.isNotEmpty) {
-      _selectedGroomerFilterId = widget.initialGroomerFilterId!;
+      _selectedGroomerFilterIds = {widget.initialGroomerFilterId!};
     } else if (currentGroomer != null && currentGroomer.id > 0) {
-      _selectedGroomerFilterId = currentGroomer.id.toString();
+      _selectedGroomerFilterIds = {currentGroomer.id.toString()};
     } else {
-      _selectedGroomerFilterId = 'all';
+      _selectedGroomerFilterIds = {'all'};
     }
 
     if (widget.initialBookings != null) {
@@ -111,38 +121,33 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
     }
 
     final targetPage = isLoadMore ? _currentPage + 1 : 1;
-    final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+    final isAllGroomers = _selectedGroomerFilterIds.contains('all') || _selectedGroomerFilterIds.isEmpty;
+    final selectedGroomerIds = isAllGroomers
+        ? _salonGroomers.map((g) => g.id).where((id) => id > 0).toSet().toList()
+        : _selectedGroomerFilterIds
+            .map(int.tryParse)
+            .whereType<int>()
+            .where((id) => id > 0)
+            .toList();
 
     try {
-      List<GroomerBooking> appointments;
-      if (_selectedGroomerFilterId == 'all') {
-        final groomerIds = _salonGroomers.map((g) => g.id).where((id) => id > 0).toSet().toList();
-        appointments = await ServicesLocator.groomerHomeRepository.getAllGroomersAvailabilityAppointments(
-          groomerIds: groomerIds,
-          date: dateStr,
-          page: targetPage,
-          limit: _pageSize,
-        );
-      } else {
-        final targetGroomerId = int.tryParse(_selectedGroomerFilterId);
-        if (targetGroomerId != null && targetGroomerId > 0) {
-          appointments = await ServicesLocator.groomerHomeRepository.getGroomerAvailabilityAppointments(
-            groomerId: targetGroomerId,
-            date: dateStr,
-            page: targetPage,
-            limit: _pageSize,
-          );
-        } else {
-          appointments = [];
-        }
-      }
+      final result = await ServicesLocator.groomerHomeRepository.getAllGroomersBookingsWithPagination(
+        groomerIds: selectedGroomerIds,
+        date: !_isDateRangeMode ? DateFormat('yyyy-MM-dd').format(_selectedDate) : null,
+        startDate: _isDateRangeMode ? DateFormat('yyyy-MM-dd').format(_selectedDateRange.start) : null,
+        endDate: _isDateRangeMode ? DateFormat('yyyy-MM-dd').format(_selectedDateRange.end) : null,
+        page: targetPage,
+        limit: _pageSize,
+      );
+
+      final appointments = result.appointments;
 
       if (!mounted) return;
       setState(() {
         if (isLoadMore) {
           _currentPage = targetPage;
           _isLoadingMore = false;
-          _hasNextPage = appointments.length >= _pageSize;
+          _hasNextPage = result.hasNextPage;
 
           final existingKeys = _allBookings.map((b) => b.bookingId > 0 ? 'id_${b.bookingId}' : 'slot_${b.groomerId}_${b.bookingDate}_${b.startTime}_${b.endTime}').toSet();
           for (final b in appointments) {
@@ -156,7 +161,7 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
           _currentPage = 1;
           _allBookings = appointments;
           _isLoading = false;
-          _hasNextPage = appointments.length >= _pageSize;
+          _hasNextPage = result.hasNextPage;
         }
 
         for (final g in _salonGroomers) {
@@ -169,7 +174,10 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
         _isLoading = false;
         _isLoadingMore = false;
         if (!isLoadMore) {
-          _errorMessage = 'Unable to load salon appointments for $dateStr. Pull to refresh.';
+          final displayTimeline = !_isDateRangeMode
+              ? DateFormat('yyyy-MM-dd').format(_selectedDate)
+              : '${DateFormat('yyyy-MM-dd').format(_selectedDateRange.start)} to ${DateFormat('yyyy-MM-dd').format(_selectedDateRange.end)}';
+          _errorMessage = 'Unable to load salon appointments for $displayTimeline. Pull to refresh.';
         }
       });
     }
@@ -196,10 +204,10 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
       }
 
       // Default to logged-in groomer if not explicitly set
-      if (widget.initialGroomerFilterId == null && _selectedGroomerFilterId == 'all') {
+      if (widget.initialGroomerFilterId == null && (_selectedGroomerFilterIds.contains('all') || _selectedGroomerFilterIds.isEmpty)) {
         final cur = ServicesLocator.groomerHomeRepository.getCurrentGroomer();
         if (cur != null && cur.id > 0) {
-          _selectedGroomerFilterId = cur.id.toString();
+          _selectedGroomerFilterIds = {cur.id.toString()};
         }
       }
 
@@ -219,28 +227,42 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
   }
 
   List<GroomerBooking> get _bookingsForDate {
-    return _allBookings
-        .where((b) => BookingDateUtils.isSameCalendarDay(b.bookingDate, _selectedDate))
-        .toList();
+    if (!_isDateRangeMode) {
+      return _allBookings
+          .where((b) => BookingDateUtils.isSameCalendarDay(b.bookingDate, _selectedDate))
+          .toList();
+    } else {
+      final start = BookingDateUtils.normalize(_selectedDateRange.start);
+      final end = BookingDateUtils.normalize(_selectedDateRange.end);
+      return _allBookings.where((b) {
+        final dt = BookingDateUtils.parseCalendarDate(b.bookingDate);
+        if (dt == null) return false;
+        final norm = BookingDateUtils.normalize(dt);
+        return (norm.isAfter(start) || norm.isAtSameMomentAs(start)) &&
+            (norm.isBefore(end) || norm.isAtSameMomentAs(end));
+      }).toList();
+    }
   }
 
   List<GroomerBooking> get _filteredBookings {
     final list = _bookingsForDate;
     List<GroomerBooking> results;
 
-    if (_selectedGroomerFilterId == 'all') {
+    if (_selectedGroomerFilterIds.contains('all') || _selectedGroomerFilterIds.isEmpty) {
       results = list;
     } else {
-      final targetId = int.tryParse(_selectedGroomerFilterId);
-      final targetGroomer = _salonGroomers.where((g) => g.id.toString() == _selectedGroomerFilterId).firstOrNull;
-      final targetCode = targetGroomer?.groomerCode.toLowerCase();
-      final targetName = targetGroomer?.name.toLowerCase();
-
       results = list.where((b) {
-        if (targetId != null && b.groomerId == targetId) return true;
-        if (targetCode != null && targetCode.isNotEmpty && b.groomerCode?.toLowerCase() == targetCode) return true;
-        if (targetName != null && targetName.isNotEmpty && b.groomerName?.toLowerCase() == targetName) return true;
-        if (targetName != null && targetName.isNotEmpty && b.effectiveGroomerName.toLowerCase().contains(targetName)) return true;
+        for (final selectedId in _selectedGroomerFilterIds) {
+          final targetId = int.tryParse(selectedId);
+          final targetGroomer = _salonGroomers.where((g) => g.id.toString() == selectedId).firstOrNull;
+          final targetCode = targetGroomer?.groomerCode.toLowerCase();
+          final targetName = targetGroomer?.name.toLowerCase();
+
+          if (targetId != null && b.groomerId == targetId) return true;
+          if (targetCode != null && targetCode.isNotEmpty && b.groomerCode?.toLowerCase() == targetCode) return true;
+          if (targetName != null && targetName.isNotEmpty && b.groomerName?.toLowerCase() == targetName) return true;
+          if (targetName != null && targetName.isNotEmpty && b.effectiveGroomerName.toLowerCase().contains(targetName)) return true;
+        }
         return false;
       }).toList();
     }
@@ -294,6 +316,21 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
         }
       }
 
+      // 6. Service Name
+      if (b.serviceName.toLowerCase().contains(query)) {
+        return true;
+      }
+
+      // 7. Customer special instructions (Step 2 & 5)
+      if (b.specialInstructions != null && b.specialInstructions!.toLowerCase().contains(query)) {
+        return true;
+      }
+
+      // 8. Pet Breed
+      if (b.breed.toLowerCase().contains(query)) {
+        return true;
+      }
+
       return false;
     }).toList();
   }
@@ -321,18 +358,27 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
     return count < 10 ? '0$count' : '$count';
   }
 
-  String _formatBookingDateDisplay(DateTime dt) {
-    if (BookingDateUtils.isToday(dt)) {
-      return 'Today, ${DateFormat('d MMM yyyy').format(dt)}';
+  String _formatDateRangeDisplay() {
+    if (!_isDateRangeMode) {
+      if (BookingDateUtils.isToday(_selectedDate)) {
+        return 'Today, ${DateFormat('d MMM yyyy').format(_selectedDate)}';
+      }
+      return DateFormat('d MMM yyyy').format(_selectedDate);
+    } else {
+      final s = DateFormat('d MMM yyyy').format(_selectedDateRange.start);
+      final e = DateFormat('d MMM yyyy').format(_selectedDateRange.end);
+      final days = _selectedDateRange.duration.inDays + 1;
+      return '$s – $e ($days days)';
     }
-    return DateFormat('d MMM yyyy').format(dt);
   }
 
-  Future<void> _pickDateFromCalendar() async {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final firstDate = today.subtract(const Duration(days: 365));
-    final lastDate = today.add(const Duration(days: 365));
+  String _formatBookingDateDisplay(DateTime dt) {
+    return _formatDateRangeDisplay();
+  }
+
+  Future<void> _pickSingleDate() async {
+    final firstDate = DateTime(2020, 1, 1);
+    final lastDate = DateTime(2035, 12, 31);
     final initialDate = _selectedDate.isBefore(firstDate)
         ? firstDate
         : (_selectedDate.isAfter(lastDate) ? lastDate : _selectedDate);
@@ -342,29 +388,12 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
       initialDate: initialDate,
       firstDate: firstDate,
       lastDate: lastDate,
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFF111827),
-              onPrimary: Colors.white,
-              onSurface: Color(0xFF111827),
-            ),
-            datePickerTheme: DatePickerThemeData(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
-              ),
-              headerBackgroundColor: const Color(0xFF111827),
-              headerForegroundColor: Colors.white,
-            ),
-          ),
-          child: child ?? const SizedBox.shrink(),
-        );
-      },
+      builder: (context, child) => _datePickerTheme(child),
     );
 
     if (picked != null && mounted) {
       setState(() {
+        _isDateRangeMode = false;
         _selectedDate = BookingDateUtils.normalize(picked);
         _currentPage = 1;
       });
@@ -372,10 +401,126 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
     }
   }
 
+  Future<void> _pickDateRange() async {
+    final firstDate = DateTime(2020, 1, 1);
+    final lastDate = DateTime(2035, 12, 31);
+
+    final picked = await showDateRangePicker(
+      context: context,
+      initialDateRange: _selectedDateRange,
+      firstDate: firstDate,
+      lastDate: lastDate,
+      builder: (context, child) => _datePickerTheme(child),
+    );
+
+    if (picked != null && mounted) {
+      setState(() {
+        _isDateRangeMode = true;
+        _selectedDateRange = picked;
+        _currentPage = 1;
+      });
+      _loadSchedule();
+    }
+  }
+
+  Widget _datePickerTheme(Widget? child) {
+    return Theme(
+      data: Theme.of(context).copyWith(
+        colorScheme: const ColorScheme.light(
+          primary: Color(0xFF0F766E),
+          onPrimary: Colors.white,
+          onSurface: Color(0xFF111827),
+        ),
+        datePickerTheme: DatePickerThemeData(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          headerBackgroundColor: const Color(0xFF0F766E),
+          headerForegroundColor: Colors.white,
+        ),
+      ),
+      child: child ?? const SizedBox.shrink(),
+    );
+  }
+
+  void _showDatePickerOptionsModal() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE5E7EB),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Select Schedule Timeline',
+                  style: AppFonts.parkinsans(
+                    size: 17,
+                    weight: FontWeight.w700,
+                    color: const Color(0xFF111827),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Past, present, and future dates are unrestricted',
+                  style: AppFonts.poppins(size: 12, color: const Color(0xFF6B7280)),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  leading: const Icon(Icons.today_rounded, color: Color(0xFF0F766E)),
+                  title: Text('Single Date Picker', style: AppFonts.poppins(size: 14, weight: FontWeight.w600)),
+                  subtitle: Text('View schedule for a specific single day', style: AppFonts.poppins(size: 12)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  tileColor: !_isDateRangeMode ? const Color(0xFFF0FDFA) : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickSingleDate();
+                  },
+                ),
+                const SizedBox(height: 8),
+                ListTile(
+                  leading: const Icon(Icons.date_range_rounded, color: Color(0xFF0F766E)),
+                  title: Text('Date Range Picker', style: AppFonts.poppins(size: 14, weight: FontWeight.w600)),
+                  subtitle: Text('Select custom multi-day range (up to 92 days)', style: AppFonts.poppins(size: 12)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  tileColor: _isDateRangeMode ? const Color(0xFFF0FDFA) : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickDateRange();
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  bool get _isGroomerFiltered =>
+      !_selectedGroomerFilterIds.contains('all') && _selectedGroomerFilterIds.isNotEmpty;
+
   SalonGroomer? get _currentFilteredGroomer {
-    if (_selectedGroomerFilterId == 'all') return null;
+    if (!_isGroomerFiltered) return null;
     return _salonGroomers
-        .where((g) => g.id.toString() == _selectedGroomerFilterId)
+        .where((g) => _selectedGroomerFilterIds.contains(g.id.toString()))
         .firstOrNull;
   }
 
@@ -526,22 +671,116 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
       return;
     }
     if (_processingBookingIds.contains(booking.bookingId)) return;
+
+    await GroomerFinalCheckoutDialog.show(
+      context,
+      booking: booking,
+      onCheckoutSuccess: (updated) async {
+        await _loadSchedule();
+      },
+    );
+  }
+
+  Future<void> _handleCheckIn(GroomerBooking booking) async {
+    if (!_isOwnBooking(booking)) {
+      ToastUtil.showErrorToast(context, 'You cannot check in another groomer\'s appointment.');
+      return;
+    }
+    final updated = await GroomerCheckInDialog.show(
+      context,
+      booking: booking,
+      onCheckInSuccess: (updatedBooking) {
+        if (!mounted) return;
+        setState(() {
+          final idx = _allBookings.indexWhere((b) => b.bookingId == updatedBooking.bookingId);
+          if (idx >= 0) {
+            _allBookings[idx] = updatedBooking;
+          }
+        });
+      },
+    );
+    if (updated != null && mounted) {
+      await _loadSchedule();
+    }
+  }
+
+  Future<void> _handleMilestone(GroomerBooking booking, MilestoneType milestoneType) async {
+    if (!_isOwnBooking(booking)) {
+      ToastUtil.showErrorToast(context, 'You cannot update milestones on another groomer\'s appointment.');
+      return;
+    }
+    final updated = await GroomerMilestoneDialog.show(
+      context,
+      booking: booking,
+      milestoneType: milestoneType,
+      onMilestoneSuccess: (updatedBooking) {
+        if (!mounted) return;
+        setState(() {
+          final idx = _allBookings.indexWhere((b) => b.bookingId == updatedBooking.bookingId);
+          if (idx >= 0) {
+            _allBookings[idx] = updatedBooking;
+          }
+        });
+      },
+    );
+    if (updated != null && mounted) {
+      await _loadSchedule();
+    }
+  }
+
+  Future<void> _handleReadyForCheckout(GroomerBooking booking) async {
+    if (!_isOwnBooking(booking)) {
+      ToastUtil.showErrorToast(context, 'You cannot mark another groomer\'s appointment ready for checkout.');
+      return;
+    }
+    if (_processingBookingIds.contains(booking.bookingId)) return;
     setState(() => _processingBookingIds.add(booking.bookingId));
+
     try {
-      final res = await ServicesLocator.groomerHomeRepository.completeBookingDetails(
-        booking.bookingId,
+      final res = await ServicesLocator.groomerHomeRepository.markReadyForCheckoutDetails(
+        bookingId: booking.bookingId,
         booking: booking,
       );
+
+      if (!mounted) return;
+
+      if (res.success) {
+        ToastUtil.showSuccessToast(context, res.message);
+        final updatedBooking = res.updatedBooking ?? booking.copyWith(status: 'ready_for_checkout');
+        setState(() {
+          final idx = _allBookings.indexWhere((b) => b.bookingId == updatedBooking.bookingId);
+          if (idx >= 0) {
+            _allBookings[idx] = updatedBooking;
+          }
+        });
+        await _loadSchedule();
+      } else {
+        ToastUtil.showErrorToast(context, res.message);
+      }
+    } catch (e) {
       if (mounted) {
-        if (res.success) {
-          ToastUtil.showSuccessToast(context, 'Booking #${booking.bookingId} marked as completed');
-          await _loadSchedule();
-        } else {
-          ToastUtil.showErrorToast(context, res.message);
-        }
+        ToastUtil.showErrorToast(context, 'Failed to mark ready for checkout: $e');
       }
     } finally {
       if (mounted) setState(() => _processingBookingIds.remove(booking.bookingId));
+    }
+  }
+
+  String _formatCheckInTimestamp(String raw) {
+    try {
+      final dt = DateTime.parse(raw);
+      return DateFormat('h:mm a').format(dt.toLocal());
+    } catch (_) {
+      return raw;
+    }
+  }
+
+  String _formatMilestoneTimestamp(String raw) {
+    try {
+      final dt = DateTime.parse(raw);
+      return DateFormat('h:mm a').format(dt.toLocal());
+    } catch (_) {
+      return raw;
     }
   }
 
@@ -702,7 +941,7 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                if (_selectedGroomerFilterId != 'all') ...[
+                if (_isGroomerFiltered) ...[
                   const SizedBox(width: 8),
                   Flexible(
                     child: Container(
@@ -713,7 +952,9 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                         border: Border.all(color: const Color(0xFF0F766E).withValues(alpha: 0.25)),
                       ),
                       child: Text(
-                        _currentFilteredGroomer?.name ?? 'Filtered',
+                        _selectedGroomerFilterIds.length > 1
+                            ? '${_selectedGroomerFilterIds.length} Groomers'
+                            : (_currentFilteredGroomer?.name ?? 'Filtered'),
                         style: AppFonts.poppins(
                           size: 11.5,
                           weight: FontWeight.w600,
@@ -853,14 +1094,22 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
         color: Colors.transparent,
         child: Row(
           children: [
-            // Previous Day Button
+            // Previous Day / Period Button
             Tooltip(
-              message: 'Previous Day',
+              message: _isDateRangeMode ? 'Previous Period' : 'Previous Day',
               child: InkWell(
                 borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
                 onTap: () {
                   setState(() {
-                    _selectedDate = _selectedDate.subtract(const Duration(days: 1));
+                    if (!_isDateRangeMode) {
+                      _selectedDate = _selectedDate.subtract(const Duration(days: 1));
+                    } else {
+                      final diff = _selectedDateRange.duration;
+                      _selectedDateRange = DateTimeRange(
+                        start: _selectedDateRange.start.subtract(diff),
+                        end: _selectedDateRange.end.subtract(diff),
+                      );
+                    }
                     _currentPage = 1;
                   });
                   _loadSchedule();
@@ -879,13 +1128,13 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
               ),
             ),
 
-            // Date Text & Calendar Picker
+            // Date Text & Calendar / Date-Range Picker
             Expanded(
               child: Tooltip(
-                message: 'Select Date from Calendar',
+                message: 'Select Date or Date Range',
                 child: InkWell(
                   borderRadius: BorderRadius.circular(8),
-                  onTap: _pickDateFromCalendar,
+                  onTap: _showDatePickerOptionsModal,
                   child: Container(
                     height: 52,
                     alignment: Alignment.center,
@@ -895,10 +1144,10 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
-                            Icons.calendar_today_outlined,
+                          Icon(
+                            _isDateRangeMode ? Icons.date_range_rounded : Icons.calendar_today_outlined,
                             size: 16,
-                            color: Color(0xFF111827),
+                            color: const Color(0xFF0F766E),
                           ),
                           const SizedBox(width: 8),
                           Text(
@@ -909,6 +1158,8 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                               color: const Color(0xFF111827),
                             ),
                           ),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.arrow_drop_down_rounded, size: 20, color: Color(0xFF6B7280)),
                         ],
                       ),
                     ),
@@ -917,14 +1168,22 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
               ),
             ),
 
-            // Next Day Button
+            // Next Day / Period Button
             Tooltip(
-              message: 'Next Day',
+              message: _isDateRangeMode ? 'Next Period' : 'Next Day',
               child: InkWell(
                 borderRadius: const BorderRadius.horizontal(right: Radius.circular(12)),
                 onTap: () {
                   setState(() {
-                    _selectedDate = _selectedDate.add(const Duration(days: 1));
+                    if (!_isDateRangeMode) {
+                      _selectedDate = _selectedDate.add(const Duration(days: 1));
+                    } else {
+                      final diff = _selectedDateRange.duration;
+                      _selectedDateRange = DateTimeRange(
+                        start: _selectedDateRange.start.add(diff),
+                        end: _selectedDateRange.end.add(diff),
+                      );
+                    }
                     _currentPage = 1;
                   });
                   _loadSchedule();
@@ -1006,8 +1265,50 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
     );
   }
 
+  void _handleGroomerChipTap(String id) {
+    setState(() {
+      if (id == 'all') {
+        _selectedGroomerFilterIds = {'all'};
+      } else {
+        // If multi-select is already active with multiple groomers, toggle this groomer
+        if (_selectedGroomerFilterIds.length > 1 && !_selectedGroomerFilterIds.contains('all')) {
+          if (_selectedGroomerFilterIds.contains(id)) {
+            _selectedGroomerFilterIds.remove(id);
+            if (_selectedGroomerFilterIds.isEmpty) {
+              _selectedGroomerFilterIds = {'all'};
+            }
+          } else {
+            _selectedGroomerFilterIds.add(id);
+          }
+        } else {
+          // Single select switches to this groomer (preserves 100% existing test & user behavior)
+          _selectedGroomerFilterIds = {id};
+        }
+      }
+      _currentPage = 1;
+    });
+    _loadSchedule();
+  }
+
+  void _handleGroomerChipLongPress(String id) {
+    if (id == 'all') return;
+    setState(() {
+      _selectedGroomerFilterIds.remove('all');
+      if (_selectedGroomerFilterIds.contains(id)) {
+        _selectedGroomerFilterIds.remove(id);
+        if (_selectedGroomerFilterIds.isEmpty) {
+          _selectedGroomerFilterIds = {'all'};
+        }
+      } else {
+        _selectedGroomerFilterIds.add(id);
+      }
+      _currentPage = 1;
+    });
+    _loadSchedule();
+  }
+
   Widget _buildGroomerFilterSection() {
-    final isFiltered = _selectedGroomerFilterId != 'all';
+    final isFiltered = _isGroomerFiltered;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1030,9 +1331,9 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
               const SizedBox(width: 8),
               GestureDetector(
                 onTap: () {
-                  if (_selectedGroomerFilterId != 'all') {
+                  if (_isGroomerFiltered) {
                     setState(() {
-                      _selectedGroomerFilterId = 'all';
+                      _selectedGroomerFilterIds = {'all'};
                       _currentPage = 1;
                     });
                     _loadSchedule();
@@ -1078,13 +1379,13 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                 id: 'all',
                 label: 'All Groomers',
                 count: _allGroomersTotalCount,
-                isSelected: _selectedGroomerFilterId == 'all',
+                isSelected: _selectedGroomerFilterIds.contains('all') || _selectedGroomerFilterIds.isEmpty,
               ),
               const SizedBox(width: 8),
 
               // Dynamic salon groomers chips (login groomer sorted first with '(You)')
               ..._sortedSalonGroomers.map((g) {
-                final isSelected = _selectedGroomerFilterId == g.id.toString();
+                final isSelected = _selectedGroomerFilterIds.contains(g.id.toString());
                 final count = _countForGroomer(g);
                 final cur = ServicesLocator.groomerHomeRepository.getCurrentGroomer();
                 final isMe = cur != null && (g.id == cur.id || g.groomerCode.toLowerCase() == cur.groomerCode.toLowerCase());
@@ -1115,15 +1416,8 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
     required bool isSelected,
   }) {
     return GestureDetector(
-      onTap: () {
-        if (_selectedGroomerFilterId != id) {
-          setState(() {
-            _selectedGroomerFilterId = id;
-            _currentPage = 1;
-          });
-          _loadSchedule();
-        }
-      },
+      onTap: () => _handleGroomerChipTap(id),
+      onLongPress: () => _handleGroomerChipLongPress(id),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -1300,7 +1594,7 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
               ),
               onPressed: () {
                 setState(() {
-                  _selectedGroomerFilterId = 'all';
+                  _selectedGroomerFilterIds = {'all'};
                   _currentPage = 1;
                 });
                 _loadSchedule();
@@ -1417,6 +1711,30 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
         badgeTextColor = const Color(0xFF1D4ED8);
         badgeText = 'In Progress';
         break;
+      case 'checked_in':
+        borderColor = const Color(0xFF10B981);
+        badgeBgColor = const Color(0xFFDCFCE7);
+        badgeTextColor = const Color(0xFF15803D);
+        badgeText = 'Checked In';
+        break;
+      case 'bath_completed':
+        borderColor = const Color(0xFF0284C7);
+        badgeBgColor = const Color(0xFFE0F2FE);
+        badgeTextColor = const Color(0xFF0369A1);
+        badgeText = 'Bath Completed';
+        break;
+      case 'grooming_completed':
+        borderColor = const Color(0xFF7C3AED);
+        badgeBgColor = const Color(0xFFEDE9FE);
+        badgeTextColor = const Color(0xFF6D28D9);
+        badgeText = 'Grooming Completed';
+        break;
+      case 'ready_for_checkout':
+        borderColor = const Color(0xFF0F766E);
+        badgeBgColor = const Color(0xFFCCFBF1);
+        badgeTextColor = const Color(0xFF0F766E);
+        badgeText = 'Ready for Checkout';
+        break;
       case 'confirmed':
         borderColor = const Color(0xFF10B981);
         badgeBgColor = const Color(0xFFDCFCE7);
@@ -1455,6 +1773,10 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
     final isPending = statusLower == 'pending';
     final isConfirmed = statusLower == 'confirmed';
     final isInProgress = statusLower == 'in_progress' || statusLower == 'in-progress';
+    final isCheckedInStatus = statusLower == 'checked_in';
+    final isBathCompleted = statusLower == 'bath_completed' || booking.isBathCompleted;
+    final isGroomingCompleted = statusLower == 'grooming_completed' || booking.isGroomingCompleted;
+    final isReadyForCheckout = statusLower == 'ready_for_checkout' || booking.isReadyForCheckout;
     final isProcessing = _processingBookingIds.contains(booking.bookingId);
     final canManage = _isOwnBooking(booking);
 
@@ -1639,6 +1961,210 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
             ],
           ),
 
+          // Date badge when in date-range mode
+          if (_isDateRangeMode && booking.bookingDate.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.event_note_outlined, size: 13, color: Color(0xFF6B7280)),
+                const SizedBox(width: 4),
+                Text(
+                  booking.bookingDate,
+                  style: AppFonts.poppins(
+                    size: 11.5,
+                    weight: FontWeight.w500,
+                    color: const Color(0xFF4B5563),
+                  ),
+                ),
+              ],
+            ),
+          ],
+
+          // Customer Service Request Notes (Step 2 & Step 5)
+          if (booking.specialInstructions != null &&
+              booking.specialInstructions!.trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.speaker_notes_outlined, size: 14, color: Color(0xFF4B5563)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Customer Instructions: "${booking.specialInstructions!.trim()}"',
+                      style: AppFonts.poppins(
+                        size: 11.5,
+                        color: const Color(0xFF374151),
+                      ).copyWith(fontStyle: FontStyle.italic),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Permanent Pet Medical & Allergy Notes (Strictly distinct from booking instructions)
+          if (booking.hasPetMedicalNotes) ...[
+            const SizedBox(height: 6),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF3C7).withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFDE68A)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.medical_services_outlined, size: 14, color: Color(0xFFB45309)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Medical / Allergy Alert: "${booking.petMedicalNotes}"',
+                      style: AppFonts.poppins(
+                        size: 11.5,
+                        color: const Color(0xFF78350F),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Step 6 Check-in Record & Server Timestamp Badge
+          if (booking.isCheckedIn || booking.hasCheckInRecord) ...[
+            const SizedBox(height: 6),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDF4),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFBBF7D0)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_outline_rounded, size: 14, color: Color(0xFF16A34A)),
+                  const SizedBox(width: 6),
+                  Text(
+                    booking.checkInTimestamp != null && booking.checkInTimestamp!.isNotEmpty
+                        ? 'Checked In • ${_formatCheckInTimestamp(booking.checkInTimestamp!)}'
+                        : 'Checked In',
+                    style: AppFonts.poppins(
+                      size: 11.5,
+                      weight: FontWeight.w600,
+                      color: const Color(0xFF15803D),
+                    ),
+                  ),
+                  if (booking.groomerCheckInNotes != null &&
+                      booking.groomerCheckInNotes!.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        '• Notes: "${booking.groomerCheckInNotes}"',
+                        style: AppFonts.poppins(
+                          size: 11,
+                          color: const Color(0xFF166534),
+                        ).copyWith(fontStyle: FontStyle.italic),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+
+          // Step 7 Milestone Badges & Optional Notes
+          if (booking.isBathCompleted || booking.isGroomingCompleted) ...[
+            const SizedBox(height: 6),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDF4),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFBBF7D0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF16A34A)),
+                      const SizedBox(width: 6),
+                      Text(
+                        booking.isGroomingCompleted
+                            ? 'Milestones: Bath & Grooming Completed'
+                            : 'Milestone: Bath Completed',
+                        style: AppFonts.poppins(
+                          size: 11.5,
+                          weight: FontWeight.w600,
+                          color: const Color(0xFF15803D),
+                        ),
+                      ),
+                      if (booking.bathCompletedAt != null && booking.bathCompletedAt!.isNotEmpty && !booking.isGroomingCompleted) ...[
+                        const SizedBox(width: 4),
+                        Text(
+                          '• ${_formatMilestoneTimestamp(booking.bathCompletedAt!)}',
+                          style: AppFonts.poppins(
+                            size: 11,
+                            color: const Color(0xFF166534),
+                          ),
+                        ),
+                      ],
+                      if (booking.groomingCompletedAt != null && booking.groomingCompletedAt!.isNotEmpty) ...[
+                        const SizedBox(width: 4),
+                        Text(
+                          '• ${_formatMilestoneTimestamp(booking.groomingCompletedAt!)}',
+                          style: AppFonts.poppins(
+                            size: 11,
+                            color: const Color(0xFF166534),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (booking.bathNotes != null && booking.bathNotes!.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      '• Bath Notes: "${booking.bathNotes}"',
+                      style: AppFonts.poppins(
+                        size: 11,
+                        color: const Color(0xFF166534),
+                      ).copyWith(fontStyle: FontStyle.italic),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  if (booking.groomingNotes != null && booking.groomingNotes!.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      '• Grooming Notes: "${booking.groomingNotes}"',
+                      style: AppFonts.poppins(
+                        size: 11,
+                        color: const Color(0xFF166534),
+                      ).copyWith(fontStyle: FontStyle.italic),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+
           const SizedBox(height: 10),
           const Divider(height: 1, color: Color(0xFFF3F4F6)),
           const SizedBox(height: 8),
@@ -1740,9 +2266,87 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                     ],
                   )
                 else if (canManage && isConfirmed && booking.bookingId > 0)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (!booking.isCheckedIn)
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0F766E), // Brand Teal
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                            minimumSize: const Size(0, 30),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          onPressed: () => _handleCheckIn(booking),
+                          icon: const Icon(Icons.assignment_turned_in_outlined, size: 15, color: Colors.white),
+                          label: Text(
+                            'Check In',
+                            style: AppFonts.poppins(
+                              size: 12,
+                              weight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        )
+                      else ...[
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF0F766E),
+                            side: const BorderSide(color: Color(0xFF0F766E)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            minimumSize: const Size(0, 30),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          onPressed: () => _handleCheckIn(booking),
+                          icon: const Icon(Icons.checklist_rounded, size: 14, color: Color(0xFF0F766E)),
+                          label: Text(
+                            'Checklist',
+                            style: AppFonts.poppins(
+                              size: 11.5,
+                              weight: FontWeight.w600,
+                              color: const Color(0xFF0F766E),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0F766E), // Brand Teal
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                            minimumSize: const Size(0, 30),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          onPressed: () => _handleStart(booking),
+                          icon: const Icon(Icons.play_arrow_rounded, size: 16, color: Colors.white),
+                          label: Text(
+                            'Start',
+                            style: AppFonts.poppins(
+                              size: 12,
+                              weight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  )
+                else if (canManage && (statusLower == 'completed' || booking.isCompleted) && booking.bookingId > 0)
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0F766E), // Brand Teal
+                      backgroundColor: const Color(0xFF111827),
                       foregroundColor: Colors.white,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
@@ -1752,10 +2356,37 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                       minimumSize: const Size(0, 30),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    onPressed: () => _handleStart(booking),
-                    icon: const Icon(Icons.play_arrow_rounded, size: 16, color: Colors.white),
+                    onPressed: () {
+                      final receipt = BookingReceipt.fromGroomerBooking(booking);
+                      BookingReceiptPageMobile.show(context, receipt: receipt);
+                    },
+                    icon: const Icon(Icons.receipt_long_rounded, size: 14, color: Colors.white),
                     label: Text(
-                      'Start',
+                      'Receipt',
+                      style: AppFonts.poppins(
+                        size: 11.5,
+                        weight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  )
+                else if (canManage && (isInProgress || isCheckedInStatus) && !booking.isBathCompleted && booking.bookingId > 0)
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0284C7), // Blue for Bath
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                      minimumSize: const Size(0, 30),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: () => _handleMilestone(booking, MilestoneType.bath),
+                    icon: const Icon(Icons.bathtub_outlined, size: 15, color: Colors.white),
+                    label: Text(
+                      'Bath Done',
                       style: AppFonts.poppins(
                         size: 12,
                         weight: FontWeight.w600,
@@ -1763,10 +2394,10 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                       ),
                     ),
                   )
-                else if (canManage && isInProgress && booking.bookingId > 0)
+                else if (canManage && (isBathCompleted || (booking.isBathCompleted && !booking.isGroomingCompleted)) && !booking.isGroomingCompleted && booking.bookingId > 0)
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0F766E), // Brand Teal
+                      backgroundColor: const Color(0xFF7C3AED), // Purple for Grooming
                       foregroundColor: Colors.white,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
@@ -1776,16 +2407,128 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                       minimumSize: const Size(0, 30),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    onPressed: () => _handleComplete(booking),
-                    icon: const Icon(Icons.check_circle_outline_rounded, size: 16, color: Colors.white),
+                    onPressed: () => _handleMilestone(booking, MilestoneType.grooming),
+                    icon: const Icon(Icons.content_cut_rounded, size: 15, color: Colors.white),
                     label: Text(
-                      'Complete',
+                      'Grooming Done',
                       style: AppFonts.poppins(
                         size: 12,
                         weight: FontWeight.w600,
                         color: Colors.white,
                       ),
                     ),
+                  )
+                else if (canManage && (isGroomingCompleted || booking.isGroomingCompleted) && !isReadyForCheckout && !booking.isCompleted && statusLower != 'completed' && booking.bookingId > 0)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEDE9FE),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFDDD6FE)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.check_circle_outline_rounded, size: 14, color: Color(0xFF6D28D9)),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Grooming Done',
+                              style: AppFonts.poppins(
+                                size: 11.5,
+                                weight: FontWeight.w600,
+                                color: const Color(0xFF6D28D9),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0F766E), // Brand Teal
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                          minimumSize: const Size(0, 30),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        onPressed: isProcessing ? null : () => _handleReadyForCheckout(booking),
+                        icon: isProcessing
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Icon(Icons.point_of_sale_rounded, size: 15, color: Colors.white),
+                        label: Text(
+                          isProcessing ? 'Updating...' : 'Ready for Checkout',
+                          style: AppFonts.poppins(
+                            size: 11.5,
+                            weight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                else if (canManage && isReadyForCheckout && booking.bookingId > 0)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFCCFBF1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF99F6E4)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF0F766E)),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Ready for Checkout',
+                              style: AppFonts.poppins(
+                                size: 11.5,
+                                weight: FontWeight.w600,
+                                color: const Color(0xFF0F766E),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1F2937),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                          minimumSize: const Size(0, 30),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        onPressed: () => _handleComplete(booking),
+                        icon: const Icon(Icons.check_circle_outline_rounded, size: 15, color: Colors.white),
+                        label: Text(
+                          'Complete',
+                          style: AppFonts.poppins(
+                            size: 11.5,
+                            weight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
                   )
                 else if (!canManage)
                   Container(

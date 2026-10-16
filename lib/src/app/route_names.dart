@@ -46,6 +46,9 @@ mixin RouteNames {
 
   static const bookingConfirmed = "booking-confirmed";
   static const bookingDetails = "booking-details";
+  static const customerCheckoutSummary = "customer-checkout-summary";
+  static const bookingReceipt = "booking-receipt";
+
 
   static const myBookings = "my-bookings";
 
@@ -55,6 +58,8 @@ mixin RouteNames {
   static const groomerRegister = "groomer-register";
   static const groomerHome = "groomer-home";
   static const groomerAllSchedule = "groomer-all-schedule";
+  static const groomerForecast = "groomer-forecast";
+  static const groomerReports = "groomer-reports";
 
   static const mainShell = "main-shell";
 }

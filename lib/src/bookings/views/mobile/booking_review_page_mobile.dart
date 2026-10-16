@@ -36,6 +36,9 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
   void initState() {
     super.initState();
     _draft = ServicesLocator.bookingDraft;
+    if (_draft.serviceRequestNotes != null && _draft.serviceRequestNotes!.isNotEmpty) {
+      _notesController.text = _draft.serviceRequestNotes!;
+    }
     if (_draft.appliedPromoCode != null) {
       _promoController.text = _draft.appliedPromoCode!;
     }
@@ -792,6 +795,12 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
       }
 
       // ---- Step 2: POST /api/bookings — create booking ----------------------
+      final notesText = _notesController.text.trim().isNotEmpty
+          ? _notesController.text.trim()
+          : (_draft.serviceRequestNotes?.trim().isNotEmpty == true
+              ? _draft.serviceRequestNotes!.trim()
+              : null);
+
       final createPayload = <String, dynamic>{
         'ClientId'   : session.clientId ?? 'SHEAR-001',
         'RegionId'   : session.regionId ?? 'DWG-001',
@@ -805,6 +814,10 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
         'bookingDate': bookingDate,
         'startTime'  : finalStartTime,
         'endTime'    : finalEndTime,
+        if (notesText != null && notesText.isNotEmpty) ...{
+          'specialInstructions': notesText,
+          'notes': notesText,
+        },
       };
 
       _log.d("BookingReviewPage::_confirmBooking::Calling POST /api/bookings");
@@ -861,6 +874,12 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
           'groomer_name': _draft.groomer?['name']?.toString() ?? '',
           'applied_offer': _draft.appliedOffer,
           'discount_amount': _draft.discountAmount,
+          if (notesText != null && notesText.isNotEmpty) ...{
+            'specialInstructions': notesText,
+            'special_instructions': notesText,
+            'notes': notesText,
+            'service_request_notes': notesText,
+          },
         };
         _isBookingConfirmed = true;
         _draft.reset();
@@ -1238,6 +1257,12 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                       ),
                       child: TextField(
                         controller: _notesController,
+                        onChanged: (val) {
+                          _draft.setServiceRequestNotes(
+                            val.trim().isEmpty ? null : val,
+                            notify: false,
+                          );
+                        },
                         maxLines: 4,
                         style: const TextStyle(fontFamily: 'Poppins', fontSize: 14, color: Colors.black, height: 16 / 14, letterSpacing: 0),
                         decoration: const InputDecoration(

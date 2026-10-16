@@ -9,6 +9,8 @@ class BookingState extends Equatable {
   final List<Map<String, dynamic>> pastBookings;
   final List<Map<String, dynamic>> cancelledBookings;
   final Set<int> cancellingBookingIds;
+  final Set<int> confirmingTipBookingIds;
+  final Map<int, double> confirmedTips;
 
   const BookingState({
     required this.status,
@@ -17,6 +19,8 @@ class BookingState extends Equatable {
     required this.pastBookings,
     required this.cancelledBookings,
     required this.cancellingBookingIds,
+    this.confirmingTipBookingIds = const {},
+    this.confirmedTips = const {},
   });
 
   static const BookingState initial = BookingState(
@@ -26,6 +30,8 @@ class BookingState extends Equatable {
     pastBookings: [],
     cancelledBookings: [],
     cancellingBookingIds: {},
+    confirmingTipBookingIds: {},
+    confirmedTips: {},
   );
 
   BookingState copyWith({
@@ -35,6 +41,8 @@ class BookingState extends Equatable {
     List<Map<String, dynamic>> Function()? pastBookings,
     List<Map<String, dynamic>> Function()? cancelledBookings,
     Set<int> Function()? cancellingBookingIds,
+    Set<int> Function()? confirmingTipBookingIds,
+    Map<int, double> Function()? confirmedTips,
   }) {
     return BookingState(
       status: status != null ? status() : this.status,
@@ -43,6 +51,8 @@ class BookingState extends Equatable {
       pastBookings: pastBookings != null ? pastBookings() : this.pastBookings,
       cancelledBookings: cancelledBookings != null ? cancelledBookings() : this.cancelledBookings,
       cancellingBookingIds: cancellingBookingIds != null ? cancellingBookingIds() : this.cancellingBookingIds,
+      confirmingTipBookingIds: confirmingTipBookingIds != null ? confirmingTipBookingIds() : this.confirmingTipBookingIds,
+      confirmedTips: confirmedTips != null ? confirmedTips() : this.confirmedTips,
     );
   }
 
@@ -54,5 +64,7 @@ class BookingState extends Equatable {
         pastBookings,
         cancelledBookings,
         cancellingBookingIds,
+        confirmingTipBookingIds,
+        confirmedTips,
       ];
 }

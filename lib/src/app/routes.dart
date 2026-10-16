@@ -23,12 +23,18 @@ import 'package:shear_heaven_pet_spa/src/bookings/views/booking_details_page.dar
 import 'package:shear_heaven_pet_spa/src/bookings/views/booking_date_time_page.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/views/booking_review_page.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/views/booking_service_page.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/views/mobile/widgets/customer_checkout_summary_sheet.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/models/booking_receipt.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/views/mobile/booking_receipt_page_mobile.dart';
+
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/file_not_found.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/splashscreen.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_user.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/views/groomer_home_page.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/views/all_groomers/all_groomers_schedule_page.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/home/views/forecast/forecast_page.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/home/views/reports/reports_summary_page.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/login/views/groomer_login_page.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/register/views/groomer_register_page.dart';
 import 'package:shear_heaven_pet_spa/src/home/views/home_page.dart';
@@ -63,7 +69,9 @@ class Routes {
 
       // Protected Groomer routes
       if (loc.startsWith('/${RouteNames.groomerHome}') ||
-          loc.startsWith('/${RouteNames.groomerAllSchedule}')) {
+          loc.startsWith('/${RouteNames.groomerAllSchedule}') ||
+          loc.startsWith('/${RouteNames.groomerForecast}') ||
+          loc.startsWith('/${RouteNames.groomerReports}')) {
         if (!isGroomerLoggedIn) {
           return '/${RouteNames.login}';
         }
@@ -358,6 +366,48 @@ class Routes {
       ),
 
       GoRoute(
+        name: RouteNames.customerCheckoutSummary,
+        path: '/${RouteNames.customerCheckoutSummary}',
+        builder: (context, state) {
+          final extra = state.extra is Map<String, dynamic>
+              ? state.extra as Map<String, dynamic>
+              : (state.extra is Map ? Map<String, dynamic>.from(state.extra as Map) : <String, dynamic>{});
+          return Scaffold(
+            backgroundColor: const Color(0xFFFAFAFA),
+            body: SafeArea(
+              child: SingleChildScrollView(
+                child: CustomerCheckoutSummarySheet(booking: extra),
+              ),
+            ),
+          );
+        },
+      ),
+
+      GoRoute(
+        name: RouteNames.bookingReceipt,
+        path: '/${RouteNames.bookingReceipt}',
+        builder: (context, state) {
+          final receipt = state.extra is BookingReceipt
+              ? state.extra as BookingReceipt
+              : (state.extra is Map<String, dynamic>
+                  ? BookingReceipt.fromMap(state.extra as Map<String, dynamic>)
+                  : (state.extra is Map
+                      ? BookingReceipt.fromMap(Map<String, dynamic>.from(state.extra as Map))
+                      : null));
+
+          return Scaffold(
+            backgroundColor: const Color(0xFFF9FAFB),
+            body: SafeArea(
+              child: receipt != null
+                  ? BookingReceiptPageMobile(receipt: receipt)
+                  : const Center(child: Text('Receipt details not found')),
+            ),
+          );
+        },
+      ),
+
+
+      GoRoute(
         name: RouteNames.groomerLogin,
         path: '/${RouteNames.groomerLogin}',
         builder: (context, state) => const GroomerLoginPage(),
@@ -387,6 +437,22 @@ class Routes {
         builder: (context, state) {
           final gid = state.uri.queryParameters['groomerId'];
           return AllGroomersSchedulePage(initialGroomerFilterId: gid);
+        },
+      ),
+      GoRoute(
+        name: RouteNames.groomerForecast,
+        path: '/${RouteNames.groomerForecast}',
+        builder: (context, state) {
+          final gid = state.uri.queryParameters['groomerId'];
+          return ForecastPage(initialGroomerFilterId: gid);
+        },
+      ),
+      GoRoute(
+        name: RouteNames.groomerReports,
+        path: '/${RouteNames.groomerReports}',
+        builder: (context, state) {
+          final gid = state.uri.queryParameters['groomerId'];
+          return ReportsSummaryPage(initialGroomerFilterId: gid);
         },
       ),
     ],

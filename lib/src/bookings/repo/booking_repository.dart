@@ -664,4 +664,137 @@ class BookingRepository {
 
   Future<int> cancelBooking(int bookingId) =>
       updateBookingStatus(bookingId, 'CANCELLED');
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Step 9: Customer Tip Confirmation
+  //
+  // Calls POST /api/bookings/:bookingId/tip (pending backend contract).
+  //
+  // CRITICAL SAFEGUARD: Never triggers payment, never marks booking completed,
+  // never charges customer, and never performs final checkout (strictly Step 10).
+  // ─────────────────────────────────────────────────────────────────────────
+  Future<({
+    bool success,
+    String message,
+    double? confirmedTipAmount,
+    double? confirmedTipPercentage,
+    Map<String, dynamic>? updatedBooking,
+    bool isPendingBackend,
+  })> confirmTipDetails({
+    required int bookingId,
+    required double tipAmount,
+    double? tipPercentage,
+    Map<String, dynamic>? booking,
+  }) async {
+    try {
+      if (bookingId <= 0) {
+        return (
+          success: false,
+          message: 'Invalid booking ID.',
+          confirmedTipAmount: null,
+          confirmedTipPercentage: null,
+          updatedBooking: null,
+          isPendingBackend: false,
+        );
+      }
+
+      if (tipAmount < 0) {
+        return (
+          success: false,
+          message: 'Tip amount cannot be negative.',
+          confirmedTipAmount: null,
+          confirmedTipPercentage: null,
+          updatedBooking: null,
+          isPendingBackend: false,
+        );
+      }
+
+      // Customer ownership validation:
+      // If user is logged in, ensure booking belongs to user if customer ID is present
+      if (ServicesLocator.isRegistered<SessionService>()) {
+        final session = ServicesLocator.sessionService;
+        final currentUid = session.currentUserId;
+        if (booking != null && currentUid != null && currentUid.isNotEmpty) {
+          final bookingCustId = booking['customerId'] ??
+              booking['customer_id'] ??
+              booking['userId'] ??
+              booking['user_id'];
+          if (bookingCustId != null) {
+            final bIdStr = bookingCustId.toString();
+            if (bIdStr != currentUid && bIdStr != '0') {
+              log.w('BookingRepository::confirmTipDetails::User $currentUid does not own booking #$bookingId (owner=$bIdStr)');
+              return (
+                success: false,
+                message: 'You can only confirm tips for your own bookings.',
+                confirmedTipAmount: null,
+                confirmedTipPercentage: null,
+                updatedBooking: null,
+                isPendingBackend: false,
+              );
+            }
+          }
+        }
+      }
+
+      final payload = <String, dynamic>{
+        'bookingId': bookingId,
+        'tipAmount': tipAmount,
+        'tipPercentage': ?tipPercentage,
+      };
+
+
+      log.d('BookingRepository::confirmTipDetails::POST /api/bookings/$bookingId/tip');
+
+      Map<String, dynamic>? response;
+      bool isPendingBackend = false;
+
+      try {
+        response = await ServicesLocator.apiRepository
+            .post('/api/bookings/$bookingId/tip', payload);
+        if (response == null || response['success'] == false) {
+          isPendingBackend = true;
+        }
+      } catch (e) {
+        log.w('BookingRepository::confirmTipDetails::Endpoint /api/bookings/$bookingId/tip unavailable/unverified ($e). Recording tip preference locally for Step 9.');
+        isPendingBackend = true;
+      }
+
+
+      // Build updated booking representation
+      // CRITICAL SAFEGUARD: Booking status is preserved as 'ready_for_checkout', NOT 'completed'
+      // Payment status is NOT marked as paid.
+      final currentStatus = booking?['status']?.toString() ?? 'ready_for_checkout';
+      final updated = Map<String, dynamic>.from(booking ?? <String, dynamic>{})
+        ..['tipAmount'] = tipAmount
+        ..['tip_amount'] = tipAmount
+        ..['tipPercentage'] = tipPercentage
+        ..['tip_percentage'] = tipPercentage
+        ..['isTipConfirmed'] = true
+        ..['status'] = currentStatus; // PRESERVED!
+
+      final successMsg = isPendingBackend
+          ? 'Tip preference recorded. (Backend persistence pending endpoint deployment).'
+          : (response?['message']?.toString() ?? 'Tip preference confirmed successfully.');
+
+      return (
+        success: true,
+        message: successMsg,
+        confirmedTipAmount: tipAmount,
+        confirmedTipPercentage: tipPercentage,
+        updatedBooking: updated,
+        isPendingBackend: isPendingBackend,
+      );
+    } catch (e) {
+      log.e('BookingRepository::confirmTipDetails::Error: $e');
+      return (
+        success: false,
+        message: 'Failed to confirm tip: $e',
+        confirmedTipAmount: null,
+        confirmedTipPercentage: null,
+        updatedBooking: null,
+        isPendingBackend: false,
+      );
+    }
+  }
 }
+

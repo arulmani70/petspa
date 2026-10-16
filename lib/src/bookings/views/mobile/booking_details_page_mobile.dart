@@ -10,7 +10,11 @@ import 'package:shear_heaven_pet_spa/src/bookings/services/booking_draft.dart';
 import 'package:shear_heaven_pet_spa/src/common/constants/constansts.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/views/mobile/widgets/customer_checkout_summary_sheet.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/models/booking_receipt.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/views/mobile/booking_receipt_page_mobile.dart';
 import 'package:shear_heaven_pet_spa/src/pets/bloc/pet_bloc.dart';
+
 
 class BookingDetailsPageMobile extends StatefulWidget {
   final Map<String, dynamic>? bookingData;
@@ -583,6 +587,19 @@ class _BookingDetailsPageMobileState extends State<BookingDetailsPageMobile> {
                             ),
                           ),
 
+                          // Ready for Checkout Action Banner
+                          if (rawStatus == 'ready_for_checkout' || rawStatus == 'readyforcheckout') ...[
+                            const SizedBox(height: 12),
+                            _buildReadyForCheckoutBanner(summary),
+                          ],
+
+                          // Completed Booking: View Receipt & Invoice Action Banner
+                          if (rawStatus == 'completed') ...[
+                            const SizedBox(height: 12),
+                            _buildCompletedReceiptBanner(summary),
+                          ],
+
+
                           // Cancellation Reason Box
                           if (rawStatus == 'cancelled' ||
                               rawStatus == 'canceled' ||
@@ -790,6 +807,182 @@ class _BookingDetailsPageMobileState extends State<BookingDetailsPageMobile> {
     );
   }
 
+  Widget _buildReadyForCheckoutBanner(Map<String, dynamic> summary) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0FDFA),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF99F6E4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFCCFBF1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.receipt_long,
+                  size: 20,
+                  color: Color(0xFF0F766E),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Ready for Checkout',
+                      style: AppFonts.parkinsans(
+                        size: 14.5,
+                        weight: FontWeight.w700,
+                        color: const Color(0xFF0F766E),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Grooming is complete! Review your itemized summary and tip preference before pickup.',
+                      style: AppFonts.poppins(
+                        size: 12,
+                        color: const Color(0xFF134E4A),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0F766E),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                elevation: 0,
+              ),
+              onPressed: () {
+                CustomerCheckoutSummarySheet.show(
+                  context,
+                  booking: summary,
+                  onTipConfirmed: (updated) {
+                    if (mounted) setState(() {});
+                  },
+                );
+              },
+              child: Text(
+                'Review Checkout Summary & Tip',
+                style: AppFonts.poppins(
+                  size: 13.5,
+                  weight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompletedReceiptBanner(Map<String, dynamic> summary) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.receipt_long_rounded,
+                  size: 20,
+                  color: Color(0xFF1F2937),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Official Service Receipt',
+                      style: AppFonts.parkinsans(
+                        size: 14.5,
+                        weight: FontWeight.w700,
+                        color: const Color(0xFF111827),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Your grooming session is completed. Access and copy your authoritative receipt & invoice details.',
+                      style: AppFonts.poppins(
+                        size: 12,
+                        color: const Color(0xFF6B7280),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF111827),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                elevation: 0,
+              ),
+              onPressed: () {
+                final receipt = BookingReceipt.fromMap(summary);
+                BookingReceiptPageMobile.show(context, receipt: receipt);
+              },
+              icon: const Icon(Icons.receipt_long_rounded, size: 18, color: Colors.white),
+              label: Text(
+                'View Receipt & Invoice',
+                style: AppFonts.poppins(
+                  size: 13.5,
+                  weight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAddOns2Column(List<String> items) {
     final leftItems = <String>[];
     final rightItems = <String>[];
@@ -887,6 +1080,9 @@ class _BookingDetailsPageMobileState extends State<BookingDetailsPageMobile> {
 
   String _formatStatusLabel(String status) {
     switch (status.toLowerCase()) {
+      case 'ready_for_checkout':
+      case 'readyforcheckout':
+        return 'Ready for Checkout';
       case 'confirmed':
       case 'accepted':
         return 'Confirmed';
@@ -907,6 +1103,9 @@ class _BookingDetailsPageMobileState extends State<BookingDetailsPageMobile> {
 
   Color _statusBgColor(String status) {
     switch (status.toLowerCase()) {
+      case 'ready_for_checkout':
+      case 'readyforcheckout':
+        return const Color(0xFFCCFBF1);
       case 'confirmed':
       case 'accepted':
       case 'completed':
@@ -927,6 +1126,9 @@ class _BookingDetailsPageMobileState extends State<BookingDetailsPageMobile> {
 
   Color _statusBorderColor(String status) {
     switch (status.toLowerCase()) {
+      case 'ready_for_checkout':
+      case 'readyforcheckout':
+        return const Color(0xFF0F766E);
       case 'confirmed':
       case 'accepted':
       case 'completed':
@@ -947,6 +1149,9 @@ class _BookingDetailsPageMobileState extends State<BookingDetailsPageMobile> {
 
   Color _statusTextColor(String status) {
     switch (status.toLowerCase()) {
+      case 'ready_for_checkout':
+      case 'readyforcheckout':
+        return const Color(0xFF0F766E);
       case 'confirmed':
       case 'accepted':
       case 'completed':

@@ -47,3 +47,21 @@ class CancelBookingEvent extends BookingEvent {
   @override
   List<Object?> get props => [bookingId, cancellationReason];
 }
+
+class ConfirmTipEvent extends BookingEvent {
+  final int bookingId;
+  final double tipAmount;
+  final double? tipPercentage;
+  final Map<String, dynamic>? booking;
+
+  const ConfirmTipEvent({
+    required this.bookingId,
+    required this.tipAmount,
+    this.tipPercentage,
+    this.booking,
+  });
+
+  @override
+  List<Object?> get props => [bookingId, tipAmount, tipPercentage, booking];
+}
+

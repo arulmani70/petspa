@@ -15,7 +15,9 @@ class BookingBloc extends Bloc<BookingEvent, BookingState> {
     on<FetchPastBookings>(_onFetchPastBookings);
     on<FetchCancelledBookings>(_onFetchCancelledBookings);
     on<CancelBookingEvent>(_onCancelBooking);
+    on<ConfirmTipEvent>(_onConfirmTip);
   }
+
 
   final BookingRepository _repository;
   final _log = Logger();
@@ -149,4 +151,50 @@ class BookingBloc extends Bloc<BookingEvent, BookingState> {
       ));
     }
   }
+
+  Future<void> _onConfirmTip(
+    ConfirmTipEvent event,
+    Emitter<BookingState> emit,
+  ) async {
+    _log.d('BookingBloc::_onConfirmTip::Confirming tip for booking #${event.bookingId}: \$${event.tipAmount}');
+    final updatedConfirming = Set<int>.from(state.confirmingTipBookingIds)..add(event.bookingId);
+    emit(state.copyWith(confirmingTipBookingIds: () => updatedConfirming));
+
+    try {
+      final res = await _repository.confirmTipDetails(
+        bookingId: event.bookingId,
+        tipAmount: event.tipAmount,
+        tipPercentage: event.tipPercentage,
+        booking: event.booking,
+      );
+
+      final nextConfirming = Set<int>.from(state.confirmingTipBookingIds)..remove(event.bookingId);
+
+      if (res.success) {
+        final updatedTips = Map<int, double>.from(state.confirmedTips)
+          ..[event.bookingId] = event.tipAmount;
+        emit(state.copyWith(
+          status: () => BookingStatus.success,
+          message: () => res.message,
+          confirmingTipBookingIds: () => nextConfirming,
+          confirmedTips: () => updatedTips,
+        ));
+      } else {
+        emit(state.copyWith(
+          status: () => BookingStatus.failure,
+          message: () => res.message,
+          confirmingTipBookingIds: () => nextConfirming,
+        ));
+      }
+    } catch (e) {
+      _log.e('BookingBloc::_onConfirmTip::Error: $e');
+      final nextConfirming = Set<int>.from(state.confirmingTipBookingIds)..remove(event.bookingId);
+      emit(state.copyWith(
+        status: () => BookingStatus.failure,
+        message: () => e.toString(),
+        confirmingTipBookingIds: () => nextConfirming,
+      ));
+    }
+  }
 }
+

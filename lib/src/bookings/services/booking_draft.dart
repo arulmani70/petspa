@@ -239,6 +239,18 @@ class BookingDraft extends ChangeNotifier {
 
   List<Map<String, dynamic>> addOns = [];
 
+  /// Optional customer-entered service request instructions / notes for the groomer.
+  /// Distinct from permanent pet profile notes (medical/behavioral).
+  String? serviceRequestNotes;
+
+  void setServiceRequestNotes(String? value, {bool notify = true}) {
+    log.d("BookingDraft::setServiceRequestNotes::Notes: $value");
+    serviceRequestNotes = value;
+    if (notify) {
+      notifyListeners();
+    }
+  }
+
   void toggleAddOn(Map<String, dynamic> addOn) {
     final id = addOn['id'] ?? addOn['service_id'];
     final index = addOns.indexWhere((e) => (e['id'] ?? e['service_id']) == id);
@@ -255,6 +267,7 @@ class BookingDraft extends ChangeNotifier {
     service = null;
     groomer = null;
     addOns.clear();
+    serviceRequestNotes = null;
     date = null;
     timeSlot = null;
     endTime = null;

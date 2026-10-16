@@ -36,12 +36,14 @@ class BookingServicePageMobile extends StatefulWidget {
 
 class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
   late final BookingDraft _draft;
+  late final TextEditingController _notesController;
   bool _isFromPopular = false;
 
   @override
   void initState() {
     super.initState();
     _draft = ServicesLocator.bookingDraft;
+    _notesController = TextEditingController(text: _draft.serviceRequestNotes ?? '');
 
     // Pre-select a service if passed via GoRouter extra
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -147,11 +149,19 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
     }
   }
 
+  @override
+  void dispose() {
+    _notesController.dispose();
+    super.dispose();
+  }
+
   void _onContinue() {
     if (_draft.service == null) {
       ToastUtil.showErrorToast(context, 'Please select a service.');
       return;
     }
+    final notes = _notesController.text.trim();
+    _draft.setServiceRequestNotes(notes.isEmpty ? null : notes);
     context.pushNamed(RouteNames.bookingDateTime);
   }
 
@@ -278,6 +288,17 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
                             physics: const ClampingScrollPhysics(),
                             children: tabViews,
                           ),
+                        ),
+
+                        // Service Request Description (Optional)
+                        ServiceRequestDescriptionCard(
+                          controller: _notesController,
+                          onChanged: (val) {
+                            _draft.setServiceRequestNotes(
+                              val.trim().isEmpty ? null : val,
+                              notify: false,
+                            );
+                          },
                         ),
 
                         // Bottom action bar
@@ -976,6 +997,94 @@ class _NetworkOrIcon extends StatelessWidget {
       );
     }
     return Icon(Icons.pets, size: size, color: _kSubText);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Service Request Description (Optional)
+// ─────────────────────────────────────────────────────────────────────────────
+class ServiceRequestDescriptionCard extends StatelessWidget {
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+
+  const ServiceRequestDescriptionCard({
+    super.key,
+    required this.controller,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 10),
+      decoration: const BoxDecoration(
+        color: _kCardBg,
+        border: Border(
+          top: BorderSide(color: _kBorder, width: 1),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.edit_note_rounded, size: 18, color: _kBlack),
+              const SizedBox(width: 6),
+              Text(
+                'Service Request Description',
+                style: AppFonts.poppins(
+                  size: 13,
+                  weight: FontWeight.w600,
+                  color: _kBlack,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '(Optional)',
+                style: AppFonts.poppins(
+                  size: 11,
+                  weight: FontWeight.w400,
+                  color: _kSubText,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              color: _kLightGrey,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _kBorder),
+            ),
+            child: TextField(
+              controller: controller,
+              onChanged: onChanged,
+              maxLines: 2,
+              minLines: 1,
+              style: AppFonts.poppins(
+                size: 13,
+                color: _kBlack,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Add instructions or requests for the groomer...',
+                hintStyle: AppFonts.poppins(
+                  size: 12,
+                  color: _kSubText,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                border: InputBorder.none,
+                isDense: true,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

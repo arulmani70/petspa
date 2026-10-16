@@ -427,6 +427,75 @@ void main() {
       expect(b2.groomerId, equals(11));
     });
 
+    test('parseAvailabilityPagination correctly detects hasNextPage from pagination object or item count', () {
+      final repo = ServicesLocator.groomerHomeRepository;
+
+      // 1. Backend contract with hasNextPage: false when page has exactly 100 records
+      final fullPageNoMore = {
+        'success': true,
+        'data': {
+          'pagination': {
+            'page': 1,
+            'limit': 100,
+            'total': 100,
+            'totalPages': 1,
+            'hasNextPage': false,
+          },
+        },
+      };
+      final p1 = repo.parseAvailabilityPagination(fullPageNoMore, itemsCount: 100, page: 1, limit: 100);
+      expect(p1.hasNextPage, isFalse);
+      expect(p1.totalPages, equals(1));
+      expect(p1.total, equals(100));
+
+      // 2. Backend contract with hasNextPage: true when page has 100 records and more remain
+      final fullPageHasMore = {
+        'success': true,
+        'data': {
+          'pagination': {
+            'page': 1,
+            'limit': 100,
+            'total': 150,
+            'totalPages': 2,
+            'hasNextPage': true,
+          },
+        },
+      };
+      final p2 = repo.parseAvailabilityPagination(fullPageHasMore, itemsCount: 100, page: 1, limit: 100);
+      expect(p2.hasNextPage, isTrue);
+      expect(p2.totalPages, equals(2));
+      expect(p2.total, equals(150));
+
+      // 3. Backend contract with totalPages: 1 and page == totalPages
+      final pageMatchesTotal = {
+        'success': true,
+        'data': {
+          'pagination': {
+            'page': 1,
+            'limit': 100,
+            'totalPages': 1,
+          },
+        },
+      };
+      final p3 = repo.parseAvailabilityPagination(pageMatchesTotal, itemsCount: 100, page: 1, limit: 100);
+      expect(p3.hasNextPage, isFalse);
+
+      // 4. Backend omits pagination object: fallback uses itemsCount >= limit
+      final noPaginationFull = {
+        'success': true,
+        'data': {'groomers': []},
+      };
+      final p4 = repo.parseAvailabilityPagination(noPaginationFull, itemsCount: 100, page: 1, limit: 100);
+      expect(p4.hasNextPage, isTrue); // Queries next page to check if more items exist
+
+      final noPaginationPartial = {
+        'success': true,
+        'data': {'groomers': []},
+      };
+      final p5 = repo.parseAvailabilityPagination(noPaginationPartial, itemsCount: 42, page: 1, limit: 100);
+      expect(p5.hasNextPage, isFalse); // < 100 items -> definitely no more
+    });
+
     test('Combines multi-groomer availability results without duplicate appointments', () {
       final listGroomer1 = [
         const GroomerBooking(
@@ -829,6 +898,170 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('No matching appointments'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox());
+    });
+  });
+
+  group('Step 5 – Groomer Schedule API Integration & UI Verification Tests', () {
+    test('getAllGroomersBookingsWithPagination repository method supports date range and returns pagination metadata', () async {
+      final repo = ServicesLocator.groomerHomeRepository;
+      expect(repo.getAllGroomersBookingsWithPagination, isNotNull);
+
+      // Verify call structure with date range
+      final res = await repo.getAllGroomersBookingsWithPagination(
+        groomerId: 1,
+        startDate: '2026-10-15',
+        endDate: '2026-10-17',
+        page: 1,
+        limit: 10,
+      );
+
+      expect(res.appointments, isA<List<GroomerBooking>>());
+      expect(res.hasNextPage, isA<bool>());
+      expect(res.totalPages, isA<int>());
+      expect(res.total, isA<int>());
+    });
+
+    testWidgets('Tapping Date Selector Bar opens timeline options modal with Single Date and Date Range options', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(430, 932));
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: AllGroomersSchedulePage(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Tap on the date selector center
+      final dateBarTrigger = find.byTooltip('Select Date or Date Range');
+      expect(dateBarTrigger, findsOneWidget);
+      await tester.tap(dateBarTrigger);
+      await tester.pumpAndSettle();
+
+      // Verify Bottom Sheet Options Modal
+      expect(find.text('Select Schedule Timeline'), findsOneWidget);
+      expect(find.text('Past, present, and future dates are unrestricted'), findsOneWidget);
+      expect(find.text('Single Date Picker'), findsOneWidget);
+      expect(find.text('Date Range Picker'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('Displays Customer Special Instructions container with speaker notes icon on appointment card', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(430, 932));
+
+      final now = DateTime.now();
+      final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+      final mockBookings = [
+        GroomerBooking(
+          bookingId: 401,
+          status: 'confirmed',
+          bookingDate: todayStr,
+          startTime: '09:00',
+          endTime: '10:00',
+          petName: 'Bella',
+          customerName: 'Sarah Jenkins',
+          serviceName: 'Full Spa',
+          groomerId: 1,
+          groomerName: 'Merisa Brown',
+          specialInstructions: 'Please trim nails gently and use blueberry facial shampoo',
+        ),
+        GroomerBooking(
+          bookingId: 402,
+          status: 'confirmed',
+          bookingDate: todayStr,
+          startTime: '10:30',
+          endTime: '11:30',
+          petName: 'Milo',
+          customerName: 'Tom Hanks',
+          serviceName: 'Bath & Brush',
+          groomerId: 1,
+          groomerName: 'Merisa Brown',
+        ),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AllGroomersSchedulePage(
+            initialBookings: mockBookings,
+            initialGroomerFilterId: 'all',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify Customer instructions container is displayed for Bella
+      expect(find.text('Customer Instructions: "Please trim nails gently and use blueberry facial shampoo"'), findsOneWidget);
+      expect(find.byIcon(Icons.speaker_notes_outlined), findsOneWidget);
+
+      // Verify Milo has no customer instructions container
+      expect(find.text('Milo'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('Searches appointments by Customer Special Instructions and Pet Breed', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(430, 932));
+
+      final now = DateTime.now();
+      final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+      final mockBookings = [
+        GroomerBooking(
+          bookingId: 501,
+          status: 'confirmed',
+          bookingDate: todayStr,
+          startTime: '09:00',
+          endTime: '10:00',
+          petName: 'Daisy',
+          breed: 'Golden Retriever',
+          customerName: 'Alice Green',
+          serviceName: 'Full Grooming',
+          groomerId: 1,
+          groomerName: 'Merisa Brown',
+          specialInstructions: 'Extra fluff on tail requested',
+        ),
+        GroomerBooking(
+          bookingId: 502,
+          status: 'confirmed',
+          bookingDate: todayStr,
+          startTime: '11:00',
+          endTime: '12:00',
+          petName: 'Rocky',
+          breed: 'French Bulldog',
+          customerName: 'Bob Vance',
+          serviceName: 'Nail Trim',
+          groomerId: 1,
+          groomerName: 'Merisa Brown',
+          specialInstructions: 'Careful with sensitive ears',
+        ),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AllGroomersSchedulePage(
+            initialBookings: mockBookings,
+            initialGroomerFilterId: 'all',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final searchField = find.byType(TextField);
+
+      // 1. Search by customer instructions keyword: 'tail'
+      await tester.enterText(searchField, 'tail');
+      await tester.pumpAndSettle();
+      expect(find.text('Daisy'), findsOneWidget);
+      expect(find.text('Rocky'), findsNothing);
+
+      // 2. Search by pet breed: 'Bulldog'
+      await tester.enterText(searchField, 'Bulldog');
+      await tester.pumpAndSettle();
+      expect(find.text('Daisy'), findsNothing);
+      expect(find.text('Rocky'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox());
     });

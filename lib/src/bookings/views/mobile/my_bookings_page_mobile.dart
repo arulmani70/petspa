@@ -13,7 +13,11 @@ import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/toast_util.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/shimmer_loading.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/views/mobile/widgets/customer_checkout_summary_sheet.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/models/booking_receipt.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/views/mobile/booking_receipt_page_mobile.dart';
 import 'package:shear_heaven_pet_spa/src/pets/bloc/pet_bloc.dart';
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Design constants — project theme
@@ -1063,6 +1067,12 @@ class _BookingCard extends StatelessWidget {
     Color fg;
     String label;
     switch (_status) {
+      case 'READY_FOR_CHECKOUT':
+      case 'READYFORCHECKOUT':
+        bg = const Color(0xFFCCFBF1);
+        fg = const Color(0xFF0F766E);
+        label = 'Ready for Checkout';
+        break;
       case 'IN_PROGRESS':
         bg = const Color(0xFFDBEAFE);
         fg = const Color(0xFF1D4ED8);
@@ -1364,6 +1374,70 @@ class _BookingCard extends StatelessWidget {
               ),
             ),
           ],
+
+          // ── Ready for Checkout Quick Action ──────────────────────────────
+          if (_status == 'READY_FOR_CHECKOUT' || _status == 'READYFORCHECKOUT') ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: ElevatedButton.icon(
+                onPressed: () => CustomerCheckoutSummarySheet.show(
+                  context,
+                  booking: booking,
+                ),
+                icon: const Icon(Icons.receipt_long, size: 18, color: Colors.white),
+                label: Text(
+                  'Review Checkout & Tip',
+                  style: AppFonts.poppins(
+                    size: 13.5,
+                    weight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F766E),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                ),
+              ),
+            ),
+          ],
+
+          // ── Completed Booking Receipt Quick Action ────────────────────────
+          if (_status == 'COMPLETED') ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: OutlinedButton.icon(
+                onPressed: () => BookingReceiptPageMobile.show(
+                  context,
+                  receipt: BookingReceipt.fromMap(booking),
+                ),
+                icon: const Icon(Icons.receipt_long_rounded, size: 18, color: Color(0xFF111827)),
+                label: Text(
+                  'View Receipt & Invoice',
+                  style: AppFonts.poppins(
+                    size: 13.5,
+                    weight: FontWeight.w600,
+                    color: const Color(0xFF111827),
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF111827),
+                  side: const BorderSide(color: Color(0xFFD1D5DB)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                ),
+              ),
+            ),
+          ],
+
 
           // ── Actions ───────────────────────────────────────────────────────
           if (onCancel != null ||

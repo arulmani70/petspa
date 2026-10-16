@@ -9,6 +9,8 @@ import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/session_service.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/customer_summary.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_booking.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_check_in_record.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_milestone_record.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_schedule_models.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_user.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/salon_groomer.dart';
@@ -407,15 +409,20 @@ class GroomerHomeRepository {
   }
 
   /// GET /api/groomer-auth/groomer-availability/:groomerId?date=YYYY-MM-DD&page=1&limit=10
-  /// Fetches availability appointments for a specific groomer.
-  Future<List<GroomerBooking>> getGroomerAvailabilityAppointments({
+  /// Fetches availability appointments along with backend pagination metadata.
+  Future<({
+    List<GroomerBooking> appointments,
+    bool hasNextPage,
+    int totalPages,
+    int total,
+  })> getGroomerAvailabilityAppointmentsWithPagination({
     required int groomerId,
     required String date,
     int page = 1,
     int limit = 10,
   }) async {
     try {
-      log.d('GroomerHomeRepository::getGroomerAvailabilityAppointments::Fetching availability for groomer #$groomerId on $date (page: $page, limit: $limit)');
+      log.d('GroomerHomeRepository::getGroomerAvailabilityAppointmentsWithPagination::Fetching availability for groomer #$groomerId on $date (page: $page, limit: $limit)');
       final queryParams = <String, dynamic>{
         'date': date,
         'page': page,
@@ -428,15 +435,51 @@ class GroomerHomeRepository {
         query: queryParams,
       );
 
-      return _parseAvailabilityAppointmentsResponse(
+      final appointments = _parseAvailabilityAppointmentsResponse(
         response,
         targetGroomerId: groomerId,
         date: date,
       );
+
+      final pagInfo = parseAvailabilityPagination(
+        response,
+        itemsCount: appointments.length,
+        page: page,
+        limit: limit,
+      );
+
+      return (
+        appointments: appointments,
+        hasNextPage: pagInfo.hasNextPage,
+        totalPages: pagInfo.totalPages,
+        total: pagInfo.total,
+      );
     } catch (e) {
-      log.e('GroomerHomeRepository::getGroomerAvailabilityAppointments::Error: $e');
-      return [];
+      log.e('GroomerHomeRepository::getGroomerAvailabilityAppointmentsWithPagination::Error: $e');
+      return (
+        appointments: <GroomerBooking>[],
+        hasNextPage: false,
+        totalPages: 0,
+        total: 0,
+      );
     }
+  }
+
+  /// GET /api/groomer-auth/groomer-availability/:groomerId?date=YYYY-MM-DD&page=1&limit=10
+  /// Fetches availability appointments for a specific groomer.
+  Future<List<GroomerBooking>> getGroomerAvailabilityAppointments({
+    required int groomerId,
+    required String date,
+    int page = 1,
+    int limit = 10,
+  }) async {
+    final result = await getGroomerAvailabilityAppointmentsWithPagination(
+      groomerId: groomerId,
+      date: date,
+      page: page,
+      limit: limit,
+    );
+    return result.appointments;
   }
 
   /// Fetches availability appointments across all salon groomers.
@@ -498,6 +541,52 @@ class GroomerHomeRepository {
       log.e('GroomerHomeRepository::getAllGroomersAvailabilityAppointments::Error: $e');
       return [];
     }
+  }
+
+  /// Exposes pagination parsing for unit tests and backend contract validation.
+  @visibleForTesting
+  ({bool hasNextPage, int totalPages, int total}) parseAvailabilityPagination(
+    Map<String, dynamic>? response, {
+    required int itemsCount,
+    required int page,
+    required int limit,
+  }) {
+    final pagination = response != null
+        ? (response['data'] is Map ? response['data']['pagination'] : null) ?? response['pagination'] ?? response['meta']
+        : null;
+
+    bool hasNext;
+    int totalPages = 1;
+    int total = itemsCount;
+
+    if (pagination is Map) {
+      if (pagination['hasNextPage'] != null) {
+        hasNext = pagination['hasNextPage'] == true || pagination['hasNextPage']?.toString().toLowerCase() == 'true';
+      } else if (pagination['hasMore'] != null) {
+        hasNext = pagination['hasMore'] == true || pagination['hasMore']?.toString().toLowerCase() == 'true';
+      } else if (pagination['totalPages'] != null) {
+        final tp = int.tryParse(pagination['totalPages'].toString()) ?? 1;
+        totalPages = tp;
+        hasNext = page < tp;
+      } else {
+        hasNext = itemsCount >= limit;
+      }
+
+      if (pagination['totalPages'] != null) {
+        totalPages = int.tryParse(pagination['totalPages'].toString()) ?? totalPages;
+      }
+      if (pagination['total'] != null) {
+        total = int.tryParse(pagination['total'].toString()) ?? total;
+      }
+    } else {
+      hasNext = itemsCount >= limit;
+    }
+
+    return (
+      hasNextPage: hasNext,
+      totalPages: totalPages,
+      total: total,
+    );
   }
 
   /// Exposes response parsing for unit tests and availability mappings.
@@ -592,12 +681,61 @@ class GroomerHomeRepository {
                 addOns: slot['addOns'] is List
                     ? (slot['addOns'] as List).map((a) => a is Map ? a['name'].toString() : a.toString()).toList()
                     : const [],
-                totalPrice: double.tryParse(slot['totalPrice']?.toString() ?? '') ?? 0.0,
+                totalPrice: double.tryParse(slot['totalPrice']?.toString() ??
+                    slot['totalAmount']?.toString() ??
+                    slot['serviceAmount']?.toString() ??
+                    slot['serviceFee']?.toString() ??
+                    slot['price']?.toString() ??
+                    '') ?? 0.0,
+                tipAmount: slot['tipAmount'] != null
+                    ? double.tryParse(slot['tipAmount'].toString())
+                    : (slot['tip'] != null
+                        ? double.tryParse(slot['tip'].toString())
+                        : (slot['tips'] != null
+                            ? double.tryParse(slot['tips'].toString())
+                            : (slot['completedTipAmount'] != null
+                                ? double.tryParse(slot['completedTipAmount'].toString())
+                                : null))),
+                taxAmount: slot['taxAmount'] != null
+                    ? double.tryParse(slot['taxAmount'].toString())
+                    : (slot['tax'] != null
+                        ? double.tryParse(slot['tax'].toString())
+                        : (slot['salesTax'] != null
+                            ? double.tryParse(slot['salesTax'].toString())
+                            : (slot['completedTaxAmount'] != null
+                                ? double.tryParse(slot['completedTaxAmount'].toString())
+                                : null))),
+                isPaid: (slot['isPaid'] != null
+                    ? (slot['isPaid'] == true ||
+                        slot['isPaid']?.toString().toLowerCase() == 'true' ||
+                        slot['isPaid'] == 1 ||
+                        slot['isPaid']?.toString() == '1')
+                    : (slot['paid'] != null
+                        ? (slot['paid'] == true ||
+                            slot['paid']?.toString().toLowerCase() == 'true' ||
+                            slot['paid'] == 1 ||
+                            slot['paid']?.toString() == '1')
+                        : (slot['isCompletedTransaction'] == true
+                            ? true
+                            : (slot['paymentStatus']?.toString().toLowerCase() == 'paid' ||
+                                slot['payment_status']?.toString().toLowerCase() == 'paid'
+                                ? true
+                                : (slot['paymentStatus']?.toString().toLowerCase() == 'unpaid' ||
+                                    slot['payment_status']?.toString().toLowerCase() == 'unpaid'
+                                    ? false
+                                    : null))))),
+                paymentStatus: slot['paymentStatus']?.toString() ??
+                    slot['payment_status']?.toString(),
                 totalDurationMinutes: int.tryParse(slot['totalDurationMinutes']?.toString() ?? '') ?? 60,
                 storeId: slot['storeId']?.toString() ?? '',
                 groomerId: gId,
                 groomerName: gName,
                 groomerCode: gCode,
+                specialInstructions: (slot['specialInstructions'] ??
+                    slot['special_instructions'] ??
+                    slot['notes'] ??
+                    slot['serviceRequestNotes'] ??
+                    slot['service_request_notes'])?.toString(),
               ));
             }
           }
@@ -656,6 +794,102 @@ class GroomerHomeRepository {
         page: page,
         limit: limit,
       );
+    }
+  }
+
+  /// Dedicated method for All Groomers Schedule fetching with full pagination and date-range support.
+  Future<({
+    List<GroomerBooking> appointments,
+    bool hasNextPage,
+    int totalPages,
+    int total,
+  })> getAllGroomersBookingsWithPagination({
+    int? groomerId,
+    List<int>? groomerIds,
+    String? date,
+    String? startDate,
+    String? endDate,
+    int page = 1,
+    int limit = 10,
+  }) async {
+    try {
+      final List<String> dates = [];
+      if (startDate != null && endDate != null && startDate.isNotEmpty && endDate.isNotEmpty) {
+        final startDt = BookingDateUtils.parseCalendarDate(startDate);
+        final endDt = BookingDateUtils.parseCalendarDate(endDate);
+        if (startDt != null && endDt != null) {
+          final s = BookingDateUtils.normalize(startDt);
+          final e = BookingDateUtils.normalize(endDt);
+          final diff = e.difference(s).inDays.clamp(0, 92);
+          for (int i = 0; i <= diff; i++) {
+            dates.add(DateFormat('yyyy-MM-dd').format(s.add(Duration(days: i))));
+          }
+        }
+      }
+      if (dates.isEmpty) {
+        dates.add(date ?? DateFormat('yyyy-MM-dd').format(DateTime.now()));
+      }
+
+      List<int> targetGroomerIds = [];
+      if (groomerId != null && groomerId > 0) {
+        targetGroomerIds = [groomerId];
+      } else if (groomerIds != null && groomerIds.isNotEmpty) {
+        targetGroomerIds = groomerIds.where((id) => id > 0).toSet().toList();
+      } else {
+        final salon = await getSalonGroomers();
+        targetGroomerIds = salon.map((g) => g.id).where((id) => id > 0).toSet().toList();
+      }
+
+      if (targetGroomerIds.isEmpty) {
+        return (appointments: <GroomerBooking>[], hasNextPage: false, totalPages: 1, total: 0);
+      }
+
+      final Map<String, GroomerBooking> uniqueAppointments = {};
+      bool anyHasNextPage = false;
+      int maxTotalPages = 1;
+      int aggregatedTotalCount = 0;
+
+      for (final targetDate in dates) {
+        for (final gid in targetGroomerIds) {
+          final res = await getGroomerAvailabilityAppointmentsWithPagination(
+            groomerId: gid,
+            date: targetDate,
+            page: page,
+            limit: limit,
+          );
+          if (res.hasNextPage) anyHasNextPage = true;
+          if (res.totalPages > maxTotalPages) maxTotalPages = res.totalPages;
+          aggregatedTotalCount += res.total;
+
+          for (final b in res.appointments) {
+            final key = b.bookingId > 0
+                ? 'id_${b.bookingId}'
+                : 'slot_${b.groomerId}_${b.bookingDate}_${b.startTime}_${b.endTime}';
+            uniqueAppointments[key] = b;
+          }
+        }
+      }
+
+      final list = uniqueAppointments.values.toList();
+      list.sort((a, b) {
+        final da = BookingDateUtils.parseCalendarDate(a.bookingDate) ?? DateTime(1970);
+        final db = BookingDateUtils.parseCalendarDate(b.bookingDate) ?? DateTime(1970);
+        final comp = da.compareTo(db);
+        if (comp != 0) return comp;
+        final ta = BookingDateUtils.timeToMinutes(a.startTime) ?? 0;
+        final tb = BookingDateUtils.timeToMinutes(b.startTime) ?? 0;
+        return ta.compareTo(tb);
+      });
+
+      return (
+        appointments: list,
+        hasNextPage: anyHasNextPage,
+        totalPages: maxTotalPages,
+        total: aggregatedTotalCount > 0 ? aggregatedTotalCount : list.length,
+      );
+    } catch (e) {
+      log.e('GroomerHomeRepository::getAllGroomersBookingsWithPagination::Error: $e');
+      return (appointments: <GroomerBooking>[], hasNextPage: false, totalPages: 1, total: 0);
     }
   }
 
@@ -767,6 +1001,397 @@ class GroomerHomeRepository {
     return res.success;
   }
 
+  /// POST /api/groomer-auth/bookings/:id/check-in
+  /// Submits the intake checklist (vaccination verification, health verification,
+  /// customer instructions acknowledgment, and groomer check-in notes).
+  Future<({
+    bool success,
+    String message,
+    GroomerBooking? updatedBooking,
+    GroomerCheckInRecord? checkInRecord,
+  })> checkInBooking({
+    required int bookingId,
+    required bool vaccinationVerified,
+    required bool healthVerified,
+    required bool customerRequestAcknowledged,
+    String? groomerCheckInNotes,
+    GroomerBooking? booking,
+  }) async {
+    try {
+      log.d('GroomerHomeRepository::checkInBooking::Checking in booking #$bookingId');
+
+      final payload = <String, dynamic>{
+        'vaccinationVerified': vaccinationVerified,
+        'healthVerified': healthVerified,
+        'customerRequestAcknowledged': customerRequestAcknowledged,
+        if (groomerCheckInNotes != null && groomerCheckInNotes.trim().isNotEmpty)
+          'groomerCheckInNotes': groomerCheckInNotes.trim(),
+      };
+
+      final response = await ServicesLocator.apiRepository.post(
+        '/api/groomer-auth/bookings/$bookingId/check-in',
+        payload,
+      );
+
+      final isSuccess = response != null && response['success'] == true;
+      final msg = response?['message']?.toString() ??
+          (isSuccess ? 'Dog checked in successfully. Appointment is now in service.' : 'Failed to check in appointment.');
+
+      GroomerCheckInRecord? checkInRecord;
+      GroomerBooking? updatedBooking = booking;
+
+      if (isSuccess) {
+        final data = response['data'] is Map ? Map<String, dynamic>.from(response['data'] as Map) : null;
+        if (data != null && data['checkInRecord'] is Map) {
+          checkInRecord = GroomerCheckInRecord.fromJson(
+            Map<String, dynamic>.from(data['checkInRecord'] as Map),
+          );
+        } else {
+          checkInRecord = GroomerCheckInRecord(
+            vaccinationVerified: vaccinationVerified,
+            healthVerified: healthVerified,
+            customerRequestAcknowledged: customerRequestAcknowledged,
+            groomerCheckInNotes: groomerCheckInNotes?.trim(),
+            checkInTimestamp: data?['checkInTimestamp']?.toString() ??
+                data?['checkInRecord']?['checkInTimestamp']?.toString(),
+            checkedInByGroomerId: getCurrentGroomer()?.id,
+          );
+        }
+
+        if (updatedBooking != null) {
+          updatedBooking = updatedBooking.copyWith(
+            status: data?['status']?.toString() ?? 'checked_in',
+            checkInRecord: checkInRecord,
+          );
+        }
+
+        await _dispatchBookingStatusNotification(
+          bookingId: bookingId,
+          customerTitle: 'Pet Checked In',
+          customerMessage: 'Your pet for booking #$bookingId has been checked in and is ready for grooming.',
+          groomerTitle: 'Check-in Completed',
+          groomerMessage: 'Check-in completed for booking #$bookingId.',
+          type: 'booking_checked_in',
+          status: 'checked_in',
+          booking: updatedBooking ?? booking,
+          responseData: data,
+        );
+      }
+
+      return (
+        success: isSuccess,
+        message: msg,
+        updatedBooking: updatedBooking,
+        checkInRecord: checkInRecord,
+      );
+    } catch (e) {
+      log.e('GroomerHomeRepository::checkInBooking::Error: $e');
+      return (
+        success: false,
+        message: 'Error during check-in: $e',
+        updatedBooking: null,
+        checkInRecord: null,
+      );
+    }
+  }
+
+  /// Step 7: Transition service milestone: Bath Completed or Grooming Completed.
+  /// Follows the approved service-stage transitions and prevents invalid or repeated transitions.
+  Future<({
+    bool success,
+    String message,
+    GroomerBooking? updatedBooking,
+    GroomerMilestoneRecord? milestoneRecord,
+  })> updateServiceMilestone({
+    required int bookingId,
+    required String milestone, // 'bath_completed' | 'grooming_completed'
+    String? notes,
+    GroomerBooking? booking,
+  }) async {
+    try {
+      log.d('GroomerHomeRepository::updateServiceMilestone::Booking #$bookingId -> $milestone');
+
+      // Validation 1: Prevent invalid or repeated transitions
+      if (booking != null) {
+        final currentStatus = booking.status.toLowerCase();
+        if (currentStatus == 'pending' || currentStatus == 'cancelled') {
+          return (
+            success: false,
+            message: 'Cannot update milestone for a $currentStatus appointment.',
+            updatedBooking: null,
+            milestoneRecord: null,
+          );
+        }
+
+        if (milestone == 'bath_completed') {
+          if (booking.isBathCompleted) {
+            return (
+              success: false,
+              message: 'Bath milestone has already been completed for this appointment.',
+              updatedBooking: null,
+              milestoneRecord: null,
+            );
+          }
+          if (!booking.canCompleteBath && currentStatus != 'confirmed') {
+            return (
+              success: false,
+              message: 'Appointment must be in progress or checked in before completing bath.',
+              updatedBooking: null,
+              milestoneRecord: null,
+            );
+          }
+        } else if (milestone == 'grooming_completed') {
+          if (booking.isGroomingCompleted) {
+            return (
+              success: false,
+              message: 'Grooming milestone has already been completed for this appointment.',
+              updatedBooking: null,
+              milestoneRecord: null,
+            );
+          }
+          if (!booking.isBathCompleted && currentStatus != 'in_progress' && currentStatus != 'bath_completed') {
+            return (
+              success: false,
+              message: 'Bath milestone must be completed before marking grooming completed.',
+              updatedBooking: null,
+              milestoneRecord: null,
+            );
+          }
+        }
+      }
+
+      final payload = <String, dynamic>{
+        'milestone': milestone,
+        if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+      };
+
+      // Primary milestone API call
+      final response = await ServicesLocator.apiRepository.post(
+        '/api/groomer-auth/bookings/$bookingId/milestone',
+        payload,
+      );
+
+      final isSuccess = response != null && response['success'] == true;
+      final msg = response?['message']?.toString() ??
+          (isSuccess
+              ? (milestone == 'bath_completed'
+                  ? 'Bath milestone marked as completed.'
+                  : 'Grooming milestone marked as completed.')
+              : 'Failed to update milestone.');
+
+      GroomerMilestoneRecord? milestoneRecord;
+      GroomerBooking? updatedBooking = booking;
+
+      if (isSuccess) {
+        final data = response['data'] is Map ? Map<String, dynamic>.from(response['data'] as Map) : null;
+        final serverTimestamp = data?['timestamp']?.toString() ??
+            data?['milestoneTimestamp']?.toString() ??
+            data?['bathCompletedAt']?.toString() ??
+            data?['groomingCompletedAt']?.toString();
+
+        final existingRecord = booking?.milestoneRecord ?? const GroomerMilestoneRecord();
+        if (milestone == 'bath_completed') {
+          milestoneRecord = existingRecord.copyWith(
+            bathCompleted: true,
+            bathCompletedAt: serverTimestamp,
+            bathNotes: notes?.trim(),
+            completedByGroomerId: getCurrentGroomer()?.id,
+          );
+        } else {
+          milestoneRecord = existingRecord.copyWith(
+            groomingCompleted: true,
+            groomingCompletedAt: serverTimestamp,
+            groomingNotes: notes?.trim(),
+            completedByGroomerId: getCurrentGroomer()?.id,
+          );
+        }
+
+        if (updatedBooking != null) {
+          updatedBooking = updatedBooking.copyWith(
+            status: milestone,
+            milestoneRecord: milestoneRecord,
+          );
+        }
+
+        final isBath = milestone == 'bath_completed';
+        await _dispatchBookingStatusNotification(
+          bookingId: bookingId,
+          customerTitle: isBath ? 'Bath Completed' : 'Grooming Completed',
+          customerMessage: isBath
+              ? 'Your pet\'s bath is completed and they are now ready for styling!'
+              : 'Grooming and styling for your pet is completed!',
+          groomerTitle: isBath ? 'Bath Milestone Completed' : 'Grooming Milestone Completed',
+          groomerMessage: 'Milestone $milestone recorded for booking #$bookingId.',
+          type: isBath ? 'booking_bath_completed' : 'booking_grooming_completed',
+          status: milestone,
+          booking: updatedBooking ?? booking,
+          responseData: data,
+        );
+      }
+
+      return (
+        success: isSuccess,
+        message: msg,
+        updatedBooking: updatedBooking,
+        milestoneRecord: milestoneRecord,
+      );
+    } catch (e) {
+      log.e('GroomerHomeRepository::updateServiceMilestone::Error: $e');
+      return (
+        success: false,
+        message: 'Error updating service milestone: $e',
+        updatedBooking: null,
+        milestoneRecord: null,
+      );
+    }
+  }
+
+  Future<({bool success, String message, GroomerBooking? updatedBooking})> completeBathMilestone(
+    int bookingId, {
+    String? notes,
+    GroomerBooking? booking,
+  }) async {
+    final res = await updateServiceMilestone(
+      bookingId: bookingId,
+      milestone: 'bath_completed',
+      notes: notes,
+      booking: booking,
+    );
+    return (
+      success: res.success,
+      message: res.message,
+      updatedBooking: res.updatedBooking,
+    );
+  }
+
+  Future<({bool success, String message, GroomerBooking? updatedBooking})> completeGroomingMilestone(
+    int bookingId, {
+    String? notes,
+    GroomerBooking? booking,
+  }) async {
+    final res = await updateServiceMilestone(
+      bookingId: bookingId,
+      milestone: 'grooming_completed',
+      notes: notes,
+      booking: booking,
+    );
+    return (
+      success: res.success,
+      message: res.message,
+      updatedBooking: res.updatedBooking,
+    );
+  }
+
+  /// Step 8: POST /api/groomer-auth/bookings/:id/ready-for-checkout
+  /// Transitions appointment from Grooming Completed to Ready for Checkout.
+  /// Prevents invalid transitions, duplicate calls, and enforces assigned groomer ownership.
+  Future<({
+    bool success,
+    String message,
+    GroomerBooking? updatedBooking,
+  })> markReadyForCheckoutDetails({
+    required int bookingId,
+    GroomerBooking? booking,
+  }) async {
+    try {
+      log.d('GroomerHomeRepository::markReadyForCheckout::Booking #$bookingId');
+
+      // Validation 1: Ownership check
+      final currentGroomer = getCurrentGroomer();
+      if (booking != null && currentGroomer != null) {
+        final bGroomerId = booking.groomerId;
+        if (bGroomerId != null && bGroomerId > 0 && bGroomerId != currentGroomer.id) {
+          return (
+            success: false,
+            message: 'You cannot mark another groomer\'s appointment ready for checkout.',
+            updatedBooking: null,
+          );
+        }
+      }
+
+      // Validation 2: Lifecycle rules
+      if (booking != null) {
+        final currentStatus = booking.status.toLowerCase();
+        if (currentStatus == 'pending' || currentStatus == 'cancelled') {
+          return (
+            success: false,
+            message: 'Cannot mark a $currentStatus appointment ready for checkout.',
+            updatedBooking: null,
+          );
+        }
+
+        if (booking.isReadyForCheckout) {
+          return (
+            success: false,
+            message: 'Appointment is already marked as Ready for Checkout.',
+            updatedBooking: null,
+          );
+        }
+
+        if (!booking.isGroomingCompleted) {
+          return (
+            success: false,
+            message: 'Grooming must be completed before marking appointment ready for checkout.',
+            updatedBooking: null,
+          );
+        }
+      }
+
+      // Primary ready-for-checkout API call
+      final response = await ServicesLocator.apiRepository.post(
+        '/api/groomer-auth/bookings/$bookingId/ready-for-checkout',
+        {},
+      );
+
+      final isSuccess = response != null && response['success'] == true;
+      final msg = response?['message']?.toString() ??
+          (isSuccess
+              ? 'Appointment #$bookingId marked as Ready for Checkout.'
+              : 'Failed to mark appointment ready for checkout.');
+
+      GroomerBooking? updatedBooking;
+
+      if (isSuccess) {
+        final data = response['data'] is Map ? Map<String, dynamic>.from(response['data'] as Map) : null;
+        if (booking != null) {
+          updatedBooking = booking.copyWith(
+            status: 'ready_for_checkout',
+          );
+        }
+
+        await _dispatchBookingStatusNotification(
+          bookingId: bookingId,
+          customerTitle: 'Ready for Checkout',
+          customerMessage: 'Your pet\'s grooming is complete and is now ready for checkout!',
+          groomerTitle: 'Ready for Checkout',
+          groomerMessage: 'Appointment #$bookingId is now marked as Ready for Checkout.',
+          type: 'booking_ready_for_checkout',
+          status: 'ready_for_checkout',
+          booking: updatedBooking ?? booking,
+          responseData: data,
+        );
+      }
+
+      return (
+        success: isSuccess,
+        message: msg,
+        updatedBooking: updatedBooking,
+      );
+    } catch (e) {
+      log.e('GroomerHomeRepository::markReadyForCheckout::Error: $e');
+      return (
+        success: false,
+        message: 'Error marking appointment ready for checkout: $e',
+        updatedBooking: null,
+      );
+    }
+  }
+
+  Future<bool> markReadyForCheckout(int bookingId, {GroomerBooking? booking}) async {
+    final res = await markReadyForCheckoutDetails(bookingId: bookingId, booking: booking);
+    return res.success;
+  }
+
   /// POST /api/groomer-auth/bookings/:id/start
   Future<({bool success, String message})> startBookingDetails(int bookingId, {GroomerBooking? booking}) async {
     try {
@@ -805,34 +1430,115 @@ class GroomerHomeRepository {
   }
 
   /// POST /api/groomer-auth/bookings/:id/complete
-  Future<({bool success, String message})> completeBookingDetails(int bookingId, {GroomerBooking? booking}) async {
+  /// Step 10: Final Checkout & Completion
+  Future<({
+    bool success,
+    String message,
+    GroomerBooking? updatedBooking,
+  })> completeBookingDetails(int bookingId, {GroomerBooking? booking}) async {
     try {
       log.d('GroomerHomeRepository::completeBooking::Completing booking #$bookingId');
+
+      // Validation 1: Ownership check
+      final currentGroomer = getCurrentGroomer();
+      if (booking != null && currentGroomer != null) {
+        final bGroomerId = booking.groomerId;
+        if (bGroomerId != null && bGroomerId > 0 && bGroomerId != currentGroomer.id) {
+          return (
+            success: false,
+            message: 'You cannot complete checkout for another groomer\'s appointment.',
+            updatedBooking: null,
+          );
+        }
+      }
+
+      // Validation 2: Lifecycle rules
+      // Step 10: "Allow final checkout only for eligible bookings in the verified ready_for_checkout state."
+      if (booking != null) {
+        final currentStatus = booking.status.toLowerCase();
+        if (currentStatus == 'completed') {
+          return (
+            success: false,
+            message: 'Appointment #$bookingId is already completed.',
+            updatedBooking: null,
+          );
+        }
+        if (currentStatus == 'cancelled') {
+          return (
+            success: false,
+            message: 'Cannot checkout a cancelled appointment.',
+            updatedBooking: null,
+          );
+        }
+        if (!booking.isReadyForCheckout && currentStatus != 'ready_for_checkout') {
+          return (
+            success: false,
+            message: 'Appointment must be in Ready for Checkout state before final checkout.',
+            updatedBooking: null,
+          );
+        }
+      }
+
       final response = await ServicesLocator.apiRepository.post(
         '/api/groomer-auth/bookings/$bookingId/complete',
         {},
       );
       final isSuccess = response != null && response['success'] == true;
       final msg = response?['message']?.toString() ??
-          (isSuccess ? 'Appointment #$bookingId marked as completed' : 'Failed to complete appointment.');
+          (isSuccess ? 'Appointment #$bookingId checkout completed successfully' : 'Failed to complete checkout.');
+
+      GroomerBooking? updatedBooking;
+
       if (isSuccess) {
         final data = response['data'] is Map ? Map<String, dynamic>.from(response['data'] as Map) : null;
+
+        // Parse server payment status if explicitly returned by backend
+        bool? confirmedPaid;
+        String? confirmedPaymentStatus;
+        if (data != null) {
+          if (data['isPaid'] != null) {
+            final val = data['isPaid'];
+            confirmedPaid = val == true || val.toString().toLowerCase() == 'true' || val == 1;
+          }
+          if (data['paymentStatus'] != null) {
+            confirmedPaymentStatus = data['paymentStatus'].toString();
+          } else if (confirmedPaid != null) {
+            confirmedPaymentStatus = confirmedPaid ? 'paid' : 'unpaid';
+          }
+        }
+
+        if (booking != null) {
+          updatedBooking = booking.copyWith(
+            status: 'completed',
+            isPaid: confirmedPaid ?? booking.isPaid,
+            paymentStatus: confirmedPaymentStatus ?? booking.paymentStatus,
+          );
+        }
+
         await _dispatchBookingStatusNotification(
           bookingId: bookingId,
-          customerTitle: 'Grooming Completed',
-          customerMessage: 'Your pet\'s grooming session (#$bookingId) is completed and ready for pickup!',
-          groomerTitle: 'Appointment Completed',
-          groomerMessage: 'Appointment #$bookingId has been marked as completed.',
+          customerTitle: 'Grooming & Checkout Completed',
+          customerMessage: 'Your pet\'s grooming session (#$bookingId) has been completed and checked out. Thank you for visiting Shear Heaven Pet Spa!',
+          groomerTitle: 'Checkout Completed',
+          groomerMessage: 'Appointment #$bookingId checkout has been successfully completed.',
           type: 'booking_completed',
           status: 'completed',
-          booking: booking,
+          booking: updatedBooking ?? booking,
           responseData: data,
         );
       }
-      return (success: isSuccess, message: msg);
+      return (
+        success: isSuccess,
+        message: msg,
+        updatedBooking: updatedBooking,
+      );
     } catch (e) {
       log.e('GroomerHomeRepository::completeBooking::Error: $e');
-      return (success: false, message: 'Error completing appointment: $e');
+      return (
+        success: false,
+        message: 'Error completing appointment: $e',
+        updatedBooking: null,
+      );
     }
   }
 
