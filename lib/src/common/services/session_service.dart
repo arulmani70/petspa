@@ -13,6 +13,9 @@ class SessionService {
   static const _refreshTokenKey = 'REFRESH_TOKEN';
   static const _pendingEmailKey = 'PENDING_EMAIL';
 
+  String? _customerAccessTokenInMemory;
+  String? _customerRefreshTokenInMemory;
+
   Future<void> initialize() async {
     try {
       _prefs = await SharedPreferences.getInstance();
@@ -135,8 +138,24 @@ class SessionService {
     required String refreshToken,
   }) async {
     try {
-      await _secureStorage.write(key: _accessTokenKey, value: accessToken);
-      await _secureStorage.write(key: _refreshTokenKey, value: refreshToken);
+      if (accessToken.trim().isNotEmpty) {
+        _customerAccessTokenInMemory = accessToken.trim();
+        await _prefs?.setString(_accessTokenKey, accessToken.trim());
+        try {
+          await _secureStorage.write(key: _accessTokenKey, value: accessToken.trim());
+        } catch (e) {
+          log.w("SessionService::saveTokens::SecureStorage accessToken write fallback: $e");
+        }
+      }
+      if (refreshToken.trim().isNotEmpty) {
+        _customerRefreshTokenInMemory = refreshToken.trim();
+        await _prefs?.setString(_refreshTokenKey, refreshToken.trim());
+        try {
+          await _secureStorage.write(key: _refreshTokenKey, value: refreshToken.trim());
+        } catch (e) {
+          log.w("SessionService::saveTokens::SecureStorage refreshToken write fallback: $e");
+        }
+      }
       log.d("SessionService::saveTokens::Tokens saved securely");
     } catch (e) {
       log.e("SessionService::saveTokens::Error saving tokens: $e");
@@ -144,14 +163,50 @@ class SessionService {
   }
 
   Future<String?> getAccessToken() async {
-    return await _secureStorage.read(key: _accessTokenKey);
+    if (_customerAccessTokenInMemory != null &&
+        _customerAccessTokenInMemory!.isNotEmpty) {
+      return _customerAccessTokenInMemory;
+    }
+    try {
+      final fromSecure = await _secureStorage.read(key: _accessTokenKey);
+      if (fromSecure != null && fromSecure.isNotEmpty) {
+        _customerAccessTokenInMemory = fromSecure;
+        return fromSecure;
+      }
+    } catch (_) {}
+    final fromPrefs = _prefs?.getString(_accessTokenKey);
+    if (fromPrefs != null && fromPrefs.isNotEmpty) {
+      _customerAccessTokenInMemory = fromPrefs;
+      return fromPrefs;
+    }
+    return null;
   }
 
   Future<String?> getRefreshToken() async {
-    return await _secureStorage.read(key: _refreshTokenKey);
+    if (_customerRefreshTokenInMemory != null &&
+        _customerRefreshTokenInMemory!.isNotEmpty) {
+      return _customerRefreshTokenInMemory;
+    }
+    try {
+      final fromSecure = await _secureStorage.read(key: _refreshTokenKey);
+      if (fromSecure != null && fromSecure.isNotEmpty) {
+        _customerRefreshTokenInMemory = fromSecure;
+        return fromSecure;
+      }
+    } catch (_) {}
+    final fromPrefs = _prefs?.getString(_refreshTokenKey);
+    if (fromPrefs != null && fromPrefs.isNotEmpty) {
+      _customerRefreshTokenInMemory = fromPrefs;
+      return fromPrefs;
+    }
+    return null;
   }
 
   Future<void> clearTokens() async {
+    _customerAccessTokenInMemory = null;
+    _customerRefreshTokenInMemory = null;
+    await _prefs?.remove(_accessTokenKey);
+    await _prefs?.remove(_refreshTokenKey);
     try {
       await _secureStorage.delete(key: _accessTokenKey);
       await _secureStorage.delete(key: _refreshTokenKey);
@@ -390,8 +445,8 @@ class SessionService {
     final pwd = _tempGroomerPasswordInMemory ?? _prefs?.getString(_tempGroomerPasswordKey);
     if (loginId == null && pwd == null) return null;
     return {
-      if (loginId != null) 'tempLoginId': loginId,
-      if (pwd != null) 'tempPassword': pwd,
+      'tempLoginId': ?loginId,
+      'tempPassword': ?pwd,
     };
   }
 
@@ -781,4 +836,65 @@ class SessionService {
     }
     return list;
   }
+
+  // ── Confirmed Tip Persistence (shared between Customer & Groomer) ───────────
+  static const _confirmedTipPrefix = 'CONFIRMED_TIP_BOOKING_';
+
+  Future<void> saveConfirmedTip({
+    required int bookingId,
+    required double tipAmount,
+    double? tipPercentage,
+    int? customerId,
+  }) async {
+    try {
+      final key = '$_confirmedTipPrefix$bookingId';
+      final data = <String, dynamic>{
+        'bookingId': bookingId,
+        'tipAmount': tipAmount,
+        'tip_amount': tipAmount,
+        'tipPercentage': ?tipPercentage,
+        'customerId': ?customerId,
+        'isTipConfirmed': true,
+        'confirmedAt': DateTime.now().toIso8601String(),
+      };
+      await _prefs?.setString(key, jsonEncode(data));
+      log.d('SessionService::saveConfirmedTip::Saved confirmed tip \$$tipAmount for booking #$bookingId');
+    } catch (e) {
+      log.w('SessionService::saveConfirmedTip::Error saving confirmed tip: $e');
+    }
+  }
+
+  Map<String, dynamic>? getConfirmedTip(int bookingId) {
+    try {
+      final key = '$_confirmedTipPrefix$bookingId';
+      final jsonStr = _prefs?.getString(key);
+      if (jsonStr != null && jsonStr.isNotEmpty) {
+        final decoded = jsonDecode(jsonStr);
+        if (decoded is Map) {
+          return Map<String, dynamic>.from(decoded);
+        }
+      }
+    } catch (e) {
+      log.w('SessionService::getConfirmedTip::Error reading confirmed tip: $e');
+    }
+    return null;
+  }
+
+  double? getConfirmedTipAmount(int bookingId) {
+    final tipData = getConfirmedTip(bookingId);
+    if (tipData != null) {
+      final raw = tipData['tipAmount'] ?? tipData['tip_amount'];
+      if (raw is num) return raw.toDouble();
+      if (raw != null) return double.tryParse(raw.toString());
+    }
+    return null;
+  }
+
+  Future<void> clearConfirmedTip(int bookingId) async {
+    try {
+      final key = '$_confirmedTipPrefix$bookingId';
+      await _prefs?.remove(key);
+    } catch (_) {}
+  }
 }
+

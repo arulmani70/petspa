@@ -71,6 +71,8 @@ class _ForecastPageState extends State<ForecastPage> {
 
   List<SalonGroomer> _salonGroomers = [];
   List<GroomerBooking> _allBookings = [];
+  ForecastFinancialSummary? _serverFinancialSummary;
+  List<Map<String, dynamic>> _serverGroomerSummaries = [];
 
   @override
   void dispose() {
@@ -263,10 +265,44 @@ class _ForecastPageState extends State<ForecastPage> {
         return dateMap.values.toList();
       }
 
-      final results = await Future.wait(datesToFetch.map((d) => fetchForDate(d)));
+      final startStr = !_isDateRangeMode
+          ? DateFormat('yyyy-MM-dd').format(_selectedDate)
+          : DateFormat('yyyy-MM-dd').format(BookingDateUtils.normalize(_selectedDateRange.start));
+      final endStr = !_isDateRangeMode
+          ? DateFormat('yyyy-MM-dd').format(_selectedDate)
+          : DateFormat('yyyy-MM-dd').format(BookingDateUtils.normalize(_selectedDateRange.end));
+
+      int? singleGroomerId;
+      if (!isAllSelected && selectedIds.length == 1) {
+        singleGroomerId = selectedIds.first;
+      }
+
       final List<GroomerBooking> appointments = [];
-      for (final list in results) {
-        appointments.addAll(list);
+      bool fetchedViaForecastApi = false;
+
+      // 1. Primary Attempt: Use GET /api/common/groomer/forecast?startDate=...&endDate=...
+      try {
+        final liveForecast = await ServicesLocator.groomerHomeRepository.getForecastDetails(
+          startDate: startStr,
+          endDate: endStr,
+          groomerId: singleGroomerId,
+          page: isLoadMore ? targetPage : 1,
+          limit: 100,
+        );
+        if (liveForecast != null) {
+          appointments.addAll(liveForecast.appointments);
+          _serverFinancialSummary = liveForecast.summary;
+          _serverGroomerSummaries = liveForecast.groomerSummaries;
+          fetchedViaForecastApi = true;
+        }
+      } catch (_) {}
+
+      // 2. Fallback: Day-by-day availability fetch if forecast API returned no response (e.g. offline/mock tests)
+      if (!fetchedViaForecastApi) {
+        final results = await Future.wait(datesToFetch.map((d) => fetchForDate(d)));
+        for (final list in results) {
+          appointments.addAll(list);
+        }
       }
 
       if (!mounted) return;
@@ -500,6 +536,11 @@ class _ForecastPageState extends State<ForecastPage> {
 
   /// Computes the overall financial summary for the currently active filters and date range.
   ForecastFinancialSummary get _financialSummary {
+    if (_searchQuery.trim().isEmpty &&
+        _serverFinancialSummary != null &&
+        (_selectedGroomerFilterIds.contains('all') || _selectedGroomerFilterIds.isEmpty)) {
+      return _serverFinancialSummary!;
+    }
     return ForecastFinancialSummary.fromBookings(
       _filteredBookings,
       currencySymbol: _currencySymbol,
@@ -508,6 +549,32 @@ class _ForecastPageState extends State<ForecastPage> {
 
   /// Computes the per-groomer financial summary for a specific salon groomer.
   ForecastFinancialSummary _financialSummaryForGroomer(SalonGroomer g) {
+    if (_searchQuery.trim().isEmpty && _serverGroomerSummaries.isNotEmpty) {
+      final match = _serverGroomerSummaries.firstWhere(
+        (m) =>
+            m['groomerId'] == g.id ||
+            m['groomerName']?.toString().toLowerCase() == g.name.toLowerCase(),
+        orElse: () => {},
+      );
+      if (match.isNotEmpty) {
+        final forecastRem = double.tryParse(match['forecastRemaining']?.toString() ?? '') ?? 0.0;
+        final sales = double.tryParse(match['completedSales']?.toString() ?? '') ?? 0.0;
+        final tips = double.tryParse(match['tipsEarned']?.toString() ?? '') ?? 0.0;
+        final tax = double.tryParse(match['salesTaxCollected']?.toString() ?? '') ?? 0.0;
+        final total = sales + tips + tax;
+        return ForecastFinancialSummary(
+          forecastServiceAmount: forecastRem,
+          completedSales: sales,
+          tipsCollected: tips,
+          taxCollected: tax,
+          totalCollected: total,
+          forecastAppointmentsCount: int.tryParse(match['pendingCount']?.toString() ?? '') ?? 0,
+          completedAppointmentsCount: int.tryParse(match['completedCount']?.toString() ?? '') ?? 0,
+          totalAppointmentsCount: int.tryParse(match['totalAppointments']?.toString() ?? '') ?? 0,
+          currencySymbol: _currencySymbol,
+        );
+      }
+    }
     final groomerBookings = _filteredBookings.where((b) {
       if (b.groomerId != null && b.groomerId == g.id) return true;
       if (b.groomerCode != null && b.groomerCode!.toLowerCase() == g.groomerCode.toLowerCase()) return true;

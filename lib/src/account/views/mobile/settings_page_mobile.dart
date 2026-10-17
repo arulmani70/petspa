@@ -628,6 +628,7 @@ class SettingsPageMobile extends StatelessWidget {
     );
   }
 
+  // ignore: unused_element
   Widget _buildSocialMediaSection() {
     return Column(
       children: [

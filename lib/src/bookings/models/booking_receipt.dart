@@ -165,13 +165,27 @@ class BookingReceipt {
       pkgName = map['packageName'].toString();
     }
 
-    // AddOns
+    // AddOns & Line Items
     List<String> addOns = [];
     if (map['addOns'] is List) {
       addOns = (map['addOns'] as List).map((e) {
         if (e is Map) return e['name']?.toString() ?? '';
         return e.toString();
       }).where((s) => s.isNotEmpty).toList();
+    }
+    if (map['lineItems'] is List) {
+      final items = map['lineItems'] as List;
+      for (final it in items) {
+        if (it is Map) {
+          final desc = it['description']?.toString() ?? '';
+          final type = it['type']?.toString();
+          if (type == 'service' && desc.isNotEmpty && sName == 'Grooming Service') {
+            sName = desc;
+          } else if (type == 'addon' && desc.isNotEmpty) {
+            if (!addOns.contains(desc)) addOns.add(desc);
+          }
+        }
+      }
     }
 
     // Financials
@@ -184,6 +198,8 @@ class BookingReceipt {
       base = double.tryParse(map['price'].toString()) ?? 0.0;
     } else if (map['serviceAmount'] != null) {
       base = double.tryParse(map['serviceAmount'].toString()) ?? 0.0;
+    } else if (map['serviceCharge'] != null) {
+      base = double.tryParse(map['serviceCharge'].toString()) ?? 0.0;
     }
 
     double? tip;
@@ -196,6 +212,10 @@ class BookingReceipt {
     double? tax;
     if (map['taxAmount'] != null) {
       tax = double.tryParse(map['taxAmount'].toString());
+    } else if (map['salesTaxAmount'] != null) {
+      tax = double.tryParse(map['salesTaxAmount'].toString());
+    } else if (map['salesTax'] != null) {
+      tax = double.tryParse(map['salesTax'].toString());
     } else if (map['tax'] != null) {
       tax = double.tryParse(map['tax'].toString());
     }
@@ -218,6 +238,12 @@ class BookingReceipt {
     if (tip != null && tip > 0) authoritativeTotal += tip;
     if (tax != null && tax > 0) authoritativeTotal += tax;
     if (discount != null && discount > 0) authoritativeTotal -= discount;
+    if (map['finalTotal'] != null) {
+      final ft = double.tryParse(map['finalTotal'].toString());
+      if (ft != null && ft > 0) {
+        authoritativeTotal = ft;
+      }
+    }
 
     // Payment status parsing (Strict: never infer paid from completed status)
     bool? isPaid;

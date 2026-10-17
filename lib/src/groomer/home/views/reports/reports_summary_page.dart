@@ -57,6 +57,7 @@ class _ReportsSummaryPageState extends State<ReportsSummaryPage> {
 
   List<SalonGroomer> _salonGroomers = [];
   List<GroomerBooking> _allBookings = [];
+  GroomerReportSummary? _serverReportSummary;
 
   @override
   void initState() {
@@ -121,6 +122,18 @@ class _ReportsSummaryPageState extends State<ReportsSummaryPage> {
           });
         }
       }
+
+      final startStr = DateFormat('yyyy-MM-dd').format(_dateRange.start);
+      final endStr = DateFormat('yyyy-MM-dd').format(_dateRange.end);
+      try {
+        final serverReport = await ServicesLocator.groomerHomeRepository.getReportsSummary(
+          startDate: startStr,
+          endDate: endStr,
+        );
+        if (mounted && serverReport != null) {
+          _serverReportSummary = serverReport;
+        }
+      } catch (_) {}
 
       await _loadSchedule();
 
@@ -294,8 +307,14 @@ class _ReportsSummaryPageState extends State<ReportsSummaryPage> {
     }).toList();
   }
 
-  /// Authoritative report summary derived strictly from filtered appointments.
+  /// Authoritative report summary derived from server summary when available, or filtered appointments.
   GroomerReportSummary get _reportSummary {
+    if (_serverReportSummary != null &&
+        (_selectedGroomerFilterIds.contains('all') || _selectedGroomerFilterIds.isEmpty) &&
+        _selectedStatusFilter == 'all' &&
+        _searchQuery.isEmpty) {
+      return _serverReportSummary!;
+    }
     return GroomerReportSummary.fromBookings(_filteredBookings);
   }
 

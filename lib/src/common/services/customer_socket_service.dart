@@ -200,7 +200,15 @@ class CustomerSocketService {
     // Clean up any lingering socket before creating a new one
     _cleanSocket();
 
-    final url = serverUrl ?? Constants.app.BASE_URL;
+    String url = serverUrl ?? Constants.app.BASE_URL;
+    final parsedUri = Uri.tryParse(url);
+    if (parsedUri != null && !parsedUri.hasPort) {
+      if (parsedUri.scheme == 'https') {
+        url = '${parsedUri.scheme}://${parsedUri.host}:443${parsedUri.path}';
+      } else if (parsedUri.scheme == 'http') {
+        url = '${parsedUri.scheme}://${parsedUri.host}:80${parsedUri.path}';
+      }
+    }
     final maskedToken = _maskToken(authToken);
     _log.i('Customer Chat Socket connecting to $url (token: $maskedToken)');
 

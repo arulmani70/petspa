@@ -18,10 +18,22 @@ class GroomerLoginRepository {
     try {
       log.d('GroomerLoginRepository::login::Logging in groomer: $email');
 
-      final response = await ServicesLocator.apiRepository.post(
-        '/api/groomer-auth/login',
-        {'email': email.trim(), 'password': password},
-      );
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/auth/login',
+          {'email': email.trim(), 'password': password},
+        );
+      } catch (_) {
+        response = null;
+      }
+
+      if (response == null || response['success'] != true || response['data'] == null) {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/groomer-auth/login',
+          {'email': email.trim(), 'password': password},
+        );
+      }
 
       if (response == null ||
           response['success'] != true ||
@@ -114,10 +126,22 @@ class GroomerLoginRepository {
 
       log.d('GroomerLoginRepository::refreshToken::Refreshing groomer token');
 
-      final response = await ServicesLocator.apiRepository.post(
-        '/api/groomer-auth/refresh-token',
-        {'refreshToken': refreshToken},
-      );
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/auth/refresh-token',
+          {'refreshToken': refreshToken},
+        );
+      } catch (_) {
+        response = null;
+      }
+
+      if (response == null || response['success'] != true || response['data'] == null) {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/groomer-auth/refresh-token',
+          {'refreshToken': refreshToken},
+        );
+      }
 
       if (response == null ||
           response['success'] != true ||

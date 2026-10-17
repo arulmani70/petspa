@@ -26,6 +26,8 @@ class _SplashScreenState extends State<SplashScreen>
   late final Animation<double>   _fade;
   late final Animation<double>   _scale;
 
+  Timer? _timer;
+
   @override
   void initState() {
     super.initState();
@@ -49,7 +51,7 @@ class _SplashScreenState extends State<SplashScreen>
     _ctrl.forward();
 
     // Navigate after 2.4 s (gives the animation time to finish + brief hold)
-    Timer(const Duration(milliseconds: 2400), _navigate);
+    _timer = Timer(const Duration(milliseconds: 2400), _navigate);
   }
 
   void _navigate() {
@@ -80,6 +82,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   void dispose() {
+    _timer?.cancel();
     _ctrl.dispose();
     super.dispose();
   }

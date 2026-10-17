@@ -1,8 +1,11 @@
 import 'package:intl/intl.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/utils/booking_date_utils.dart';
 import 'package:shear_heaven_pet_spa/src/common/constants/constansts.dart';
+import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
+import 'package:shear_heaven_pet_spa/src/common/services/session_service.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_check_in_record.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_milestone_record.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/home/utils/groomer_milestone_resolver.dart';
 
 class GroomerBooking {
   final int bookingId;
@@ -23,6 +26,7 @@ class GroomerBooking {
   final int? packageId;
   final String? packageName;
   final List<String> addOns;
+  final List<int> addOnIds;
   final double totalPrice;
   final double? tipAmount;
   final double? taxAmount;
@@ -39,6 +43,7 @@ class GroomerBooking {
   final GroomerCheckInRecord? checkInRecord;
   final String? petMedicalNotes;
   final GroomerMilestoneRecord? milestoneRecord;
+  final String? serviceStage;
 
   const GroomerBooking({
     required this.bookingId,
@@ -59,6 +64,7 @@ class GroomerBooking {
     this.packageId,
     this.packageName,
     this.addOns = const [],
+    this.addOnIds = const [],
     this.totalPrice = 0.0,
     this.tipAmount,
     this.taxAmount,
@@ -75,6 +81,7 @@ class GroomerBooking {
     this.checkInRecord,
     this.petMedicalNotes,
     this.milestoneRecord,
+    this.serviceStage,
   });
 
   double? get totalCollected {
@@ -105,6 +112,18 @@ class GroomerBooking {
   bool get isCheckedIn =>
       status.toLowerCase() == 'checked_in' ||
       status.toLowerCase() == 'in_service' ||
+      status.toLowerCase() == 'in_progress' ||
+      status.toLowerCase() == 'dogserviceinprogress' ||
+      status.toLowerCase() == 'bath_completed' ||
+      status.toLowerCase() == 'grooming_completed' ||
+      status.toLowerCase() == 'ready_for_checkout' ||
+      status.toLowerCase() == 'completed' ||
+      serviceStage?.toLowerCase() == 'dogserviceinprogress' ||
+      serviceStage?.toLowerCase() == 'bath_completed' ||
+      serviceStage?.toLowerCase() == 'grooming_completed' ||
+      serviceStage?.toLowerCase() == 'ready_for_checkout' ||
+      serviceStage?.toLowerCase() == 'checkout_completed' ||
+      (milestoneRecord != null && milestoneRecord!.isCheckInDone) ||
       (checkInRecord != null && checkInRecord!.isFullyVerified);
   bool get isConfirmedReadyForCheckIn =>
       status.toLowerCase() == 'confirmed' && !isCheckedIn;
@@ -112,18 +131,77 @@ class GroomerBooking {
   bool get hasPetMedicalNotes =>
       petMedicalNotes != null && petMedicalNotes!.trim().isNotEmpty;
 
-  // Step 7 Service Milestone helpers
+  // ── Step 7 Dynamic Service Milestone helpers ─────────────────────────────
+
+  /// Dynamically resolved list of required milestone keys for this booking based on selected services.
+  List<String> get requiredMilestones => GroomerMilestoneResolver.resolveRequiredMilestones(
+        serviceId: serviceId,
+        serviceName: serviceName,
+        packageId: packageId,
+        packageName: packageName,
+        addOnIds: addOnIds,
+        addOns: addOns,
+      );
+
+  bool get requiresBath => requiredMilestones.contains(GroomerMilestoneResolver.bathMilestone);
+  bool get requiresGrooming => requiredMilestones.contains(GroomerMilestoneResolver.groomingMilestone);
+
+  bool isMilestoneDone(String milestoneKey) {
+    if (milestoneRecord?.isMilestoneDone(milestoneKey) == true) return true;
+    if (milestoneKey == 'check_in_completed') return isCheckedIn;
+    if (milestoneKey == GroomerMilestoneResolver.bathMilestone) return isBathCompleted;
+    if (milestoneKey == GroomerMilestoneResolver.groomingMilestone) return isGroomingCompleted;
+    if (milestoneKey == 'ready_for_checkout' || milestoneKey == 'readyforcheckout') {
+      return isReadyForCheckout;
+    }
+    if (status.toLowerCase() == milestoneKey.toLowerCase()) return true;
+    return false;
+  }
+
+  List<String> get completedRequiredMilestones =>
+      requiredMilestones.where((m) => isMilestoneDone(m)).toList();
+
+  List<String> get pendingRequiredMilestones =>
+      requiredMilestones.where((m) => !isMilestoneDone(m)).toList();
+
+  bool get areRequiredMilestonesCompleted => pendingRequiredMilestones.isEmpty;
+
+  String? get nextPendingMilestone {
+    for (final m in requiredMilestones) {
+      if (!isMilestoneDone(m)) return m;
+    }
+    return null;
+  }
+
+  bool canCompleteMilestone(String milestoneKey) {
+    if (isMilestoneDone(milestoneKey)) return false;
+    if (milestoneKey == GroomerMilestoneResolver.bathMilestone) return canCompleteBath;
+    if (milestoneKey == GroomerMilestoneResolver.groomingMilestone) return canCompleteGrooming;
+    if (milestoneKey == 'ready_for_checkout' || milestoneKey == 'readyforcheckout') {
+      return canMarkReadyForCheckout;
+    }
+    return isCheckedIn && status.toLowerCase() != 'cancelled' && status.toLowerCase() != 'pending';
+  }
+
   bool get isBathCompleted =>
       status.toLowerCase() == 'bath_completed' ||
-      status.toLowerCase() == 'grooming_completed' ||
+      (requiresBath &&
+          (status.toLowerCase() == 'grooming_completed' ||
+              serviceStage?.toLowerCase() == 'grooming_completed')) ||
       status.toLowerCase() == 'ready_for_checkout' ||
       status.toLowerCase() == 'completed' ||
+      serviceStage?.toLowerCase() == 'bath_completed' ||
+      serviceStage?.toLowerCase() == 'ready_for_checkout' ||
+      serviceStage?.toLowerCase() == 'checkout_completed' ||
       (milestoneRecord?.bathCompleted ?? false);
 
   bool get isGroomingCompleted =>
       status.toLowerCase() == 'grooming_completed' ||
       status.toLowerCase() == 'ready_for_checkout' ||
       status.toLowerCase() == 'completed' ||
+      serviceStage?.toLowerCase() == 'grooming_completed' ||
+      serviceStage?.toLowerCase() == 'ready_for_checkout' ||
+      serviceStage?.toLowerCase() == 'checkout_completed' ||
       (milestoneRecord?.groomingCompleted ?? false);
 
   String? get bathNotes => milestoneRecord?.bathNotes;
@@ -132,6 +210,7 @@ class GroomerBooking {
   String? get groomingCompletedAt => milestoneRecord?.groomingCompletedAt;
 
   bool get canCompleteBath =>
+      requiresBath &&
       (status.toLowerCase() == 'in_progress' ||
           status.toLowerCase() == 'checked_in' ||
           isCheckedIn) &&
@@ -139,28 +218,46 @@ class GroomerBooking {
       status.toLowerCase() != 'cancelled' &&
       status.toLowerCase() != 'pending';
 
-  bool get canCompleteGrooming =>
-      (status.toLowerCase() == 'bath_completed' ||
-          (isBathCompleted && status.toLowerCase() != 'grooming_completed')) &&
-      !isGroomingCompleted &&
-      status.toLowerCase() != 'cancelled' &&
-      status.toLowerCase() != 'pending';
+  bool get canCompleteGrooming {
+    if (!requiresGrooming) return false;
+    if (isGroomingCompleted) return false;
+    if (status.toLowerCase() == 'cancelled' || status.toLowerCase() == 'pending') {
+      return false;
+    }
+
+    // Dependency check: If bath is also required for this booking, bath must be done first.
+    if (requiresBath && !isBathCompleted) {
+      return false;
+    }
+
+    return status.toLowerCase() == 'in_progress' ||
+        status.toLowerCase() == 'checked_in' ||
+        status.toLowerCase() == 'bath_completed' ||
+        isCheckedIn;
+  }
 
   bool get hasMilestones => milestoneRecord?.hasAnyMilestone ?? false;
 
   // Step 8 Ready for Checkout helpers
   bool get isReadyForCheckout =>
-      status.toLowerCase() == 'ready_for_checkout';
+      status.toLowerCase() == 'ready_for_checkout' ||
+      serviceStage?.toLowerCase() == 'ready_for_checkout' ||
+      serviceStage?.toLowerCase() == 'checkout_completed' ||
+      (milestoneRecord?.readyForCheckoutCompleted ?? false);
 
+  /// Dynamically available only when ALL required milestones for this booking are completed.
   bool get canMarkReadyForCheckout =>
-      isGroomingCompleted &&
+      areRequiredMilestonesCompleted &&
       !isReadyForCheckout &&
       status.toLowerCase() != 'completed' &&
       status.toLowerCase() != 'cancelled' &&
       status.toLowerCase() != 'pending';
 
   // Step 10 Groomer Final Checkout helpers
-  bool get isCompleted => status.toLowerCase() == 'completed';
+  bool get isCompleted =>
+      status.toLowerCase() == 'completed' ||
+      serviceStage?.toLowerCase() == 'checkout_completed' ||
+      serviceStage?.toLowerCase() == 'completed';
 
   bool get canFinalCheckout =>
       isReadyForCheckout &&
@@ -307,12 +404,19 @@ class GroomerBooking {
     }
 
     // Parse User
+    // Parse User / Customer
     String cName = 'Customer';
     String cEmail = '';
     String cMobile = '';
     int? uId;
-    if (json['user'] is Map<String, dynamic>) {
-      final userMap = json['user'] as Map<String, dynamic>;
+    if (json['customer'] is Map) {
+      final custMap = json['customer'] as Map;
+      cName = custMap['name']?.toString() ?? custMap['fullName']?.toString() ?? 'Customer';
+      cEmail = custMap['email']?.toString() ?? '';
+      cMobile = custMap['mobile']?.toString() ?? custMap['phone']?.toString() ?? '';
+      uId = int.tryParse(custMap['id']?.toString() ?? '');
+    } else if (json['user'] is Map) {
+      final userMap = json['user'] as Map;
       cName = userMap['name']?.toString() ?? userMap['fullName']?.toString() ?? 'Customer';
       cEmail = userMap['email']?.toString() ?? '';
       cMobile = userMap['mobile']?.toString() ?? userMap['phone']?.toString() ?? '';
@@ -361,13 +465,30 @@ class GroomerBooking {
 
     // Parse Add-ons
     List<String> parsedAddOns = [];
+    List<int> parsedAddOnIds = [];
+    if (json['addOnIds'] is List) {
+      parsedAddOnIds = (json['addOnIds'] as List)
+          .map((e) => int.tryParse(e.toString()))
+          .whereType<int>()
+          .toList();
+    }
     if (json['addOns'] is List) {
-      parsedAddOns = (json['addOns'] as List).map((e) {
-        if (e is Map<String, dynamic>) {
-          return e['name']?.toString() ?? '';
+      for (final e in json['addOns'] as List) {
+        if (e is Map) {
+          final name = e['name']?.toString() ?? '';
+          if (name.isNotEmpty) parsedAddOns.add(name);
+          final aId = int.tryParse(e['id']?.toString() ??
+              e['addOnId']?.toString() ??
+              e['addon_id']?.toString() ??
+              '');
+          if (aId != null && !parsedAddOnIds.contains(aId)) {
+            parsedAddOnIds.add(aId);
+          }
+        } else {
+          final s = e.toString().trim();
+          if (s.isNotEmpty) parsedAddOns.add(s);
         }
-        return e.toString();
-      }).where((s) => s.isNotEmpty).toList();
+      }
     }
 
     double price = 0.0;
@@ -405,6 +526,19 @@ class GroomerBooking {
       parsedTax = double.tryParse(json['completedTaxAmount'].toString());
     }
 
+    if (json['completed'] is Map) {
+      final compMap = json['completed'] as Map;
+      parsedTax ??= double.tryParse(compMap['taxAmount']?.toString() ?? '');
+      parsedTip ??= double.tryParse(compMap['tipAmount']?.toString() ?? '');
+      if (price == 0.0 && compMap['serviceAmount'] != null) {
+        price = double.tryParse(compMap['serviceAmount']?.toString() ?? '') ?? 0.0;
+      }
+    }
+
+    if (parsedTip == null && ServicesLocator.isRegistered<SessionService>()) {
+      parsedTip = ServicesLocator.sessionService.getConfirmedTipAmount(parsedId);
+    }
+
     // Strict Rule: Appointment status alone is never treated as proof of payment.
     // Payment completion must be confirmed by explicit payment fields (isPaid, paymentStatus).
     bool? parsedIsPaid;
@@ -432,6 +566,20 @@ class GroomerBooking {
       parsedPaymentStatus = json['payment_status'].toString();
     } else if (parsedIsPaid != null) {
       parsedPaymentStatus = parsedIsPaid ? 'paid' : 'unpaid';
+    }
+
+    String parsedStatus = 'pending';
+    if (json['status'] != null) {
+      parsedStatus = json['status'].toString();
+    } else if (json['serviceStage'] != null || json['service_stage'] != null) {
+      final stage = (json['serviceStage'] ?? json['service_stage']).toString().toLowerCase();
+      if (stage == 'checkout_completed') {
+        parsedStatus = 'completed';
+      } else {
+        parsedStatus = stage;
+      }
+    } else if (parsedIsPaid == true) {
+      parsedStatus = 'completed';
     }
 
     // Parse Groomer
@@ -482,7 +630,11 @@ class GroomerBooking {
     }
 
     GroomerMilestoneRecord? parsedMilestoneRecord;
-    if (json['milestoneRecord'] is Map) {
+    if (json['milestones'] is List) {
+      parsedMilestoneRecord = GroomerMilestoneRecord.fromTimeline(
+        json['milestones'] as List,
+      );
+    } else if (json['milestoneRecord'] is Map) {
       parsedMilestoneRecord = GroomerMilestoneRecord.fromJson(
         Map<String, dynamic>.from(json['milestoneRecord'] as Map),
       );
@@ -495,12 +647,25 @@ class GroomerBooking {
       parsedMilestoneRecord = GroomerMilestoneRecord.fromJson(json);
     } else {
       final st = (json['status']?.toString() ?? '').toLowerCase();
-      if (st == 'grooming_completed') {
+      final stage = (json['serviceStage']?.toString() ??
+              json['service_stage']?.toString() ??
+              '')
+          .toLowerCase();
+      if (stage == 'ready_for_checkout' ||
+          stage == 'checkout_completed' ||
+          st == 'ready_for_checkout' ||
+          st == 'completed') {
+        parsedMilestoneRecord = const GroomerMilestoneRecord(
+          bathCompleted: true,
+          groomingCompleted: true,
+          readyForCheckoutCompleted: true,
+        );
+      } else if (stage == 'grooming_completed' || st == 'grooming_completed') {
         parsedMilestoneRecord = const GroomerMilestoneRecord(
           bathCompleted: true,
           groomingCompleted: true,
         );
-      } else if (st == 'bath_completed') {
+      } else if (stage == 'bath_completed' || st == 'bath_completed') {
         parsedMilestoneRecord = const GroomerMilestoneRecord(
           bathCompleted: true,
         );
@@ -520,7 +685,7 @@ class GroomerBooking {
 
     return GroomerBooking(
       bookingId: parsedId,
-      status: json['status']?.toString() ?? 'pending',
+      status: parsedStatus,
       bookingDate: json['bookingDate']?.toString() ?? json['date']?.toString() ?? '',
       startTime: json['startTime']?.toString() ?? '09:00 AM',
       endTime: json['endTime']?.toString() ?? '10:00 AM',
@@ -537,6 +702,7 @@ class GroomerBooking {
       packageId: pkgId,
       packageName: pkgName,
       addOns: parsedAddOns,
+      addOnIds: parsedAddOnIds,
       totalPrice: price,
       tipAmount: parsedTip,
       taxAmount: parsedTax,
@@ -553,6 +719,7 @@ class GroomerBooking {
       checkInRecord: parsedCheckInRecord,
       petMedicalNotes: pMedical != null && pMedical.trim().isNotEmpty ? pMedical.trim() : null,
       milestoneRecord: parsedMilestoneRecord,
+      serviceStage: (json['serviceStage'] ?? json['service_stage'])?.toString(),
     );
   }
 
@@ -575,6 +742,7 @@ class GroomerBooking {
     'packageId': packageId,
     'packageName': packageName,
     'addOns': addOns,
+    'addOnIds': addOnIds,
     'totalPrice': totalPrice,
     'tipAmount': tipAmount,
     'taxAmount': taxAmount,
@@ -591,6 +759,7 @@ class GroomerBooking {
     if (checkInRecord != null) 'checkInRecord': checkInRecord!.toJson(),
     if (petMedicalNotes != null) 'petMedicalNotes': petMedicalNotes,
     if (milestoneRecord != null) 'milestoneRecord': milestoneRecord!.toJson(),
+    if (serviceStage != null) 'serviceStage': serviceStage,
   };
 
   GroomerBooking copyWith({
@@ -612,6 +781,7 @@ class GroomerBooking {
     int? packageId,
     String? packageName,
     List<String>? addOns,
+    List<int>? addOnIds,
     double? totalPrice,
     double? tipAmount,
     double? taxAmount,
@@ -628,6 +798,7 @@ class GroomerBooking {
     GroomerCheckInRecord? checkInRecord,
     String? petMedicalNotes,
     GroomerMilestoneRecord? milestoneRecord,
+    String? serviceStage,
   }) {
     return GroomerBooking(
       bookingId: bookingId ?? this.bookingId,
@@ -648,6 +819,7 @@ class GroomerBooking {
       packageId: packageId ?? this.packageId,
       packageName: packageName ?? this.packageName,
       addOns: addOns ?? this.addOns,
+      addOnIds: addOnIds ?? this.addOnIds,
       totalPrice: totalPrice ?? this.totalPrice,
       tipAmount: tipAmount ?? this.tipAmount,
       taxAmount: taxAmount ?? this.taxAmount,
@@ -664,6 +836,7 @@ class GroomerBooking {
       checkInRecord: checkInRecord ?? this.checkInRecord,
       petMedicalNotes: petMedicalNotes ?? this.petMedicalNotes,
       milestoneRecord: milestoneRecord ?? this.milestoneRecord,
+      serviceStage: serviceStage ?? this.serviceStage,
     );
   }
 }

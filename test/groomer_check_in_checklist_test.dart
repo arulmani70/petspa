@@ -135,6 +135,9 @@ void main() {
 
   group('Step 6 – GroomerCheckInDialog UI & Checklist Behavior Tests', () {
     testWidgets('Renders separate cards for Customer Instructions, Medical Notes, and Checklist', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
       const testBooking = GroomerBooking(
         bookingId: 501,
         status: 'confirmed',
@@ -262,6 +265,7 @@ void main() {
   group('Step 6 – AllGroomersSchedulePage Check-In Integration Tests', () {
     testWidgets('Shows Check In button for confirmed booking owned by groomer', (tester) async {
       await tester.binding.setSurfaceSize(const Size(430, 932));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
 
       // Mock logged-in groomer as Merisa Brown (id: 1)
       await ServicesLocator.sessionService.saveGroomerUser({
@@ -327,6 +331,7 @@ void main() {
 
     testWidgets('Shows Checked In badge when booking is already checked in', (tester) async {
       await tester.binding.setSurfaceSize(const Size(430, 932));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
 
       await ServicesLocator.sessionService.saveGroomerUser({
         'id': 1,

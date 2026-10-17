@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:logger/logger.dart';
@@ -8,18 +9,29 @@ import 'package:shear_heaven_pet_spa/src/common/services/push_notification_servi
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/session_service.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/customer_summary.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/home/models/forecast_financial_summary.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_booking.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_check_in_record.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_milestone_record.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_report_summary.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_schedule_models.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_user.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/salon_groomer.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/home/models/store_milestone_config.dart';
 import 'package:shear_heaven_pet_spa/src/services/repo/service_repository.dart';
 
 class GroomerHomeRepository {
   final Logger log = Logger();
   final List<Map<String, dynamic>> _realtimeNotifications = <Map<String, dynamic>>[];
   StreamSubscription<AppNotification>? _socketSub;
+
+  /// In-memory cache for store milestone catalog by storeId
+  final Map<String, List<StoreMilestoneConfig>> _storeMilestoneCatalogs = {};
+
+  List<StoreMilestoneConfig>? getCachedMilestonesCatalog(String? storeId) {
+    final sId = storeId ?? ServicesLocator.sessionService.storeId ?? 'SHEAR-001';
+    return _storeMilestoneCatalogs[sId];
+  }
 
   Future<void> initialize() async {
     log.d('GroomerHomeRepository::initialize::Initialized');
@@ -68,9 +80,19 @@ class GroomerHomeRepository {
       log.d('GroomerHomeRepository::getProfile::Fetching groomer profile');
       final current = getCurrentGroomer();
 
-      final response = await ServicesLocator.apiRepository.get(
-        '/api/groomer-auth/profile',
-      );
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.get(
+          '/api/common/groomer/profile',
+        );
+      } catch (_) {
+        response = null;
+      }
+      if (response == null || response['success'] != true) {
+        response = await ServicesLocator.apiRepository.get(
+          '/api/groomer-auth/profile',
+        );
+      }
 
       if (response != null && response['success'] == true && response['data'] is Map) {
         final data = Map<String, dynamic>.from(response['data'] as Map);
@@ -293,13 +315,23 @@ class GroomerHomeRepository {
     }
   }
 
-  /// GET /api/groomer-auth/bookings/upcoming
+  Future<Map<String, dynamic>?> _getGroomerBookingEndpoint(String subpath) async {
+    try {
+      final res = await ServicesLocator.apiRepository.get(
+        '/api/common/groomer/bookings/$subpath',
+      );
+      if (res != null && res['data'] != null) return res;
+    } catch (_) {}
+    return await ServicesLocator.apiRepository.get(
+      '/api/groomer-auth/bookings/$subpath',
+    );
+  }
+
+  /// GET /api/common/groomer/bookings/upcoming
   Future<List<GroomerBooking>> getUpcomingBookings() async {
     try {
       log.d('GroomerHomeRepository::getUpcomingBookings::Fetching upcoming bookings');
-      final response = await ServicesLocator.apiRepository.get(
-        '/api/groomer-auth/bookings/upcoming',
-      );
+      final response = await _getGroomerBookingEndpoint('upcoming');
 
       if (response != null && response['data'] is List) {
         final list = response['data'] as List;
@@ -312,13 +344,11 @@ class GroomerHomeRepository {
     }
   }
 
-  /// GET /api/groomer-auth/bookings/pending
+  /// GET /api/common/groomer/bookings/pending
   Future<List<GroomerBooking>> getPendingBookings() async {
     try {
       log.d('GroomerHomeRepository::getPendingBookings::Fetching pending bookings');
-      final response = await ServicesLocator.apiRepository.get(
-        '/api/groomer-auth/bookings/pending',
-      );
+      final response = await _getGroomerBookingEndpoint('pending');
 
       if (response != null && response['data'] is List) {
         final list = response['data'] as List;
@@ -351,13 +381,11 @@ class GroomerHomeRepository {
     }
   }
 
-  /// GET /api/groomer-auth/bookings/past
+  /// GET /api/common/groomer/bookings/past
   Future<List<GroomerBooking>> getPastBookings() async {
     try {
       log.d('GroomerHomeRepository::getPastBookings::Fetching past bookings');
-      final response = await ServicesLocator.apiRepository.get(
-        '/api/groomer-auth/bookings/past',
-      );
+      final response = await _getGroomerBookingEndpoint('past');
 
       if (response != null && response['data'] is List) {
         final list = response['data'] as List;
@@ -370,13 +398,11 @@ class GroomerHomeRepository {
     }
   }
 
-  /// GET /api/groomer-auth/bookings/cancelled
+  /// GET /api/common/groomer/bookings/cancelled
   Future<List<GroomerBooking>> getCancelledBookings() async {
     try {
       log.d('GroomerHomeRepository::getCancelledBookings::Fetching cancelled bookings');
-      final response = await ServicesLocator.apiRepository.get(
-        '/api/groomer-auth/bookings/cancelled',
-      );
+      final response = await _getGroomerBookingEndpoint('cancelled');
 
       if (response != null && response['data'] is List) {
         final list = response['data'] as List;
@@ -389,13 +415,11 @@ class GroomerHomeRepository {
     }
   }
 
-  /// GET /api/groomer-auth/bookings/cancellation-requests
+  /// GET /api/common/groomer/bookings/cancellation-requests
   Future<List<GroomerBooking>> getCancellationRequests() async {
     try {
       log.d('GroomerHomeRepository::getCancellationRequests::Fetching cancellation requests');
-      final response = await ServicesLocator.apiRepository.get(
-        '/api/groomer-auth/bookings/cancellation-requests',
-      );
+      final response = await _getGroomerBookingEndpoint('cancellation-requests');
 
       if (response != null && response['data'] is List) {
         final list = response['data'] as List;
@@ -931,10 +955,21 @@ class GroomerHomeRepository {
         }
       }
 
-      final response = await ServicesLocator.apiRepository.post(
-        '/api/groomer-auth/bookings/$bookingId/approve',
-        {},
-      );
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/common/groomer/bookings/$bookingId/approve',
+          {},
+        );
+      } catch (_) {
+        response = null;
+      }
+      if (response == null || response['success'] != true) {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/groomer-auth/bookings/$bookingId/approve',
+          {},
+        );
+      }
       final isSuccess = response != null && response['success'] == true;
       final msg = response?['message']?.toString() ??
           (isSuccess ? 'Booking #$bookingId approved successfully' : 'Failed to approve booking.');
@@ -964,14 +999,25 @@ class GroomerHomeRepository {
     return res.success;
   }
 
-  /// POST /api/groomer-auth/bookings/:id/reject
+  /// POST /api/common/groomer/bookings/:id/reject
   Future<({bool success, String message})> rejectBookingDetails(int bookingId, {GroomerBooking? booking}) async {
     try {
       log.d('GroomerHomeRepository::rejectBooking::Rejecting booking #$bookingId');
-      final response = await ServicesLocator.apiRepository.post(
-        '/api/groomer-auth/bookings/$bookingId/reject',
-        {},
-      );
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/common/groomer/bookings/$bookingId/reject',
+          {},
+        );
+      } catch (_) {
+        response = null;
+      }
+      if (response == null || response['success'] != true) {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/groomer-auth/bookings/$bookingId/reject',
+          {},
+        );
+      }
       final isSuccess = response != null && response['success'] == true;
       final msg = response?['message']?.toString() ??
           (isSuccess ? 'Booking #$bookingId rejected' : 'Failed to reject booking.');
@@ -1001,7 +1047,7 @@ class GroomerHomeRepository {
     return res.success;
   }
 
-  /// POST /api/groomer-auth/bookings/:id/check-in
+  /// POST /api/common/groomer/bookings/:id/check-in
   /// Submits the intake checklist (vaccination verification, health verification,
   /// customer instructions acknowledgment, and groomer check-in notes).
   Future<({
@@ -1028,10 +1074,21 @@ class GroomerHomeRepository {
           'groomerCheckInNotes': groomerCheckInNotes.trim(),
       };
 
-      final response = await ServicesLocator.apiRepository.post(
-        '/api/groomer-auth/bookings/$bookingId/check-in',
-        payload,
-      );
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/common/groomer/bookings/$bookingId/check-in',
+          payload,
+        );
+      } catch (_) {
+        response = null;
+      }
+      if (response == null || response['success'] != true) {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/groomer-auth/bookings/$bookingId/check-in',
+          payload,
+        );
+      }
 
       final isSuccess = response != null && response['success'] == true;
       final msg = response?['message']?.toString() ??
@@ -1095,18 +1152,24 @@ class GroomerHomeRepository {
     }
   }
 
-  /// Step 7: Transition service milestone: Bath Completed or Grooming Completed.
+  /// Step 7: Transition service milestone with dynamic store configuration support.
   /// Follows the approved service-stage transitions and prevents invalid or repeated transitions.
   Future<({
     bool success,
     String message,
     GroomerBooking? updatedBooking,
     GroomerMilestoneRecord? milestoneRecord,
+    BookingMilestoneTimeline? timeline,
   })> updateServiceMilestone({
     required int bookingId,
-    required String milestone, // 'bath_completed' | 'grooming_completed'
+    required String milestone, // milestoneKey
+    String? action,
+    String? status,
     String? notes,
+    Map<String, dynamic>? payload,
     GroomerBooking? booking,
+    String? storeId,
+    bool skipMilestones = false,
   }) async {
     try {
       log.d('GroomerHomeRepository::updateServiceMilestone::Booking #$bookingId -> $milestone');
@@ -1120,6 +1183,18 @@ class GroomerHomeRepository {
             message: 'Cannot update milestone for a $currentStatus appointment.',
             updatedBooking: null,
             milestoneRecord: null,
+            timeline: null,
+          );
+        }
+
+        // Check-in Completed must not be bypassed before doing service milestones
+        if (milestone != 'check_in_completed' && !booking.isCheckedIn) {
+          return (
+            success: false,
+            message: 'Check-in must be completed before updating service milestones.',
+            updatedBooking: null,
+            milestoneRecord: null,
+            timeline: null,
           );
         }
 
@@ -1130,14 +1205,7 @@ class GroomerHomeRepository {
               message: 'Bath milestone has already been completed for this appointment.',
               updatedBooking: null,
               milestoneRecord: null,
-            );
-          }
-          if (!booking.canCompleteBath && currentStatus != 'confirmed') {
-            return (
-              success: false,
-              message: 'Appointment must be in progress or checked in before completing bath.',
-              updatedBooking: null,
-              milestoneRecord: null,
+              timeline: null,
             );
           }
         } else if (milestone == 'grooming_completed') {
@@ -1147,82 +1215,221 @@ class GroomerHomeRepository {
               message: 'Grooming milestone has already been completed for this appointment.',
               updatedBooking: null,
               milestoneRecord: null,
+              timeline: null,
             );
           }
-          if (!booking.isBathCompleted && currentStatus != 'in_progress' && currentStatus != 'bath_completed') {
+          if (booking.requiresBath && !booking.isBathCompleted && !skipMilestones) {
             return (
               success: false,
               message: 'Bath milestone must be completed before marking grooming completed.',
               updatedBooking: null,
               milestoneRecord: null,
+              timeline: null,
             );
           }
+        } else if (milestone == 'check_in_completed') {
+          if (booking.isCheckedIn) {
+            return (
+              success: false,
+              message: 'Check-in has already been completed for this appointment.',
+              updatedBooking: null,
+              milestoneRecord: null,
+              timeline: null,
+            );
+          }
+        } else if (booking.isMilestoneDone(milestone)) {
+          return (
+            success: false,
+            message: '$milestone has already been completed for this appointment.',
+            updatedBooking: null,
+            milestoneRecord: null,
+            timeline: null,
+          );
         }
       }
 
-      final payload = <String, dynamic>{
-        'milestone': milestone,
+      final session = ServicesLocator.sessionService;
+      final effectiveStoreId = storeId ??
+          ((booking != null && booking.storeId.isNotEmpty)
+              ? booking.storeId
+              : (session.storeId ?? 'SHEAR-001'));
+
+      final requestPayload = <String, dynamic>{
+        'storeId': effectiveStoreId,
+        'milestoneKey': milestone,
+        'milestoneDateTime': DateTime.now().toUtc().toIso8601String(),
+        if (action != null && action.isNotEmpty) 'action': action,
+        if (status != null && status.isNotEmpty) 'status': status,
         if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+        if (payload != null && payload.isNotEmpty)
+          'payload': payload
+        else if (skipMilestones)
+          'payload': {
+            'skipMilestones': true,
+            'additionalServiceNotes': notes ?? 'Skipped intermediate steps',
+          },
+        'milestone': milestone,
       };
 
-      // Primary milestone API call
-      final response = await ServicesLocator.apiRepository.post(
-        '/api/groomer-auth/bookings/$bookingId/milestone',
-        payload,
-      );
+      // Primary milestone API call: POST /api/common/groomer/bookings/:id/milestone
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/common/groomer/bookings/$bookingId/milestone',
+          requestPayload,
+        );
+      } catch (_) {
+        response = null;
+      }
+      if (response == null) {
+        try {
+          if (milestone == 'bath_completed') {
+            response = await ServicesLocator.apiRepository.post(
+              '/api/common/groomer/bookings/$bookingId/milestones/bath-completed',
+              requestPayload,
+            );
+          } else if (milestone == 'grooming_completed') {
+            response = await ServicesLocator.apiRepository.post(
+              '/api/common/groomer/bookings/$bookingId/milestones/grooming-completed',
+              requestPayload,
+            );
+          }
+        } catch (_) {
+          response = null;
+        }
+      }
+      if (response == null) {
+        try {
+          response = await ServicesLocator.apiRepository.post(
+            '/api/groomer-auth/bookings/$bookingId/milestone',
+            requestPayload,
+          );
+        } catch (_) {
+          response = null;
+        }
+      }
 
       final isSuccess = response != null && response['success'] == true;
-      final msg = response?['message']?.toString() ??
-          (isSuccess
+      final serverMsg = response?['message']?.toString() ??
+          (response?['errors'] is List ? (response!['errors'] as List).join(', ') : null) ??
+          (response?['error'] is Map ? (response!['error'] as Map)['message']?.toString() : null);
+      final msg = (serverMsg != null && serverMsg.trim().isNotEmpty)
+          ? serverMsg.trim()
+          : (isSuccess
               ? (milestone == 'bath_completed'
                   ? 'Bath milestone marked as completed.'
-                  : 'Grooming milestone marked as completed.')
+                  : (milestone == 'grooming_completed'
+                      ? 'Grooming milestone marked as completed.'
+                      : 'Milestone updated successfully.'))
               : 'Failed to update milestone.');
 
       GroomerMilestoneRecord? milestoneRecord;
+      BookingMilestoneTimeline? timeline;
       GroomerBooking? updatedBooking = booking;
 
       if (isSuccess) {
         final data = response['data'] is Map ? Map<String, dynamic>.from(response['data'] as Map) : null;
         final serverTimestamp = data?['timestamp']?.toString() ??
             data?['milestoneTimestamp']?.toString() ??
+            data?['occurredAt']?.toString() ??
+            data?['currentMilestoneOccurredAt']?.toString() ??
             data?['bathCompletedAt']?.toString() ??
             data?['groomingCompletedAt']?.toString();
 
         final existingRecord = booking?.milestoneRecord ?? const GroomerMilestoneRecord();
-        if (milestone == 'bath_completed') {
-          milestoneRecord = existingRecord.copyWith(
-            bathCompleted: true,
-            bathCompletedAt: serverTimestamp,
-            bathNotes: notes?.trim(),
-            completedByGroomerId: getCurrentGroomer()?.id,
-          );
+        if (data != null && data['milestones'] is List && (data['milestones'] as List).isNotEmpty) {
+          try {
+            timeline = BookingMilestoneTimeline.fromJson(data);
+            milestoneRecord = GroomerMilestoneRecord.fromTimelineResponse(timeline);
+          } catch (_) {
+            if (data['milestones'] is List) {
+              milestoneRecord = GroomerMilestoneRecord.fromTimeline(data['milestones'] as List);
+            }
+          }
+        }
+
+        if (milestoneRecord == null) {
+          if (milestone == 'bath_completed') {
+            milestoneRecord = existingRecord.copyWith(
+              bathCompleted: true,
+              bathCompletedAt: serverTimestamp,
+              bathNotes: notes?.trim(),
+              completedByGroomerId: getCurrentGroomer()?.id,
+            );
+          } else if (milestone == 'grooming_completed') {
+            milestoneRecord = existingRecord.copyWith(
+              groomingCompleted: true,
+              groomingCompletedAt: serverTimestamp,
+              groomingNotes: notes?.trim(),
+              completedByGroomerId: getCurrentGroomer()?.id,
+            );
+          } else if (milestone == 'ready_for_checkout') {
+            milestoneRecord = existingRecord.copyWith(
+              readyForCheckoutCompleted: true,
+              readyForCheckoutCompletedAt: serverTimestamp,
+              completedByGroomerId: getCurrentGroomer()?.id,
+            );
+          } else {
+            final dynamicMap = Map<String, ({bool completed, String? occurredAt, String? notes, String? action, String? status})>.from(
+              existingRecord.dynamicMilestones,
+            );
+            dynamicMap[milestone] = (
+              completed: true,
+              occurredAt: serverTimestamp,
+              notes: notes?.trim(),
+              action: action,
+              status: status,
+            );
+            milestoneRecord = existingRecord.copyWith(
+              currentMilestoneKey: milestone,
+              currentStatus: status,
+              dynamicMilestones: Map.unmodifiable(dynamicMap),
+            );
+          }
         } else {
-          milestoneRecord = existingRecord.copyWith(
-            groomingCompleted: true,
-            groomingCompletedAt: serverTimestamp,
-            groomingNotes: notes?.trim(),
-            completedByGroomerId: getCurrentGroomer()?.id,
-          );
+          // Merge caller-provided notes and flags if timeline did not contain them
+          if (milestone == 'bath_completed') {
+            milestoneRecord = milestoneRecord.copyWith(
+              bathCompleted: true,
+              bathCompletedAt: milestoneRecord.bathCompletedAt ?? serverTimestamp,
+              bathNotes: (notes?.trim().isNotEmpty == true) ? notes!.trim() : milestoneRecord.bathNotes,
+            );
+          } else if (milestone == 'grooming_completed') {
+            milestoneRecord = milestoneRecord.copyWith(
+              groomingCompleted: true,
+              groomingCompletedAt: milestoneRecord.groomingCompletedAt ?? serverTimestamp,
+              groomingNotes: (notes?.trim().isNotEmpty == true) ? notes!.trim() : milestoneRecord.groomingNotes,
+            );
+          }
         }
 
         if (updatedBooking != null) {
           updatedBooking = updatedBooking.copyWith(
-            status: milestone,
+            status: timeline?.currentMilestoneKey ?? milestone,
+            serviceStage: timeline?.serviceStage ?? updatedBooking.serviceStage,
             milestoneRecord: milestoneRecord,
           );
         }
 
         final isBath = milestone == 'bath_completed';
+        final isGrooming = milestone == 'grooming_completed';
         await _dispatchBookingStatusNotification(
           bookingId: bookingId,
-          customerTitle: isBath ? 'Bath Completed' : 'Grooming Completed',
+          customerTitle: isBath
+              ? 'Bath Completed'
+              : (isGrooming ? 'Grooming Completed' : 'Service Milestone Updated'),
           customerMessage: isBath
               ? 'Your pet\'s bath is completed and they are now ready for styling!'
-              : 'Grooming and styling for your pet is completed!',
-          groomerTitle: isBath ? 'Bath Milestone Completed' : 'Grooming Milestone Completed',
+              : (isGrooming
+                  ? 'Grooming and styling for your pet is completed!'
+                  : 'Milestone $milestone recorded for your appointment.'),
+          groomerTitle: isBath
+              ? 'Bath Milestone Completed'
+              : (isGrooming ? 'Grooming Milestone Completed' : 'Milestone Updated'),
           groomerMessage: 'Milestone $milestone recorded for booking #$bookingId.',
-          type: isBath ? 'booking_bath_completed' : 'booking_grooming_completed',
+          type: isBath
+              ? 'booking_bath_completed'
+              : (isGrooming ? 'booking_grooming_completed' : 'booking_milestone_updated'),
           status: milestone,
           booking: updatedBooking ?? booking,
           responseData: data,
@@ -1234,6 +1441,7 @@ class GroomerHomeRepository {
         message: msg,
         updatedBooking: updatedBooking,
         milestoneRecord: milestoneRecord,
+        timeline: timeline,
       );
     } catch (e) {
       log.e('GroomerHomeRepository::updateServiceMilestone::Error: $e');
@@ -1242,6 +1450,7 @@ class GroomerHomeRepository {
         message: 'Error updating service milestone: $e',
         updatedBooking: null,
         milestoneRecord: null,
+        timeline: null,
       );
     }
   }
@@ -1292,9 +1501,11 @@ class GroomerHomeRepository {
   })> markReadyForCheckoutDetails({
     required int bookingId,
     GroomerBooking? booking,
+    bool skipMilestones = false,
+    String? notes,
   }) async {
     try {
-      log.d('GroomerHomeRepository::markReadyForCheckout::Booking #$bookingId');
+      log.d('GroomerHomeRepository::markReadyForCheckout::Booking #$bookingId (skipMilestones: $skipMilestones)');
 
       // Validation 1: Ownership check
       final currentGroomer = getCurrentGroomer();
@@ -1328,24 +1539,86 @@ class GroomerHomeRepository {
           );
         }
 
-        if (!booking.isGroomingCompleted) {
+        final canSkip = skipMilestones || (booking.milestoneRecord?.canSkipToReadyForCheckout ?? false);
+        if (!booking.areRequiredMilestonesCompleted && !canSkip) {
+          final missing = booking.pendingRequiredMilestones
+              .map((m) => m == 'bath_completed' ? 'Bath' : 'Grooming')
+              .join(' and ');
           return (
             success: false,
-            message: 'Grooming must be completed before marking appointment ready for checkout.',
+            message: '$missing must be completed before marking appointment ready for checkout.',
             updatedBooking: null,
           );
         }
       }
 
       // Primary ready-for-checkout API call
-      final response = await ServicesLocator.apiRepository.post(
-        '/api/groomer-auth/bookings/$bookingId/ready-for-checkout',
-        {},
-      );
+      final session = ServicesLocator.sessionService;
+      final storeId = (booking != null && booking.storeId.isNotEmpty)
+          ? booking.storeId
+          : (session.storeId ?? 'SHEAR-001');
+
+      final payload = <String, dynamic>{
+        'storeId': storeId,
+        'milestoneKey': 'ready_for_checkout',
+        'milestone': 'ready_for_checkout',
+        'milestoneDateTime': DateTime.now().toUtc().toIso8601String(),
+        if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+        if (skipMilestones)
+          'payload': {
+            'skipMilestones': true,
+            'additionalServiceNotes': notes ?? 'Skip bath/grooming',
+          },
+        if (skipMilestones) 'skipMilestones': true,
+        if (notes != null && notes.trim().isNotEmpty) 'additionalServiceNotes': notes.trim(),
+      };
+
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/common/groomer/bookings/$bookingId/milestone',
+          payload,
+        );
+      } catch (_) {
+        response = null;
+      }
+      if (response == null) {
+        try {
+          response = await ServicesLocator.apiRepository.post(
+            '/api/common/groomer/bookings/$bookingId/ready-for-checkout',
+            payload,
+          );
+        } catch (_) {
+          response = null;
+        }
+      }
+      if (response == null) {
+        try {
+          response = await ServicesLocator.apiRepository.post(
+            '/api/common/groomer/bookings/$bookingId/milestone',
+            payload,
+          );
+        } catch (_) {
+          response = null;
+        }
+      }
+      if (response == null) {
+        try {
+          response = await ServicesLocator.apiRepository.post(
+            '/api/groomer-auth/bookings/$bookingId/ready-for-checkout',
+            payload,
+          );
+        } catch (_) {
+          response = null;
+        }
+      }
 
       final isSuccess = response != null && response['success'] == true;
-      final msg = response?['message']?.toString() ??
-          (isSuccess
+      final serverMsg = response?['message']?.toString() ??
+          (response?['error'] is Map ? (response!['error'] as Map)['message']?.toString() : null);
+      final msg = (serverMsg != null && serverMsg.trim().isNotEmpty)
+          ? serverMsg.trim()
+          : (isSuccess
               ? 'Appointment #$bookingId marked as Ready for Checkout.'
               : 'Failed to mark appointment ready for checkout.');
 
@@ -1353,9 +1626,14 @@ class GroomerHomeRepository {
 
       if (isSuccess) {
         final data = response['data'] is Map ? Map<String, dynamic>.from(response['data'] as Map) : null;
+        GroomerMilestoneRecord? milestoneRecord;
+        if (data != null && data['milestones'] is List) {
+          milestoneRecord = GroomerMilestoneRecord.fromTimeline(data['milestones'] as List);
+        }
         if (booking != null) {
           updatedBooking = booking.copyWith(
             status: 'ready_for_checkout',
+            milestoneRecord: milestoneRecord ?? booking.milestoneRecord,
           );
         }
 
@@ -1396,10 +1674,21 @@ class GroomerHomeRepository {
   Future<({bool success, String message})> startBookingDetails(int bookingId, {GroomerBooking? booking}) async {
     try {
       log.d('GroomerHomeRepository::startBooking::Starting booking #$bookingId');
-      final response = await ServicesLocator.apiRepository.post(
-        '/api/groomer-auth/bookings/$bookingId/start',
-        {},
-      );
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/common/groomer/bookings/$bookingId/start',
+          {},
+        );
+      } catch (_) {
+        response = null;
+      }
+      if (response == null || response['success'] != true) {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/groomer-auth/bookings/$bookingId/start',
+          {},
+        );
+      }
       final isSuccess = response != null && response['success'] == true;
       final msg = response?['message']?.toString() ??
           (isSuccess ? 'Appointment #$bookingId is now In Progress' : 'Failed to start appointment.');
@@ -1429,13 +1718,19 @@ class GroomerHomeRepository {
     return res.success;
   }
 
-  /// POST /api/groomer-auth/bookings/:id/complete
+  /// POST /api/common/groomer/bookings/:id/checkout
   /// Step 10: Final Checkout & Completion
   Future<({
     bool success,
     String message,
     GroomerBooking? updatedBooking,
-  })> completeBookingDetails(int bookingId, {GroomerBooking? booking}) async {
+  })> completeBookingDetails(
+    int bookingId, {
+    GroomerBooking? booking,
+    String paymentMethod = 'card',
+    double? tenderedAmount,
+    String? idempotencyKey,
+  }) async {
     try {
       log.d('GroomerHomeRepository::completeBooking::Completing booking #$bookingId');
 
@@ -1456,7 +1751,7 @@ class GroomerHomeRepository {
       // Step 10: "Allow final checkout only for eligible bookings in the verified ready_for_checkout state."
       if (booking != null) {
         final currentStatus = booking.status.toLowerCase();
-        if (currentStatus == 'completed') {
+        if (currentStatus == 'completed' || booking.isCompleted) {
           return (
             success: false,
             message: 'Appointment #$bookingId is already completed.',
@@ -1479,13 +1774,50 @@ class GroomerHomeRepository {
         }
       }
 
-      final response = await ServicesLocator.apiRepository.post(
-        '/api/groomer-auth/bookings/$bookingId/complete',
-        {},
-      );
+      final key = (idempotencyKey != null && idempotencyKey.isNotEmpty)
+          ? idempotencyKey
+          : 'checkout-$bookingId-${DateTime.now().millisecondsSinceEpoch}';
+
+      final headers = <String, dynamic>{
+        'Idempotency-Key': key,
+      };
+
+      final payload = <String, dynamic>{
+        'paymentMethod': paymentMethod,
+        if (tenderedAmount != null && tenderedAmount > 0) 'tenderedAmount': tenderedAmount,
+      };
+
+      // Authoritative checkout endpoint: POST /api/common/groomer/bookings/:id/checkout
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.postWithHeaders(
+          '/api/common/groomer/bookings/$bookingId/checkout',
+          payload,
+          headers: headers,
+        );
+      } catch (_) {
+        response = null;
+      }
+
+      // Fallback only if no response received at all
+      if (response == null) {
+        try {
+          response = await ServicesLocator.apiRepository.postWithHeaders(
+            '/api/common/groomer/bookings/$bookingId/complete',
+            payload,
+            headers: headers,
+          );
+        } catch (_) {
+          response = null;
+        }
+      }
+
       final isSuccess = response != null && response['success'] == true;
-      final msg = response?['message']?.toString() ??
-          (isSuccess ? 'Appointment #$bookingId checkout completed successfully' : 'Failed to complete checkout.');
+      final serverMsg = response?['message']?.toString() ??
+          (response?['error'] is Map ? (response!['error'] as Map)['message']?.toString() : null);
+      final msg = (serverMsg != null && serverMsg.trim().isNotEmpty)
+          ? serverMsg.trim()
+          : (isSuccess ? 'Appointment #$bookingId checkout completed successfully' : 'Failed to complete checkout.');
 
       GroomerBooking? updatedBooking;
 
@@ -1510,8 +1842,9 @@ class GroomerHomeRepository {
         if (booking != null) {
           updatedBooking = booking.copyWith(
             status: 'completed',
-            isPaid: confirmedPaid ?? booking.isPaid,
-            paymentStatus: confirmedPaymentStatus ?? booking.paymentStatus,
+            serviceStage: 'checkout_completed',
+            isPaid: confirmedPaid ?? true,
+            paymentStatus: confirmedPaymentStatus ?? 'paid',
           );
         }
 
@@ -1547,14 +1880,25 @@ class GroomerHomeRepository {
     return res.success;
   }
 
-  /// POST /api/groomer-auth/bookings/:id/approve-cancellation
+  /// POST /api/common/groomer/bookings/:id/approve-cancellation
   Future<({bool success, String message})> approveCancellationDetails(int bookingId, {GroomerBooking? booking}) async {
     try {
       log.d('GroomerHomeRepository::approveCancellation::Approving cancellation #$bookingId');
-      final response = await ServicesLocator.apiRepository.post(
-        '/api/groomer-auth/bookings/$bookingId/approve-cancellation',
-        {},
-      );
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/common/groomer/bookings/$bookingId/approve-cancellation',
+          {},
+        );
+      } catch (_) {
+        response = null;
+      }
+      if (response == null || response['success'] != true) {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/groomer-auth/bookings/$bookingId/approve-cancellation',
+          {},
+        );
+      }
       final isSuccess = response != null && response['success'] == true;
       final msg = response?['message']?.toString() ??
           (isSuccess ? 'Cancellation for Booking #$bookingId approved' : 'Failed to approve cancellation.');
@@ -1584,14 +1928,25 @@ class GroomerHomeRepository {
     return res.success;
   }
 
-  /// POST /api/groomer-auth/bookings/:id/reject-cancellation
+  /// POST /api/common/groomer/bookings/:id/reject-cancellation
   Future<({bool success, String message})> rejectCancellationDetails(int bookingId, {GroomerBooking? booking}) async {
     try {
       log.d('GroomerHomeRepository::rejectCancellation::Rejecting cancellation #$bookingId');
-      final response = await ServicesLocator.apiRepository.post(
-        '/api/groomer-auth/bookings/$bookingId/reject-cancellation',
-        {},
-      );
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/common/groomer/bookings/$bookingId/reject-cancellation',
+          {},
+        );
+      } catch (_) {
+        response = null;
+      }
+      if (response == null || response['success'] != true) {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/groomer-auth/bookings/$bookingId/reject-cancellation',
+          {},
+        );
+      }
       final isSuccess = response != null && response['success'] == true;
       final msg = response?['message']?.toString() ??
           (isSuccess ? 'Cancellation for Booking #$bookingId rejected' : 'Failed to reject cancellation.');
@@ -1673,7 +2028,25 @@ class GroomerHomeRepository {
         },
       };
 
-      await session.saveCustomerPortalNotification(customerNotifMap);
+      await session.saveCustomerPortalNotification(
+        customerNotifMap,
+        customerId: userId,
+      );
+
+      final customerNotifObj = AppNotification.fromJson(customerNotifMap);
+      if (ServicesLocator.isCustomerSocketServiceRegistered) {
+        ServicesLocator.customerSocketService
+            .handleDirectNotification(customerNotifObj);
+      }
+
+      if (ServicesLocator.isPushNotificationServiceRegistered) {
+        await ServicesLocator.pushNotificationService.showLocalNotification(
+          id: baseId,
+          title: customerTitle,
+          body: customerMessage,
+          payload: jsonEncode(customerNotifMap),
+        );
+      }
 
       final groomerNotifMap = <String, dynamic>{
         'id': baseId + 1,
@@ -1696,7 +2069,16 @@ class GroomerHomeRepository {
         },
       };
 
-      await session.saveGroomerPortalNotification(groomerNotifMap);
+      await session.saveGroomerPortalNotification(
+        groomerNotifMap,
+        groomerId: groomerId,
+      );
+
+      final groomerNotifObj = AppNotification.fromJson(groomerNotifMap);
+      if (ServicesLocator.isGroomerSocketServiceRegistered) {
+        ServicesLocator.groomerSocketService
+            .handleDirectNotification(groomerNotifObj);
+      }
     } catch (e) {
       log.w('GroomerHomeRepository::_dispatchBookingStatusNotification::Error: $e');
     }
@@ -1720,10 +2102,21 @@ class GroomerHomeRepository {
         'offset': actualOffset,
       };
 
-      final response = await ServicesLocator.apiRepository.get(
-        '/api/groomer-auth/customers',
-        query: queryParams,
-      );
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.get(
+          '/api/common/groomer/customers',
+          query: queryParams,
+        );
+      } catch (_) {
+        response = null;
+      }
+      if (response == null || response['success'] != true) {
+        response = await ServicesLocator.apiRepository.get(
+          '/api/groomer-auth/customers',
+          query: queryParams,
+        );
+      }
 
       if (response != null && response['success'] == true && response['data'] != null) {
         final data = response['data'];
@@ -2499,11 +2892,24 @@ class GroomerHomeRepository {
     }
   }
 
-  /// GET /api/groomer-auth/groomers (Dynamically loads salon groomers strictly from backend API)
+  /// GET /api/common/groomer/shop-groomers (Dynamically loads salon groomers strictly from backend API)
   Future<List<SalonGroomer>> getSalonGroomers() async {
     try {
-      log.d('GroomerHomeRepository::getSalonGroomers::Loading from /api/groomer-auth/groomers');
-      var response = await ServicesLocator.apiRepository.get('/api/groomer-auth/groomers');
+      log.d('GroomerHomeRepository::getSalonGroomers::Loading shop groomers');
+      dynamic response;
+      try {
+        response = await ServicesLocator.apiRepository.get('/api/common/groomer/shop-groomers');
+      } catch (_) {
+        response = null;
+      }
+
+      if (response == null || !response.containsKey('data')) {
+        try {
+          response = await ServicesLocator.apiRepository.get('/api/groomer-auth/groomers');
+        } catch (_) {
+          response = null;
+        }
+      }
 
       // Fallback to /api/groomers if /api/groomer-auth/groomers returns null or missing data
       if (response == null || !response.containsKey('data')) {
@@ -2511,7 +2917,7 @@ class GroomerHomeRepository {
       }
 
       if (response == null || !response.containsKey('data')) {
-        throw Exception('Failed to fetch groomers from /api/groomer-auth/groomers');
+        throw Exception('Failed to fetch groomers from /api/common/groomer/shop-groomers');
       }
 
       final raw = response['data'];
@@ -2669,5 +3075,368 @@ class GroomerHomeRepository {
       log.e('GroomerHomeRepository::deleteAccount::Error: $e');
       rethrow;
     }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Step 13: Live Verified Common Groomer Endpoints
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /// GET /api/common/groomer/bookings/:id/checkout-status
+  Future<Map<String, dynamic>?> getCheckoutStatus(int bookingId) async {
+    try {
+      log.d('GroomerHomeRepository::getCheckoutStatus::bookingId=$bookingId');
+      final response = await ServicesLocator.apiRepository.get(
+        '/api/common/groomer/bookings/$bookingId/checkout-status',
+      );
+      Map<String, dynamic>? statusMap;
+      if (response != null && response['success'] == true) {
+        statusMap = response['data'] is Map
+            ? Map<String, dynamic>.from(response['data'] as Map)
+            : Map<String, dynamic>.from(response);
+      }
+
+      // Merge confirmed tip from session if available
+      if (ServicesLocator.isRegistered<SessionService>()) {
+        final confirmedTip =
+            ServicesLocator.sessionService.getConfirmedTip(bookingId);
+        if (confirmedTip != null) {
+          statusMap ??= <String, dynamic>{
+            'bookingId': bookingId,
+            'readyForFinalCheckout': true,
+          };
+          final tipVal =
+              confirmedTip['tipAmount'] ?? confirmedTip['tip_amount'];
+          if (tipVal != null) {
+            statusMap['tipAmount'] = tipVal;
+            statusMap['customerConfirmed'] = true;
+          }
+        }
+      }
+
+      return statusMap;
+    } catch (e) {
+      log.e('GroomerHomeRepository::getCheckoutStatus::Error: $e');
+      if (ServicesLocator.isRegistered<SessionService>()) {
+        final confirmedTip =
+            ServicesLocator.sessionService.getConfirmedTip(bookingId);
+        if (confirmedTip != null) {
+          return {
+            'bookingId': bookingId,
+            'readyForFinalCheckout': true,
+            'tipAmount':
+                confirmedTip['tipAmount'] ?? confirmedTip['tip_amount'],
+            'customerConfirmed': true,
+          };
+        }
+      }
+      return null;
+    }
+  }
+
+  /// POST /api/common/groomer/bookings/:id/checkout (idempotent)
+  Future<({bool success, String message, Map<String, dynamic>? data})> finalCheckout({
+    required int bookingId,
+    required String paymentMethod,
+    double? tenderedAmount,
+    String? idempotencyKey,
+  }) async {
+    try {
+      log.d('GroomerHomeRepository::finalCheckout::bookingId=$bookingId method=$paymentMethod');
+      final headers = <String, dynamic>{};
+      if (idempotencyKey != null && idempotencyKey.isNotEmpty) {
+        headers['Idempotency-Key'] = idempotencyKey;
+      }
+      final payload = <String, dynamic>{
+        'paymentMethod': paymentMethod,
+        'tenderedAmount': ?tenderedAmount,
+      };
+
+      final response = await ServicesLocator.apiRepository.postWithHeaders(
+        '/api/common/groomer/bookings/$bookingId/checkout',
+        payload,
+        headers: headers.isNotEmpty ? headers : null,
+      );
+
+      final isSuccess = response != null && response['success'] == true;
+      final msg = response?['message']?.toString() ??
+          (isSuccess ? 'Checkout completed successfully' : 'Checkout failed');
+      final data = response?['data'] is Map ? Map<String, dynamic>.from(response!['data'] as Map) : null;
+
+      return (success: isSuccess, message: msg, data: data);
+    } catch (e) {
+      log.e('GroomerHomeRepository::finalCheckout::Error: $e');
+      return (success: false, message: 'Checkout error: $e', data: null);
+    }
+  }
+
+  /// GET /api/bookings/:id/receipt
+  Future<Map<String, dynamic>?> getReceipt(int bookingId) async {
+    try {
+      log.d('GroomerHomeRepository::getReceipt::bookingId=$bookingId');
+      // Primary: {{baseUrl}}/api/bookings/{{bookingId}}/receipt
+      Map<String, dynamic>? response = await ServicesLocator.apiRepository.get(
+        '/api/bookings/$bookingId/receipt',
+      );
+      if (response == null || response['success'] == false) {
+        response = await ServicesLocator.apiRepository.get(
+          '/api/common/groomer/bookings/$bookingId/receipt',
+        );
+      }
+      if (response != null) {
+        if (response['data'] is Map) {
+          return Map<String, dynamic>.from(response['data'] as Map);
+        } else if (response['receipt'] is Map) {
+          return Map<String, dynamic>.from(response['receipt'] as Map);
+        } else if (response['success'] != false) {
+          return response;
+        }
+      }
+      return null;
+    } catch (e) {
+      log.e('GroomerHomeRepository::getReceipt::Error: $e');
+      return null;
+    }
+  }
+
+  /// GET /api/common/groomer/reports/summary?startDate=...&endDate=...
+  Future<GroomerReportSummary?> getReportsSummary({
+    required String startDate,
+    required String endDate,
+  }) async {
+    try {
+      log.d('GroomerHomeRepository::getReportsSummary::startDate=$startDate endDate=$endDate');
+      final response = await ServicesLocator.apiRepository.get(
+        '/api/common/groomer/reports/summary',
+        query: {
+          'startDate': startDate,
+          'endDate': endDate,
+        },
+      );
+      if (response != null && response['success'] == true && response['data'] is Map) {
+        return GroomerReportSummary.fromServerResponse(
+          Map<String, dynamic>.from(response['data'] as Map),
+        );
+      }
+      return null;
+    } catch (e) {
+      log.e('GroomerHomeRepository::getReportsSummary::Error: $e');
+      return null;
+    }
+  }
+
+  /// GET /api/common/groomer/forecast?startDate=...&endDate=...
+  Future<Map<String, dynamic>?> getForecastLive({
+    required String startDate,
+    required String endDate,
+    int? groomerId,
+    int? page,
+    int? limit,
+  }) async {
+    try {
+      log.d('GroomerHomeRepository::getForecastLive::startDate=$startDate endDate=$endDate groomerId=$groomerId');
+      final query = <String, dynamic>{
+        'startDate': startDate,
+        'endDate': endDate,
+        if (groomerId != null && groomerId > 0) 'groomerId': groomerId,
+        if (page != null && page > 0) 'page': page,
+        if (limit != null && limit > 0) 'limit': limit,
+      };
+      final response = await ServicesLocator.apiRepository.get(
+        '/api/common/groomer/forecast',
+        query: query,
+      );
+      if (response != null && response['success'] == true && response['data'] is Map) {
+        return Map<String, dynamic>.from(response['data'] as Map);
+      }
+      return null;
+    } catch (e) {
+      log.e('GroomerHomeRepository::getForecastLive::Error: $e');
+      return null;
+    }
+  }
+
+  /// Fetches strongly-typed forecast data with parsed bookings and financial summary.
+  Future<({
+    ForecastFinancialSummary? summary,
+    List<GroomerBooking> appointments,
+    List<Map<String, dynamic>> groomerSummaries,
+    int totalCount,
+  })?> getForecastDetails({
+    required String startDate,
+    required String endDate,
+    int? groomerId,
+    int? page,
+    int? limit,
+  }) async {
+    try {
+      final raw = await getForecastLive(
+        startDate: startDate,
+        endDate: endDate,
+        groomerId: groomerId,
+        page: page,
+        limit: limit,
+      );
+      if (raw == null) return null;
+
+      ForecastFinancialSummary? summary;
+      if (raw['financialSummary'] is Map) {
+        summary = ForecastFinancialSummary.fromJson(
+          Map<String, dynamic>.from(raw['financialSummary'] as Map),
+        );
+      }
+
+      final List<GroomerBooking> appointments = [];
+      if (raw['appointments'] is List) {
+        for (final item in raw['appointments'] as List) {
+          if (item is Map) {
+            try {
+              appointments.add(GroomerBooking.fromJson(Map<String, dynamic>.from(item)));
+            } catch (e) {
+              log.w('getForecastDetails::Failed to parse booking item: $e');
+            }
+          }
+        }
+      }
+
+      final List<Map<String, dynamic>> groomerSummaries = [];
+      if (raw['groomerSummaries'] is List) {
+        for (final item in raw['groomerSummaries'] as List) {
+          if (item is Map) {
+            groomerSummaries.add(Map<String, dynamic>.from(item));
+          }
+        }
+      }
+
+      final totalCount = int.tryParse(raw['totalCount']?.toString() ?? '') ?? appointments.length;
+
+      return (
+        summary: summary,
+        appointments: appointments,
+        groomerSummaries: groomerSummaries,
+        totalCount: totalCount,
+      );
+    } catch (e) {
+      log.e('GroomerHomeRepository::getForecastDetails::Error: $e');
+      return null;
+    }
+  }
+
+  /// GET /api/common/groomer/appointment-milestones
+  /// Fetches store-configured appointment milestone catalog.
+  Future<List<StoreMilestoneConfig>> getMilestonesCatalog({
+    String? storeId,
+    bool forceRefresh = false,
+  }) async {
+    try {
+      final session = ServicesLocator.sessionService;
+      final effectiveStoreId = storeId ?? session.storeId ?? 'SHEAR-001';
+
+      if (!forceRefresh &&
+          _storeMilestoneCatalogs.containsKey(effectiveStoreId) &&
+          _storeMilestoneCatalogs[effectiveStoreId]!.isNotEmpty) {
+        return _storeMilestoneCatalogs[effectiveStoreId]!;
+      }
+
+      log.d('GroomerHomeRepository::getMilestonesCatalog::storeId=$effectiveStoreId');
+
+      final queryParams = <String, dynamic>{
+        'storeId': effectiveStoreId,
+        if (session.clientId != null) 'ClientID': session.clientId,
+        if (session.regionId != null) 'RegionId': session.regionId,
+        'StoreId': effectiveStoreId,
+      };
+
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.get(
+          '/api/common/groomer/appointment-milestones',
+          query: queryParams,
+        );
+      } catch (_) {
+        response = null;
+      }
+
+      if (response == null || response['success'] != true || response['data'] == null) {
+        try {
+          response = await ServicesLocator.apiRepository.get(
+            '/api/common/appointment-milestones',
+            query: queryParams,
+          );
+        } catch (_) {
+          response = null;
+        }
+      }
+
+      if (response != null && response['success'] == true) {
+        List? list;
+        if (response['data'] is List) {
+          list = response['data'] as List;
+        } else if (response['data'] is Map && response['data']['milestones'] is List) {
+          list = response['data']['milestones'] as List;
+        } else if (response['milestones'] is List) {
+          list = response['milestones'] as List;
+        }
+
+        if (list != null) {
+          final configs = list
+              .whereType<Map>()
+              .map((e) => StoreMilestoneConfig.fromJson(Map<String, dynamic>.from(e)))
+              .toList()
+            ..sort((a, b) => a.order.compareTo(b.order));
+
+          _storeMilestoneCatalogs[effectiveStoreId] = configs;
+          return configs;
+        }
+      }
+
+      return _storeMilestoneCatalogs[effectiveStoreId] ?? const [];
+    } catch (e) {
+      log.e('GroomerHomeRepository::getMilestonesCatalog::Error: $e');
+      final session = ServicesLocator.sessionService;
+      final effectiveStoreId = storeId ?? session.storeId ?? 'SHEAR-001';
+      return _storeMilestoneCatalogs[effectiveStoreId] ?? const [];
+    }
+  }
+
+  /// Backward-compatible raw catalog method
+  Future<List<Map<String, dynamic>>> getMilestonesCatalogRaw({String? storeId}) async {
+    final configs = await getMilestonesCatalog(storeId: storeId);
+    return configs.map((c) => c.toJson()).toList();
+  }
+
+  /// GET /api/common/groomer/bookings/:id/milestones?storeId=SHEAR-001
+  Future<BookingMilestoneTimeline?> getMilestonesTimeline(
+    int bookingId, {
+    String? storeId,
+  }) async {
+    try {
+      final session = ServicesLocator.sessionService;
+      final effectiveStoreId = storeId ?? session.storeId ?? 'SHEAR-001';
+      log.d('GroomerHomeRepository::getMilestonesTimeline::bookingId=$bookingId, storeId=$effectiveStoreId');
+
+      final response = await ServicesLocator.apiRepository.get(
+        '/api/common/groomer/bookings/$bookingId/milestones',
+        query: {'storeId': effectiveStoreId},
+      );
+
+      if (response != null && response['success'] == true && response['data'] is Map) {
+        return BookingMilestoneTimeline.fromJson(
+          Map<String, dynamic>.from(response['data'] as Map),
+        );
+      }
+      return null;
+    } catch (e) {
+      log.e('GroomerHomeRepository::getMilestonesTimeline::Error: $e');
+      return null;
+    }
+  }
+
+  /// Backward-compatible list method
+  Future<List<Map<String, dynamic>>> getMilestonesTimelineList(int bookingId, {String? storeId}) async {
+    final timeline = await getMilestonesTimeline(bookingId, storeId: storeId);
+    if (timeline != null) {
+      return timeline.milestones.map((m) => m.toJson()).toList();
+    }
+    return [];
   }
 }

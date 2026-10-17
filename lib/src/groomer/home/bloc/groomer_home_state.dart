@@ -60,6 +60,11 @@ class GroomerHomeState extends Equatable {
   final bool deleteAccountSuccess;
   final String? deleteAccountError;
 
+  // Dynamic Store Milestone Configuration
+  final List<StoreMilestoneConfig> storeMilestoneCatalog;
+  final bool isLoadingMilestoneCatalog;
+  final String? milestoneCatalogError;
+
   const GroomerHomeState({
     required this.status,
     this.groomer,
@@ -105,6 +110,9 @@ class GroomerHomeState extends Equatable {
     this.isDeletingAccount = false,
     this.deleteAccountSuccess = false,
     this.deleteAccountError,
+    this.storeMilestoneCatalog = const [],
+    this.isLoadingMilestoneCatalog = false,
+    this.milestoneCatalogError,
   });
 
   static final initial = GroomerHomeState(
@@ -130,6 +138,8 @@ class GroomerHomeState extends Equatable {
     bookingForUserSuccess: false,
     isDeletingAccount: false,
     deleteAccountSuccess: false,
+    storeMilestoneCatalog: const [],
+    isLoadingMilestoneCatalog: false,
   );
 
   /// Number of unread notifications and pending action requests
@@ -185,6 +195,9 @@ class GroomerHomeState extends Equatable {
     bool Function()? isDeletingAccount,
     bool Function()? deleteAccountSuccess,
     String? Function()? deleteAccountError,
+    List<StoreMilestoneConfig> Function()? storeMilestoneCatalog,
+    bool Function()? isLoadingMilestoneCatalog,
+    String? Function()? milestoneCatalogError,
   }) {
     return GroomerHomeState(
       status: status != null ? status() : this.status,
@@ -231,6 +244,9 @@ class GroomerHomeState extends Equatable {
       isDeletingAccount: isDeletingAccount != null ? isDeletingAccount() : this.isDeletingAccount,
       deleteAccountSuccess: deleteAccountSuccess != null ? deleteAccountSuccess() : this.deleteAccountSuccess,
       deleteAccountError: deleteAccountError != null ? deleteAccountError() : this.deleteAccountError,
+      storeMilestoneCatalog: storeMilestoneCatalog != null ? storeMilestoneCatalog() : this.storeMilestoneCatalog,
+      isLoadingMilestoneCatalog: isLoadingMilestoneCatalog != null ? isLoadingMilestoneCatalog() : this.isLoadingMilestoneCatalog,
+      milestoneCatalogError: milestoneCatalogError != null ? milestoneCatalogError() : this.milestoneCatalogError,
     );
   }
 
@@ -280,5 +296,8 @@ class GroomerHomeState extends Equatable {
         isDeletingAccount,
         deleteAccountSuccess,
         deleteAccountError,
+        storeMilestoneCatalog,
+        isLoadingMilestoneCatalog,
+        milestoneCatalogError,
       ];
 }

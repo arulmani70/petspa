@@ -26,13 +26,27 @@ class GroomerRepository {
     try {
       log.d('GroomerRepository::login::Logging in groomer: $email');
 
-      final response = await ServicesLocator.apiRepository.post(
-        '/api/groomer-auth/login',
-        {
-          'email': email.trim(),
-          'password': password,
-        },
-      );
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/auth/login',
+          {
+            'email': email.trim(),
+            'password': password,
+          },
+        );
+      } catch (_) {
+        response = null;
+      }
+      if (response == null || response['success'] != true || response['data'] == null) {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/groomer-auth/login',
+          {
+            'email': email.trim(),
+            'password': password,
+          },
+        );
+      }
 
       if (response == null || response['success'] != true || response['data'] == null) {
         final message = response?['message'] ?? 'Login failed. Please check your credentials.';
@@ -183,9 +197,19 @@ class GroomerRepository {
       log.d('GroomerRepository::getProfile::Fetching groomer profile');
       final current = getCurrentGroomer();
 
-      final response = await ServicesLocator.apiRepository.get(
-        '/api/groomer-auth/profile',
-      );
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.get(
+          '/api/common/groomer/profile',
+        );
+      } catch (_) {
+        response = null;
+      }
+      if (response == null || response['success'] != true) {
+        response = await ServicesLocator.apiRepository.get(
+          '/api/groomer-auth/profile',
+        );
+      }
 
       if (response != null && response['success'] == true && response['data'] is Map) {
         final data = Map<String, dynamic>.from(response['data'] as Map);
@@ -409,12 +433,25 @@ class GroomerRepository {
 
       log.d('GroomerRepository::refreshToken::Refreshing groomer token');
 
-      final response = await ServicesLocator.apiRepository.post(
-        '/api/groomer-auth/refresh-token',
-        {
-          'refreshToken': refreshToken,
-        },
-      );
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/auth/refresh-token',
+          {
+            'refreshToken': refreshToken,
+          },
+        );
+      } catch (_) {
+        response = null;
+      }
+      if (response == null || response['success'] != true || response['data'] == null) {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/groomer-auth/refresh-token',
+          {
+            'refreshToken': refreshToken,
+          },
+        );
+      }
 
       if (response == null || response['success'] != true || response['data'] == null) {
         return false;
@@ -454,15 +491,25 @@ class GroomerRepository {
     }
   }
 
-  /// GET /api/groomer-auth/bookings/upcoming
+  Future<Map<String, dynamic>?> _getGroomerBookingEndpoint(String subpath) async {
+    try {
+      final res = await ServicesLocator.apiRepository.get(
+        '/api/common/groomer/bookings/$subpath',
+      );
+      if (res != null && res['data'] != null) return res;
+    } catch (_) {}
+    return await ServicesLocator.apiRepository.get(
+      '/api/groomer-auth/bookings/$subpath',
+    );
+  }
+
+  /// GET /api/common/groomer/bookings/upcoming
   ///
   /// Returns upcoming bookings for this groomer.
   Future<List<GroomerBooking>> getUpcomingBookings() async {
     try {
       log.d('GroomerRepository::getUpcomingBookings::Fetching upcoming bookings');
-      final response = await ServicesLocator.apiRepository.get(
-        '/api/groomer-auth/bookings/upcoming',
-      );
+      final response = await _getGroomerBookingEndpoint('upcoming');
 
       if (response != null && response['data'] is List) {
         final list = response['data'] as List;
@@ -475,15 +522,13 @@ class GroomerRepository {
     }
   }
 
-  /// GET /api/groomer-auth/bookings/pending
+  /// GET /api/common/groomer/bookings/pending
   ///
   /// Returns pending booking requests for this groomer.
   Future<List<GroomerBooking>> getPendingBookings() async {
     try {
       log.d('GroomerRepository::getPendingBookings::Fetching pending bookings');
-      final response = await ServicesLocator.apiRepository.get(
-        '/api/groomer-auth/bookings/pending',
-      );
+      final response = await _getGroomerBookingEndpoint('pending');
 
       if (response != null && response['data'] is List) {
         final list = response['data'] as List;
@@ -496,15 +541,13 @@ class GroomerRepository {
     }
   }
 
-  /// GET /api/groomer-auth/bookings/past
+  /// GET /api/common/groomer/bookings/past
   ///
   /// Returns past and completed bookings for this groomer.
   Future<List<GroomerBooking>> getPastBookings() async {
     try {
       log.d('GroomerRepository::getPastBookings::Fetching past bookings');
-      final response = await ServicesLocator.apiRepository.get(
-        '/api/groomer-auth/bookings/past',
-      );
+      final response = await _getGroomerBookingEndpoint('past');
 
       if (response != null && response['data'] is List) {
         final list = response['data'] as List;
@@ -517,15 +560,13 @@ class GroomerRepository {
     }
   }
 
-  /// GET /api/groomer-auth/bookings/cancelled
+  /// GET /api/common/groomer/bookings/cancelled
   ///
   /// Returns cancelled bookings for this groomer.
   Future<List<GroomerBooking>> getCancelledBookings() async {
     try {
       log.d('GroomerRepository::getCancelledBookings::Fetching cancelled bookings');
-      final response = await ServicesLocator.apiRepository.get(
-        '/api/groomer-auth/bookings/cancelled',
-      );
+      final response = await _getGroomerBookingEndpoint('cancelled');
 
       if (response != null && response['data'] is List) {
         final list = response['data'] as List;
@@ -538,15 +579,13 @@ class GroomerRepository {
     }
   }
 
-  /// GET /api/groomer-auth/bookings/cancellation-requests
+  /// GET /api/common/groomer/bookings/cancellation-requests
   ///
   /// Returns user cancellation requests.
   Future<List<GroomerBooking>> getCancellationRequests() async {
     try {
       log.d('GroomerRepository::getCancellationRequests::Fetching cancellation requests');
-      final response = await ServicesLocator.apiRepository.get(
-        '/api/groomer-auth/bookings/cancellation-requests',
-      );
+      final response = await _getGroomerBookingEndpoint('cancellation-requests');
 
       if (response != null && response['data'] is List) {
         final list = response['data'] as List;
@@ -559,16 +598,27 @@ class GroomerRepository {
     }
   }
 
-  /// POST /api/groomer-auth/bookings/:id/approve
+  /// POST /api/common/groomer/bookings/:id/approve
   ///
   /// Approves a pending booking.
   Future<bool> approveBooking(int bookingId) async {
     try {
       log.d('GroomerRepository::approveBooking::Approving booking #$bookingId');
-      final response = await ServicesLocator.apiRepository.post(
-        '/api/groomer-auth/bookings/$bookingId/approve',
-        {},
-      );
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/common/groomer/bookings/$bookingId/approve',
+          {},
+        );
+      } catch (_) {
+        response = null;
+      }
+      if (response == null || response['success'] != true) {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/groomer-auth/bookings/$bookingId/approve',
+          {},
+        );
+      }
       return response != null && response['success'] == true;
     } catch (e) {
       log.e('GroomerRepository::approveBooking::Error: $e');
@@ -576,16 +626,27 @@ class GroomerRepository {
     }
   }
 
-  /// POST /api/groomer-auth/bookings/:id/reject
+  /// POST /api/common/groomer/bookings/:id/reject
   ///
   /// Rejects a pending booking.
   Future<bool> rejectBooking(int bookingId) async {
     try {
       log.d('GroomerRepository::rejectBooking::Rejecting booking #$bookingId');
-      final response = await ServicesLocator.apiRepository.post(
-        '/api/groomer-auth/bookings/$bookingId/reject',
-        {},
-      );
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/common/groomer/bookings/$bookingId/reject',
+          {},
+        );
+      } catch (_) {
+        response = null;
+      }
+      if (response == null || response['success'] != true) {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/groomer-auth/bookings/$bookingId/reject',
+          {},
+        );
+      }
       return response != null && response['success'] == true;
     } catch (e) {
       log.e('GroomerRepository::rejectBooking::Error: $e');
@@ -593,16 +654,27 @@ class GroomerRepository {
     }
   }
 
-  /// POST /api/groomer-auth/bookings/:id/start
+  /// POST /api/common/groomer/bookings/:id/start
   ///
   /// Starts a confirmed appointment -> status becomes in_progress.
   Future<bool> startBooking(int bookingId) async {
     try {
       log.d('GroomerRepository::startBooking::Starting booking #$bookingId');
-      final response = await ServicesLocator.apiRepository.post(
-        '/api/groomer-auth/bookings/$bookingId/start',
-        {},
-      );
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/common/groomer/bookings/$bookingId/start',
+          {},
+        );
+      } catch (_) {
+        response = null;
+      }
+      if (response == null || response['success'] != true) {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/groomer-auth/bookings/$bookingId/start',
+          {},
+        );
+      }
       return response != null && response['success'] == true;
     } catch (e) {
       log.e('GroomerRepository::startBooking::Error: $e');
@@ -610,16 +682,36 @@ class GroomerRepository {
     }
   }
 
-  /// POST /api/groomer-auth/bookings/:id/complete
+  /// POST /api/common/groomer/bookings/:id/checkout
   ///
-  /// Completes an in-progress appointment -> status becomes completed.
+  /// Completes checkout for an appointment -> status becomes completed.
   Future<bool> completeBooking(int bookingId) async {
     try {
       log.d('GroomerRepository::completeBooking::Completing booking #$bookingId');
-      final response = await ServicesLocator.apiRepository.post(
-        '/api/groomer-auth/bookings/$bookingId/complete',
-        {},
-      );
+      final headers = <String, dynamic>{
+        'Idempotency-Key': 'checkout-$bookingId-${DateTime.now().millisecondsSinceEpoch}',
+      };
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.postWithHeaders(
+          '/api/common/groomer/bookings/$bookingId/checkout',
+          {'paymentMethod': 'card'},
+          headers: headers,
+        );
+      } catch (_) {
+        response = null;
+      }
+      if (response == null) {
+        try {
+          response = await ServicesLocator.apiRepository.postWithHeaders(
+            '/api/common/groomer/bookings/$bookingId/complete',
+            {},
+            headers: headers,
+          );
+        } catch (_) {
+          response = null;
+        }
+      }
       return response != null && response['success'] == true;
     } catch (e) {
       log.e('GroomerRepository::completeBooking::Error: $e');
@@ -627,16 +719,27 @@ class GroomerRepository {
     }
   }
 
-  /// POST /api/groomer-auth/bookings/:id/approve-cancellation
+  /// POST /api/common/groomer/bookings/:id/approve-cancellation
   ///
   /// Approves customer cancellation.
   Future<bool> approveCancellation(int bookingId) async {
     try {
       log.d('GroomerRepository::approveCancellation::Approving cancellation #$bookingId');
-      final response = await ServicesLocator.apiRepository.post(
-        '/api/groomer-auth/bookings/$bookingId/approve-cancellation',
-        {},
-      );
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/common/groomer/bookings/$bookingId/approve-cancellation',
+          {},
+        );
+      } catch (_) {
+        response = null;
+      }
+      if (response == null || response['success'] != true) {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/groomer-auth/bookings/$bookingId/approve-cancellation',
+          {},
+        );
+      }
       return response != null && response['success'] == true;
     } catch (e) {
       log.e('GroomerRepository::approveCancellation::Error: $e');
@@ -644,16 +747,27 @@ class GroomerRepository {
     }
   }
 
-  /// POST /api/groomer-auth/bookings/:id/reject-cancellation
+  /// POST /api/common/groomer/bookings/:id/reject-cancellation
   ///
   /// Rejects customer cancellation.
   Future<bool> rejectCancellation(int bookingId) async {
     try {
       log.d('GroomerRepository::rejectCancellation::Rejecting cancellation #$bookingId');
-      final response = await ServicesLocator.apiRepository.post(
-        '/api/groomer-auth/bookings/$bookingId/reject-cancellation',
-        {},
-      );
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/common/groomer/bookings/$bookingId/reject-cancellation',
+          {},
+        );
+      } catch (_) {
+        response = null;
+      }
+      if (response == null || response['success'] != true) {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/groomer-auth/bookings/$bookingId/reject-cancellation',
+          {},
+        );
+      }
       return response != null && response['success'] == true;
     } catch (e) {
       log.e('GroomerRepository::rejectCancellation::Error: $e');
@@ -661,7 +775,7 @@ class GroomerRepository {
     }
   }
 
-  /// GET /api/groomer-auth/customers?search=&limit=50&offset=0
+  /// GET /api/common/groomer/customers?search=&limit=50&offset=0
   ///
   /// Searches registered customers by name, phone, or email using the staff's session.
   Future<List<CustomerSummary>> searchCustomers({
@@ -679,10 +793,21 @@ class GroomerRepository {
         'offset': actualOffset,
       };
 
-      final response = await ServicesLocator.apiRepository.get(
-        '/api/groomer-auth/customers',
-        query: queryParams,
-      );
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.get(
+          '/api/common/groomer/customers',
+          query: queryParams,
+        );
+      } catch (_) {
+        response = null;
+      }
+      if (response == null || response['success'] != true) {
+        response = await ServicesLocator.apiRepository.get(
+          '/api/groomer-auth/customers',
+          query: queryParams,
+        );
+      }
 
       if (response != null && response['success'] == true && response['data'] != null) {
         final data = response['data'];

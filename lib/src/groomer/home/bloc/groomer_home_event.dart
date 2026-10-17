@@ -273,3 +273,13 @@ final class GroomerHomeDeleteAccountEvent extends GroomerHomeEvent {
   @override
   List<Object?> get props => [password, confirm];
 }
+
+final class GroomerHomeFetchMilestonesCatalogEvent extends GroomerHomeEvent {
+  final String? storeId;
+
+  const GroomerHomeFetchMilestonesCatalogEvent({this.storeId});
+
+  @override
+  List<Object?> get props => [storeId];
+}
+

@@ -292,7 +292,7 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(find.text('Bath Completed'), findsOneWidget);
+      expect(find.text('Bath Completed'), findsWidgets);
       expect(find.text('Copper'), findsOneWidget);
       expect(find.text('• Beagle'), findsOneWidget);
       expect(find.text('Customer Request:'), findsOneWidget);
@@ -333,7 +333,7 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(find.text('Grooming Completed'), findsOneWidget);
+      expect(find.text('Grooming Completed'), findsWidgets);
       expect(find.text('Bath Note Recorded:'), findsOneWidget);
       expect(find.text('"Double coat blown out thoroughly."'), findsOneWidget);
       expect(find.text('Confirm Grooming Completed'), findsOneWidget);

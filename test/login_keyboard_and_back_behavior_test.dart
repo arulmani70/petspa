@@ -16,7 +16,6 @@ import 'package:shear_heaven_pet_spa/src/auth/views/mobile/login_page_mobile.dar
 import 'package:shear_heaven_pet_spa/src/auth/views/mobile/otp_page_mobile.dart';
 import 'package:shear_heaven_pet_spa/src/common/repos/api_repository.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/device_id_service.dart';
-import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/session_service.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/login/repo/groomer_login_repository.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/login/views/mobile/groomer_login_page_mobile.dart';

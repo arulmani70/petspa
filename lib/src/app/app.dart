@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:responsive_framework/responsive_framework.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:toastification/toastification.dart';
 import 'package:shear_heaven_pet_spa/src/account/bloc/profile_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/app/routes.dart';
 import 'package:shear_heaven_pet_spa/src/auth/bloc/auth_bloc.dart';
@@ -91,14 +92,16 @@ class _AppState extends State<App> {
           elevation: 0,
         ),
       ),
-      builder: (context, child) => ResponsiveBreakpoints(
-        breakpoints: [
-          const Breakpoint(start: 0, end: 450, name: MOBILE),
-          const Breakpoint(start: 451, end: 800, name: TABLET),
-          const Breakpoint(start: 801, end: 1920, name: DESKTOP),
-          const Breakpoint(start: 1921, end: double.infinity, name: '4K'),
-        ],
-        child: child!,
+      builder: (context, child) => ToastificationWrapper(
+        child: ResponsiveBreakpoints(
+          breakpoints: [
+            const Breakpoint(start: 0, end: 450, name: MOBILE),
+            const Breakpoint(start: 451, end: 800, name: TABLET),
+            const Breakpoint(start: 801, end: 1920, name: DESKTOP),
+            const Breakpoint(start: 1921, end: double.infinity, name: '4K'),
+          ],
+          child: child!,
+        ),
       ),
       debugShowCheckedModeBanner: false,
       routerConfig: Routes().router,

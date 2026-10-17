@@ -260,6 +260,50 @@ class GroomerReportSummary {
     );
   }
 
+  /// Factory computing authoritative metrics from the backend reports summary response
+  /// (`GET /api/common/groomer/reports/summary`).
+  factory GroomerReportSummary.fromServerResponse(
+    Map<String, dynamic> data, {
+    String currencySymbol = '\$',
+    String currencyCode = 'USD',
+  }) {
+    final overview = data['overview'] is Map
+        ? Map<String, dynamic>.from(data['overview'] as Map)
+        : <String, dynamic>{};
+
+    final total = int.tryParse(overview['totalAppointments']?.toString() ?? '') ?? 0;
+    final completed = int.tryParse(overview['completedCheckouts']?.toString() ?? '') ?? 0;
+    final pending = int.tryParse(overview['pendingCheckouts']?.toString() ?? '') ?? 0;
+    final cancelled = int.tryParse(overview['cancelledAppointments']?.toString() ?? '') ?? 0;
+
+    final actualSales = double.tryParse(overview['actualSalesTotal']?.toString() ?? '');
+    final taxes = double.tryParse(overview['salesTaxTotal']?.toString() ?? '');
+    final tips = double.tryParse(overview['tipsTotal']?.toString() ?? '');
+    final totalCollected = double.tryParse(overview['actualGrossRevenue']?.toString() ?? '');
+    final forecast = double.tryParse(overview['forecastRevenue']?.toString() ?? '') ?? 0.0;
+
+    return GroomerReportSummary(
+      totalAppointments: total,
+      completedAppointments: completed,
+      confirmedAppointments: 0,
+      inProgressAppointments: 0,
+      readyForCheckoutAppointments: 0,
+      pendingAppointments: pending,
+      cancelledAppointments: cancelled,
+      forecastRevenue: forecast,
+      actualRevenue: actualSales,
+      actualTips: tips,
+      actualTaxes: taxes,
+      actualTotalCollected: totalCollected,
+      isActualRevenueAvailable: actualSales != null,
+      isTipsAvailable: tips != null,
+      isTaxAvailable: taxes != null,
+      isTotalCollectedAvailable: totalCollected != null,
+      currencySymbol: currencySymbol,
+      currencyCode: currencyCode,
+    );
+  }
+
   // ── Currency Formatting Helpers ───────────────────────────────────────────
 
   String formatCurrency(double amount) {

@@ -34,6 +34,7 @@ class GroomerCheckInDialog extends StatefulWidget {
     return showModalBottomSheet<GroomerBooking>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => GroomerCheckInDialog(
         booking: booking,
@@ -149,9 +150,11 @@ class _GroomerCheckInDialogState extends State<GroomerCheckInDialog> {
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
           // Drag handle
           Center(
             child: Container(
@@ -402,12 +405,16 @@ class _GroomerCheckInDialogState extends State<GroomerCheckInDialog> {
                               color: Colors.white,
                             ),
                           )
-                        : Text(
-                            'Confirm Check-in',
-                            style: AppFonts.parkinsans(
-                              size: 13.5,
-                              weight: FontWeight.w700,
-                              color: Colors.white,
+                        : FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              'Confirm Check-in',
+                              style: AppFonts.parkinsans(
+                                size: 13.5,
+                                weight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                              maxLines: 1,
                             ),
                           ),
                   ),
@@ -417,7 +424,8 @@ class _GroomerCheckInDialogState extends State<GroomerCheckInDialog> {
           ),
         ],
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildTimestampBanner(String rawIso) {

@@ -10,6 +10,7 @@ import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_booking.dar
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_schedule_models.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_user.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/salon_groomer.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/home/models/store_milestone_config.dart';
 import 'package:shear_heaven_pet_spa/src/app/routes.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/repo/groomer_home_repository.dart';
 import 'package:shear_heaven_pet_spa/src/services/repo/service_repository.dart';
@@ -51,6 +52,7 @@ class GroomerHomeBloc extends Bloc<GroomerHomeEvent, GroomerHomeState> {
     on<GroomerHomeCheckAvailabilityEvent>(_onCheckAvailability);
     on<GroomerHomeResetBookingDialogEvent>(_onResetBookingDialog);
     on<GroomerHomeDeleteAccountEvent>(_onDeleteAccount);
+    on<GroomerHomeFetchMilestonesCatalogEvent>(_onFetchMilestonesCatalog);
 
     _initSocketSubscriptions();
   }
@@ -190,6 +192,7 @@ class GroomerHomeBloc extends Bloc<GroomerHomeEvent, GroomerHomeState> {
         repository.getHolidays(),
         repository.getNotifications(),
         repository.getGroomerHours(),
+        repository.getMilestonesCatalog(),
       ]);
 
       final fetchedNotifications = results[8] as List<Map<String, dynamic>>? ?? [];
@@ -230,6 +233,7 @@ class GroomerHomeBloc extends Bloc<GroomerHomeEvent, GroomerHomeState> {
         holidays: () => results[7] as List<StoreHoliday>? ?? [],
         notifications: () => mergedNotifications,
         groomerHours: () => results[9] as List<GroomerWorkingHour>? ?? [],
+        storeMilestoneCatalog: () => results[10] as List<StoreMilestoneConfig>? ?? state.storeMilestoneCatalog,
         bookingForUserSuccess: () => false,
       ));
     } catch (e) {
@@ -820,6 +824,29 @@ class GroomerHomeBloc extends Bloc<GroomerHomeEvent, GroomerHomeState> {
       bookingForUserError: () => null,
       lastCreatedBookingId: () => null,
     ));
+  }
+
+  Future<void> _onFetchMilestonesCatalog(
+    GroomerHomeFetchMilestonesCatalogEvent event,
+    Emitter<GroomerHomeState> emit,
+  ) async {
+    try {
+      emit(state.copyWith(
+        isLoadingMilestoneCatalog: () => true,
+        milestoneCatalogError: () => null,
+      ));
+      final catalog = await repository.getMilestonesCatalog(storeId: event.storeId);
+      emit(state.copyWith(
+        storeMilestoneCatalog: () => catalog,
+        isLoadingMilestoneCatalog: () => false,
+      ));
+    } catch (e) {
+      log.e('GroomerHomeBloc::_onFetchMilestonesCatalog::Error: $e');
+      emit(state.copyWith(
+        isLoadingMilestoneCatalog: () => false,
+        milestoneCatalogError: () => e.toString(),
+      ));
+    }
   }
 
   @override

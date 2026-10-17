@@ -65,47 +65,62 @@ class ToastUtil {
     _lastMessage = message;
     _lastTime = now;
 
-    toastification.show(
-      context: context,
-      type: type,
-      style: ToastificationStyle.flat,
-      autoCloseDuration: const Duration(seconds: 4),
-      title: Text(
-        type == ToastificationType.success
-            ? 'Success'
-            : type == ToastificationType.warning
-                ? 'Warning'
-                : type == ToastificationType.info
-                    ? 'Notification'
-                    : 'Error',
-        style: const TextStyle(fontWeight: FontWeight.bold),
-      ),
-      description: Text(
-        message,
-        style: const TextStyle(color: Colors.black),
-      ),
-      alignment: Alignment.bottomRight,
-      primaryColor: backgroundColor,
-      backgroundColor: Colors.white,
-      foregroundColor: Colors.black,
-      icon: Icon(icon, color: backgroundColor),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      borderRadius: BorderRadius.circular(12),
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x07000000),
-          blurRadius: 16,
-          offset: Offset(0, 16),
-          spreadRadius: 0,
+    try {
+      toastification.show(
+        context: context,
+        type: type,
+        style: ToastificationStyle.flat,
+        autoCloseDuration: const Duration(seconds: 4),
+        title: Text(
+          type == ToastificationType.success
+              ? 'Success'
+              : type == ToastificationType.warning
+                  ? 'Warning'
+                  : type == ToastificationType.info
+                      ? 'Notification'
+                      : 'Error',
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-      ],
-      showProgressBar: true,
-      closeOnClick: false,
-      pauseOnHover: true,
-      dragToClose: true,
-      applyBlurEffect: true,
-      callbacks: const ToastificationCallbacks(),
-    );
+        description: Text(
+          message,
+          style: const TextStyle(color: Colors.black),
+        ),
+        alignment: Alignment.bottomRight,
+        primaryColor: backgroundColor,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        icon: Icon(icon, color: backgroundColor),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x07000000),
+            blurRadius: 16,
+            offset: Offset(0, 16),
+            spreadRadius: 0,
+          ),
+        ],
+        showProgressBar: true,
+        closeOnClick: false,
+        pauseOnHover: true,
+        dragToClose: true,
+        applyBlurEffect: true,
+        callbacks: const ToastificationCallbacks(),
+      );
+    } catch (_) {
+      try {
+        final messenger = ScaffoldMessenger.maybeOf(context);
+        if (messenger != null) {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(message),
+              backgroundColor: backgroundColor,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } catch (_) {}
+    }
   }
 }

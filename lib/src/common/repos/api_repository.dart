@@ -26,6 +26,7 @@ class ApiRepository {
   bool _isGroomerPath(String path) {
     final session = ServicesLocator.sessionService;
     return path.contains('/api/groomer-auth') ||
+        path.contains('/api/common/groomer') ||
         _notificationAuthIsGroomer == true ||
         (_notificationAuthIsGroomer != false &&
             session.isGroomerLoggedIn &&
@@ -57,6 +58,16 @@ class ApiRepository {
     );
   }
 
+  bool _isNetworkError(dynamic error) {
+    if (error is DioException) {
+      return error.type == DioExceptionType.connectionTimeout ||
+          error.type == DioExceptionType.sendTimeout ||
+          error.type == DioExceptionType.receiveTimeout ||
+          error.type == DioExceptionType.connectionError;
+    }
+    return false;
+  }
+
   Future<bool> _refreshCustomerTokenWithMutex() async {
     if (_customerRefreshCompleter != null) {
       log.d('[AUTH] Customer refresh already in progress - waiting');
@@ -71,6 +82,7 @@ class ApiRepository {
     final completer = Completer<bool>();
     _customerRefreshCompleter = completer;
 
+    bool isNetworkErr = false;
     try {
       final success = await _performCustomerTokenRefresh();
       if (!completer.isCompleted) {
@@ -86,10 +98,13 @@ class ApiRepository {
       return success;
     } catch (e) {
       log.d('[AUTH] Customer refresh failed: $e');
+      isNetworkErr = _isNetworkError(e);
       if (!completer.isCompleted) {
         completer.complete(false);
       }
-      await _handleCustomerAuthFailure();
+      if (!isNetworkErr) {
+        await _handleCustomerAuthFailure();
+      }
       return false;
     } finally {
       _customerRefreshCompleter = null;
@@ -105,13 +120,39 @@ class ApiRepository {
       }
 
       log.d('[AUTH] POST /api/auth/refresh-token called');
-      final response = await _dio.post(
-        '/api/auth/refresh-token',
-        data: {'refreshToken': refreshToken},
-        options: Options(
-          extra: {'is_retry': true},
-        ),
-      );
+      Response response;
+      try {
+        response = await _dio.post(
+          '/api/auth/refresh-token',
+          data: {'refreshToken': refreshToken},
+          options: Options(
+            extra: {'is_retry': true},
+          ),
+        );
+      } catch (e) {
+        if (_isNetworkError(e)) {
+          rethrow;
+        }
+        log.w('[AUTH] Customer refresh via /api/auth/refresh-token failed: $e. Trying fallback.');
+        response = await _dio.post(
+          '/api/auth/refresh',
+          data: {'refresh_token': refreshToken, 'refreshToken': refreshToken},
+          options: Options(
+            extra: {'is_retry': true},
+          ),
+        );
+      }
+
+      if (response.statusCode == 404 && response.requestOptions.path != '/api/auth/refresh') {
+        log.d('[AUTH] POST /api/auth/refresh fallback called');
+        response = await _dio.post(
+          '/api/auth/refresh',
+          data: {'refresh_token': refreshToken, 'refreshToken': refreshToken},
+          options: Options(
+            extra: {'is_retry': true},
+          ),
+        );
+      }
 
       if (response.statusCode == null ||
           response.statusCode! < 200 ||
@@ -132,8 +173,14 @@ class ApiRepository {
       }
 
       final responseData = data['data'] as Map<String, dynamic>? ?? data;
-      final newAccessToken = responseData['accessToken']?.toString();
-      final newRefreshToken = responseData['refreshToken']?.toString() ?? refreshToken;
+      final newAccessToken = (responseData['accessToken'] ??
+              responseData['access_token'] ??
+              responseData['token'])
+          ?.toString();
+      final newRefreshToken = (responseData['refreshToken'] ??
+              responseData['refresh_token'])
+          ?.toString() ??
+          refreshToken;
 
       if (newAccessToken != null && newAccessToken.isNotEmpty) {
         await ServicesLocator.sessionService.saveTokens(
@@ -155,6 +202,9 @@ class ApiRepository {
       return false;
     } catch (e) {
       log.e('[AUTH] _performCustomerTokenRefresh error: $e');
+      if (_isNetworkError(e)) {
+        rethrow;
+      }
       return false;
     }
   }
@@ -224,14 +274,37 @@ class ApiRepository {
         return false;
       }
 
-      log.d('[AUTH] POST /api/groomer-auth/refresh-token called');
-      final response = await _dio.post(
-        '/api/groomer-auth/refresh-token',
-        data: {'refreshToken': refreshToken},
-        options: Options(
-          extra: {'is_retry': true},
-        ),
-      );
+      log.d('[AUTH] POST /api/auth/refresh-token called (groomer)');
+      Response response;
+      try {
+        response = await _dio.post(
+          '/api/auth/refresh-token',
+          data: {'refreshToken': refreshToken},
+          options: Options(
+            extra: {'is_retry': true},
+          ),
+        );
+      } catch (e) {
+        log.w('[AUTH] Groomer refresh via /api/auth/refresh-token failed: $e. Trying fallback.');
+        response = await _dio.post(
+          '/api/groomer-auth/refresh-token',
+          data: {'refreshToken': refreshToken},
+          options: Options(
+            extra: {'is_retry': true},
+          ),
+        );
+      }
+
+      if (response.statusCode == 404 && response.requestOptions.path != '/api/groomer-auth/refresh-token') {
+        log.d('[AUTH] POST /api/groomer-auth/refresh-token fallback called');
+        response = await _dio.post(
+          '/api/groomer-auth/refresh-token',
+          data: {'refreshToken': refreshToken},
+          options: Options(
+            extra: {'is_retry': true},
+          ),
+        );
+      }
 
       if (response.statusCode == null ||
           response.statusCode! < 200 ||
@@ -301,12 +374,8 @@ class ApiRepository {
   }
 
   bool _isGroomerNotificationUserNotFound(String path, dynamic responseData) {
-    if (!path.contains('/api/notifications')) return false;
-    if (responseData is Map) {
-      final msg = responseData['message']?.toString().toLowerCase() ?? '';
-      if (msg.contains('user not found')) {
-        return true;
-      }
+    if (path.contains('/api/notifications')) {
+      return true;
     }
     return false;
   }
@@ -318,7 +387,10 @@ class ApiRepository {
         connectTimeout: const Duration(seconds: 10),
         receiveTimeout: const Duration(seconds: 10),
         sendTimeout: const Duration(seconds: 10),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'PostmanRuntime/7.39.0',
+        },
         validateStatus: (_) => true,
       ),
     );
@@ -328,14 +400,21 @@ class ApiRepository {
         onRequest: (options, handler) async {
           final session = ServicesLocator.sessionService;
 
-          if (session.clientId != null) {
-            options.headers['x-client-id'] = session.clientId;
+          final cId = session.clientId;
+          final rId = session.regionId;
+          final sId = session.storeId;
+
+          if (cId != null && cId.isNotEmpty) {
+            options.headers['ClientId'] = cId;
+            options.headers['x-client-id'] = cId;
           }
-          if (session.regionId != null) {
-            options.headers['x-region-id'] = session.regionId;
+          if (rId != null && rId.isNotEmpty) {
+            options.headers['RegionId'] = rId;
+            options.headers['x-region-id'] = rId;
           }
-          if (session.storeId != null) {
-            options.headers['x-store-id'] = session.storeId;
+          if (sId != null && sId.isNotEmpty) {
+            options.headers['StoreId'] = sId;
+            options.headers['x-store-id'] = sId;
           }
 
           if (_isExcludedAuthPath(options.path)) {
@@ -588,9 +667,22 @@ class ApiRepository {
     String path,
     Map<String, dynamic> data,
   ) async {
+    return postWithHeaders(path, data);
+  }
+
+  Future<Map<String, dynamic>?> postWithHeaders(
+    String path,
+    Map<String, dynamic> data, {
+    Map<String, dynamic>? headers,
+    Options? options,
+  }) async {
     try {
       log.d("ApiRepository::post::Posting to: $path");
-      final response = await _dio.post(path, data: data);
+      Options? effectiveOptions = options;
+      if (headers != null && headers.isNotEmpty) {
+        effectiveOptions = (effectiveOptions ?? Options()).copyWith(headers: headers);
+      }
+      final response = await _dio.post(path, data: data, options: effectiveOptions);
 
       if (response.statusCode == null ||
           response.statusCode! < 200 ||
@@ -599,18 +691,36 @@ class ApiRepository {
           "ApiRepository::post::Unexpected status: ${response.statusCode} body: ${response.data}",
         );
         if (response.data is Map<String, dynamic>) {
-          return response.data as Map<String, dynamic>;
+          final resMap = Map<String, dynamic>.from(response.data as Map);
+          if (!resMap.containsKey('statusCode') && response.statusCode != null) {
+            resMap['statusCode'] = response.statusCode;
+          }
+          return resMap;
         }
-        return null;
+        return {
+          'statusCode': response.statusCode,
+          'success': false,
+          'message': 'HTTP ${response.statusCode}',
+        };
       }
 
       log.d("ApiRepository::post::Posted successfully");
       return response.data as Map<String, dynamic>;
     } catch (error) {
-      if (error is DioException &&
-          error.response != null &&
-          error.response?.data is Map<String, dynamic>) {
-        return error.response?.data as Map<String, dynamic>;
+      if (error is DioException && error.response != null) {
+        if (error.response?.data is Map<String, dynamic>) {
+          final resMap = Map<String, dynamic>.from(error.response!.data as Map);
+          if (!resMap.containsKey('statusCode') && error.response?.statusCode != null) {
+            resMap['statusCode'] = error.response!.statusCode;
+          }
+          return resMap;
+        }
+        return {
+          'statusCode': error.response?.statusCode,
+          'success': false,
+          'message': error.response?.statusMessage ?? 'HTTP ${error.response?.statusCode}',
+          'data': error.response?.data,
+        };
       }
       log.w("ApiRepository::post::Error: $error");
       return null;

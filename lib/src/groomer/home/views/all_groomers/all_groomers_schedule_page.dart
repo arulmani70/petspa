@@ -1772,10 +1772,13 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
 
     final isPending = statusLower == 'pending';
     final isConfirmed = statusLower == 'confirmed';
-    final isInProgress = statusLower == 'in_progress' || statusLower == 'in-progress';
+    final isInProgress = statusLower == 'in_progress' ||
+        statusLower == 'in-progress' ||
+        statusLower == 'bath_completed' ||
+        statusLower == 'grooming_in_progress' ||
+        statusLower == 'grooming_completed' ||
+        statusLower == 'in_service';
     final isCheckedInStatus = statusLower == 'checked_in';
-    final isBathCompleted = statusLower == 'bath_completed' || booking.isBathCompleted;
-    final isGroomingCompleted = statusLower == 'grooming_completed' || booking.isGroomingCompleted;
     final isReadyForCheckout = statusLower == 'ready_for_checkout' || booking.isReadyForCheckout;
     final isProcessing = _processingBookingIds.contains(booking.bookingId);
     final canManage = _isOwnBooking(booking);
@@ -2105,9 +2108,13 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                       const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF16A34A)),
                       const SizedBox(width: 6),
                       Text(
-                        booking.isGroomingCompleted
-                            ? 'Milestones: Bath & Grooming Completed'
-                            : 'Milestone: Bath Completed',
+                        booking.requiresBath && booking.requiresGrooming
+                            ? (booking.isGroomingCompleted
+                                ? 'Milestones: Bath & Grooming Completed'
+                                : 'Milestone: Bath Completed')
+                            : (booking.requiresBath
+                                ? 'Milestone: Bath Completed'
+                                : 'Milestone: Grooming Completed'),
                         style: AppFonts.poppins(
                           size: 11.5,
                           weight: FontWeight.w600,
@@ -2370,82 +2377,111 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                       ),
                     ),
                   )
-                else if (canManage && (isInProgress || isCheckedInStatus) && !booking.isBathCompleted && booking.bookingId > 0)
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0284C7), // Blue for Bath
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
+                else if (canManage && (isInProgress || isCheckedInStatus) && !booking.areRequiredMilestonesCompleted && booking.bookingId > 0) ...[
+                  if (booking.nextPendingMilestone == 'bath_completed')
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0284C7), // Blue for Bath
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                        minimumSize: const Size(0, 30),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                      minimumSize: const Size(0, 30),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    onPressed: () => _handleMilestone(booking, MilestoneType.bath),
-                    icon: const Icon(Icons.bathtub_outlined, size: 15, color: Colors.white),
-                    label: Text(
-                      'Bath Done',
-                      style: AppFonts.poppins(
-                        size: 12,
-                        weight: FontWeight.w600,
-                        color: Colors.white,
+                      onPressed: () => _handleMilestone(booking, MilestoneType.bath),
+                      icon: const Icon(Icons.bathtub_outlined, size: 15, color: Colors.white),
+                      label: Text(
+                        'Bath Done',
+                        style: AppFonts.poppins(
+                          size: 12,
+                          weight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
                       ),
-                    ),
-                  )
-                else if (canManage && (isBathCompleted || (booking.isBathCompleted && !booking.isGroomingCompleted)) && !booking.isGroomingCompleted && booking.bookingId > 0)
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF7C3AED), // Purple for Grooming
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                      minimumSize: const Size(0, 30),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    onPressed: () => _handleMilestone(booking, MilestoneType.grooming),
-                    icon: const Icon(Icons.content_cut_rounded, size: 15, color: Colors.white),
-                    label: Text(
-                      'Grooming Done',
-                      style: AppFonts.poppins(
-                        size: 12,
-                        weight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                  )
-                else if (canManage && (isGroomingCompleted || booking.isGroomingCompleted) && !isReadyForCheckout && !booking.isCompleted && statusLower != 'completed' && booking.bookingId > 0)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
+                    )
+                  else if (booking.nextPendingMilestone == 'grooming_completed') ...[
+                    if (booking.requiresBath && booking.isBathCompleted)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFEDE9FE),
+                          color: const Color(0xFFE0F2FE),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFDDD6FE)),
+                          border: Border.all(color: const Color(0xFFBAE6FD)),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.check_circle_outline_rounded, size: 14, color: Color(0xFF6D28D9)),
+                            const Icon(Icons.check_circle_outline_rounded, size: 14, color: Color(0xFF0284C7)),
                             const SizedBox(width: 4),
                             Text(
-                              'Grooming Done',
+                              'Bath Done',
                               style: AppFonts.poppins(
                                 size: 11.5,
                                 weight: FontWeight.w600,
-                                color: const Color(0xFF6D28D9),
+                                color: const Color(0xFF0284C7),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(width: 6),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF7C3AED), // Purple for Grooming
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                        minimumSize: const Size(0, 30),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      onPressed: () => _handleMilestone(booking, MilestoneType.grooming),
+                      icon: const Icon(Icons.content_cut_rounded, size: 15, color: Colors.white),
+                      label: Text(
+                        'Grooming Done',
+                        style: AppFonts.poppins(
+                          size: 12,
+                          weight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ]
+                else if (canManage && booking.areRequiredMilestonesCompleted && !isReadyForCheckout && !booking.isCompleted && statusLower != 'completed' && booking.bookingId > 0)
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    alignment: WrapAlignment.end,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDCFCE7),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFBBF7D0)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.check_circle_outline_rounded, size: 14, color: Color(0xFF16A34A)),
+                            const SizedBox(width: 4),
+                            Text(
+                              booking.requiresGrooming ? 'Grooming Done' : 'Bath Done',
+                              style: AppFonts.poppins(
+                                size: 11.5,
+                                weight: FontWeight.w600,
+                                color: const Color(0xFF16A34A),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF0F766E), // Brand Teal
@@ -2478,8 +2514,11 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                     ],
                   )
                 else if (canManage && isReadyForCheckout && booking.bookingId > 0)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    alignment: WrapAlignment.end,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -2504,7 +2543,6 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                           ],
                         ),
                       ),
-                      const SizedBox(width: 6),
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF1F2937),

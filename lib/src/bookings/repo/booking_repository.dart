@@ -668,11 +668,21 @@ class BookingRepository {
   // ─────────────────────────────────────────────────────────────────────────
   // Step 9: Customer Tip Confirmation
   //
-  // Calls POST /api/bookings/:bookingId/tip (pending backend contract).
+  // Calls POST /api/bookings/:bookingId/confirm-tip (or fallback /tip).
   //
   // CRITICAL SAFEGUARD: Never triggers payment, never marks booking completed,
   // never charges customer, and never performs final checkout (strictly Step 10).
+  // Deduplicates in-flight calls and ensures valid customer session.
   // ─────────────────────────────────────────────────────────────────────────
+  final Map<int, Future<({
+    bool success,
+    String message,
+    double? confirmedTipAmount,
+    double? confirmedTipPercentage,
+    Map<String, dynamic>? updatedBooking,
+    bool isPendingBackend,
+  })>> _inFlightTipConfirmations = {};
+
   Future<({
     bool success,
     String message,
@@ -681,6 +691,40 @@ class BookingRepository {
     Map<String, dynamic>? updatedBooking,
     bool isPendingBackend,
   })> confirmTipDetails({
+    required int bookingId,
+    required double tipAmount,
+    double? tipPercentage,
+    Map<String, dynamic>? booking,
+  }) async {
+    // 1. In-flight request deduplication: prevent concurrent duplicate submissions
+    if (_inFlightTipConfirmations.containsKey(bookingId)) {
+      log.d('BookingRepository::confirmTipDetails::Deduping concurrent request for booking #$bookingId');
+      return await _inFlightTipConfirmations[bookingId]!;
+    }
+
+    final future = _executeConfirmTipDetails(
+      bookingId: bookingId,
+      tipAmount: tipAmount,
+      tipPercentage: tipPercentage,
+      booking: booking,
+    );
+
+    _inFlightTipConfirmations[bookingId] = future;
+    try {
+      return await future;
+    } finally {
+      _inFlightTipConfirmations.remove(bookingId);
+    }
+  }
+
+  Future<({
+    bool success,
+    String message,
+    double? confirmedTipAmount,
+    double? confirmedTipPercentage,
+    Map<String, dynamic>? updatedBooking,
+    bool isPendingBackend,
+  })> _executeConfirmTipDetails({
     required int bookingId,
     required double tipAmount,
     double? tipPercentage,
@@ -711,8 +755,11 @@ class BookingRepository {
 
       // Customer ownership validation:
       // If user is logged in, ensure booking belongs to user if customer ID is present
-      if (ServicesLocator.isRegistered<SessionService>()) {
-        final session = ServicesLocator.sessionService;
+      final session = ServicesLocator.isRegistered<SessionService>()
+          ? ServicesLocator.sessionService
+          : null;
+
+      if (session != null && session.isLoggedIn) {
         final currentUid = session.currentUserId;
         if (booking != null && currentUid != null && currentUid.isNotEmpty) {
           final bookingCustId = booking['customerId'] ??
@@ -737,28 +784,92 @@ class BookingRepository {
       }
 
       final payload = <String, dynamic>{
-        'bookingId': bookingId,
         'tipAmount': tipAmount,
+        'tip_amount': tipAmount,
         'tipPercentage': ?tipPercentage,
+        'tip_percentage': ?tipPercentage,
+        'note': 'Tip confirmed by customer',
+        'bookingId': bookingId,
+        'booking_id': bookingId,
       };
 
-
-      log.d('BookingRepository::confirmTipDetails::POST /api/bookings/$bookingId/tip');
+      log.d('BookingRepository::confirmTipDetails::POST /api/bookings/$bookingId/confirm-tip payload=$payload');
 
       Map<String, dynamic>? response;
       bool isPendingBackend = false;
 
       try {
         response = await ServicesLocator.apiRepository
-            .post('/api/bookings/$bookingId/tip', payload);
+            .post('/api/bookings/$bookingId/confirm-tip', payload);
         if (response == null || response['success'] == false) {
-          isPendingBackend = true;
+          final code = response?['statusCode'];
+          // Only attempt fallback endpoint if error was not an authentication or authorization failure
+          if (code != 401 && code != 403) {
+            response = await ServicesLocator.apiRepository
+                .post('/api/bookings/$bookingId/tip', payload);
+          }
         }
       } catch (e) {
-        log.w('BookingRepository::confirmTipDetails::Endpoint /api/bookings/$bookingId/tip unavailable/unverified ($e). Recording tip preference locally for Step 9.');
-        isPendingBackend = true;
+        try {
+          response = await ServicesLocator.apiRepository
+              .post('/api/bookings/$bookingId/tip', payload);
+        } catch (_) {
+          log.w('BookingRepository::confirmTipDetails::Endpoint /api/bookings/$bookingId/confirm-tip unavailable ($e). Recording tip preference locally.');
+        }
       }
 
+      // Check if session became expired during request or if response returned 401
+      final statusCode = response?['statusCode'] is int
+          ? response!['statusCode'] as int
+          : (response?['status'] is int ? response!['status'] as int : null);
+
+      if (statusCode == 401) {
+        log.w('BookingRepository::confirmTipDetails::401 Unauthorized from backend for booking #$bookingId');
+        return (
+          success: false,
+          message: 'Your session has expired. Please log in again to confirm your tip.',
+          confirmedTipAmount: null,
+          confirmedTipPercentage: null,
+          updatedBooking: null,
+          isPendingBackend: false,
+        );
+      }
+
+      if (statusCode == 403) {
+        log.w('BookingRepository::confirmTipDetails::403 Forbidden for booking #$bookingId');
+        final msg = response?['message']?.toString() ??
+            'You are not authorized to confirm tip for this booking.';
+        return (
+          success: false,
+          message: msg,
+          confirmedTipAmount: null,
+          confirmedTipPercentage: null,
+          updatedBooking: null,
+          isPendingBackend: false,
+        );
+      }
+
+      // If backend explicitly returns a 400 validation rejection (e.g. invalid tip limits)
+      if (statusCode == 400 && response?['message'] != null) {
+        final msg = response!['message'].toString();
+        if (msg.isNotEmpty &&
+            (msg.toLowerCase().contains('invalid') || msg.toLowerCase().contains('exceed'))) {
+          return (
+            success: false,
+            message: msg,
+            confirmedTipAmount: null,
+            confirmedTipPercentage: null,
+            updatedBooking: null,
+            isPendingBackend: false,
+          );
+        }
+      }
+
+      if (response == null ||
+          response['success'] == false ||
+          (statusCode != null && statusCode >= 400)) {
+        isPendingBackend = true;
+      }
 
       // Build updated booking representation
       // CRITICAL SAFEGUARD: Booking status is preserved as 'ready_for_checkout', NOT 'completed'
@@ -771,6 +882,86 @@ class BookingRepository {
         ..['tip_percentage'] = tipPercentage
         ..['isTipConfirmed'] = true
         ..['status'] = currentStatus; // PRESERVED!
+
+      // Persist confirmed tip and update shared state so groomer sees the confirmation
+      if (session != null) {
+        final custId = booking?['customerId'] ??
+            booking?['customer_id'] ??
+            booking?['userId'] ??
+            booking?['user_id'];
+        final resolvedCustId = custId is int
+            ? custId
+            : int.tryParse(custId?.toString() ?? '');
+
+        await session.saveConfirmedTip(
+          bookingId: bookingId,
+          tipAmount: tipAmount,
+          tipPercentage: tipPercentage,
+          customerId: resolvedCustId,
+        );
+
+        // Dispatch notification to groomer portal & real-time stream
+        final groomerId = booking?['groomerId'] ?? booking?['groomer_id'];
+        final resolvedGroomerId = groomerId is int
+            ? groomerId
+            : int.tryParse(groomerId?.toString() ?? '');
+        final petName = booking?['petName'] ??
+            booking?['pet_name'] ??
+            (booking?['pet'] is Map ? booking!['pet']['name'] : null) ??
+            'Pet';
+        final nowIso = DateTime.now().toIso8601String();
+        final notifId = DateTime.now().millisecondsSinceEpoch;
+
+        final groomerNotif = <String, dynamic>{
+          'id': notifId,
+          'notificationId': notifId,
+          if (resolvedGroomerId != null && resolvedGroomerId > 0)
+            'groomerId': resolvedGroomerId,
+          'title': 'Customer Confirmed Tip',
+          'message': tipAmount > 0
+              ? 'Customer confirmed a tip of \$${tipAmount.toStringAsFixed(2)} for $petName (Booking #$bookingId).'
+              : 'Customer reviewed checkout for $petName (Booking #$bookingId) with no tip.',
+          'body': tipAmount > 0
+              ? 'Customer confirmed a tip of \$${tipAmount.toStringAsFixed(2)} for $petName (Booking #$bookingId).'
+              : 'Customer reviewed checkout for $petName (Booking #$bookingId) with no tip.',
+          'type': 'booking_tip_confirmed',
+          'status': 'ready_for_checkout',
+          'isRead': false,
+          'createdAt': nowIso,
+          'data': <String, dynamic>{
+            'bookingId': bookingId,
+            'entityId': bookingId,
+            'tipAmount': tipAmount,
+            'tipPercentage': ?tipPercentage,
+            'isTipConfirmed': true,
+            'status': 'ready_for_checkout',
+          },
+        };
+
+        await session.saveGroomerPortalNotification(
+          groomerNotif,
+          groomerId: resolvedGroomerId,
+        );
+
+        if (ServicesLocator.isGroomerSocketServiceRegistered) {
+          ServicesLocator.groomerSocketService.handleDirectNotification(
+            AppNotification.fromJson(groomerNotif),
+          );
+        }
+      }
+
+      // Update cached upcoming bookings if present
+      if (_cachedUpcomingBookings != null) {
+        final idx = _cachedUpcomingBookings!.indexWhere((b) {
+          final id = b['bookingId'] ?? b['id'] ?? b['booking_id'];
+          return id != null && id.toString() == bookingId.toString();
+        });
+        if (idx >= 0) {
+          _cachedUpcomingBookings![idx] =
+              Map<String, dynamic>.from(_cachedUpcomingBookings![idx])
+                ..addAll(updated);
+        }
+      }
 
       final successMsg = isPendingBackend
           ? 'Tip preference recorded. (Backend persistence pending endpoint deployment).'
@@ -794,6 +985,152 @@ class BookingRepository {
         updatedBooking: null,
         isPendingBackend: false,
       );
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Customer Checkout Summary & Receipt Endpoints (Verified Live)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /// GET /api/bookings/:id/checkout-summary
+  Future<Map<String, dynamic>?> getCheckoutSummary(int bookingId) async {
+    try {
+      log.d('BookingRepository::getCheckoutSummary::bookingId=$bookingId');
+      final response = await ServicesLocator.apiRepository.get(
+        '/api/bookings/$bookingId/checkout-summary',
+      );
+      if (response != null && response['success'] == true) {
+        return response['data'] is Map
+            ? Map<String, dynamic>.from(response['data'] as Map)
+            : response;
+      }
+      return null;
+    } catch (e) {
+      log.e('BookingRepository::getCheckoutSummary::Error: $e');
+      return null;
+    }
+  }
+
+  /// Fetches authoritative checkout confirmation details for [bookingId].
+  ///
+  /// Combines:
+  /// 1. GET /api/bookings/:id/checkout-summary
+  /// 2. GET /api/bookings/:id
+  /// 3. Upcoming/Past bookings list lookup
+  /// 4. Local SQLite database lookup
+  /// 5. Persistent confirmed tip from SessionService
+  Future<Map<String, dynamic>?> getCheckoutConfirmationDetails(int bookingId) async {
+    try {
+      log.d('BookingRepository::getCheckoutConfirmationDetails::bookingId=$bookingId');
+
+      Map<String, dynamic>? details;
+
+      // 1. Try dedicated checkout-summary endpoint
+      try {
+        final summary = await getCheckoutSummary(bookingId);
+        if (summary != null && summary.isNotEmpty) {
+          details = Map<String, dynamic>.from(summary);
+        }
+      } catch (e) {
+        log.d('BookingRepository::getCheckoutConfirmationDetails::checkout-summary fallback: $e');
+      }
+
+      // 2. Try direct booking endpoint: GET /api/bookings/:id
+      if (details == null || (details['petName'] == null && details['pet'] == null)) {
+        try {
+          final res = await ServicesLocator.apiRepository.get('/api/bookings/$bookingId');
+          if (res != null) {
+            final data = res['data'] is Map ? Map<String, dynamic>.from(res['data'] as Map) : res;
+            if (data.isNotEmpty) {
+              details = details != null ? {...details, ...data} : data;
+            }
+          }
+        } catch (e) {
+          log.d('BookingRepository::getCheckoutConfirmationDetails::GET /api/bookings/$bookingId fallback: $e');
+        }
+      }
+
+      // 3. Try upcoming bookings API lookup
+      if (details == null || details['serviceName'] == null) {
+        try {
+          final upcoming = await getUpcomingBookingsApi(forceRefresh: true);
+          final match = upcoming.firstWhere(
+            (b) {
+              final id = b['bookingId'] ?? b['id'] ?? b['booking_id'];
+              return id != null && id.toString() == bookingId.toString();
+            },
+            orElse: () => <String, dynamic>{},
+          );
+          if (match.isNotEmpty) {
+            details = details != null ? {...match, ...details} : Map<String, dynamic>.from(match);
+          }
+        } catch (e) {
+          log.d('BookingRepository::getCheckoutConfirmationDetails::upcoming bookings lookup fallback: $e');
+        }
+      }
+
+      // 4. Try local SQLite query
+      if (details == null) {
+        try {
+          final local = await getBookingById(bookingId);
+          if (local != null && local.isNotEmpty) {
+            details = Map<String, dynamic>.from(local);
+          }
+        } catch (e) {
+          log.d('BookingRepository::getCheckoutConfirmationDetails::local DB fallback: $e');
+        }
+      }
+
+      // 5. Merge confirmed tip from SessionService if available
+      if (details != null && ServicesLocator.isRegistered<SessionService>()) {
+        final confirmedTip = ServicesLocator.sessionService.getConfirmedTip(bookingId);
+        if (confirmedTip != null) {
+          final tipAmount = confirmedTip['tipAmount'];
+          final tipPct = confirmedTip['tipPercentage'];
+          if (tipAmount != null) {
+            details['tipAmount'] = tipAmount;
+            details['tip_amount'] = tipAmount;
+            details['isTipConfirmed'] = true;
+          }
+          if (tipPct != null) {
+            details['tipPercentage'] = tipPct;
+            details['tip_percentage'] = tipPct;
+          }
+        }
+      }
+
+      return details;
+    } catch (e) {
+      log.e('BookingRepository::getCheckoutConfirmationDetails::Error: $e');
+      return null;
+    }
+  }
+
+  /// GET /api/bookings/:id/receipt
+  ///
+  /// Fetches authoritative receipt and invoice from {{baseUrl}}/api/bookings/{{bookingId}}/receipt.
+  Future<Map<String, dynamic>?> getReceipt(int bookingId) => getBookingReceipt(bookingId);
+
+  /// GET /api/bookings/:id/receipt
+  Future<Map<String, dynamic>?> getBookingReceipt(int bookingId) async {
+    try {
+      log.d('BookingRepository::getBookingReceipt::GET /api/bookings/$bookingId/receipt');
+      final response = await ServicesLocator.apiRepository.get(
+        '/api/bookings/$bookingId/receipt',
+      );
+      if (response != null) {
+        if (response['data'] is Map) {
+          return Map<String, dynamic>.from(response['data'] as Map);
+        } else if (response['receipt'] is Map) {
+          return Map<String, dynamic>.from(response['receipt'] as Map);
+        } else if (response['success'] != false) {
+          return response;
+        }
+      }
+      return null;
+    } catch (e) {
+      log.e('BookingRepository::getBookingReceipt::Error: $e');
+      return null;
     }
   }
 }

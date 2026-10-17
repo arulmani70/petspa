@@ -9,6 +9,7 @@ import 'package:logger/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shear_heaven_pet_spa/firebase_options.dart';
 import 'package:shear_heaven_pet_spa/src/account/models/app_notification.dart';
+import 'package:shear_heaven_pet_spa/src/common/services/notification_navigation_service.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 
 /// Dedicated Android Notification Channel for Shear Heaven Pet Spa.
@@ -332,8 +333,29 @@ class PushNotificationService {
           _log.d(
             'PushNotificationService::onNotificationTapped::Payload: ${response.payload}',
           );
+          if (response.payload != null && response.payload!.isNotEmpty) {
+            NotificationNavigationService.handlePayloadString(response.payload);
+          }
         },
       );
+
+      // Check if application was launched by tapping a local notification
+      try {
+        final launchDetails = await _localNotifications.getNotificationAppLaunchDetails();
+        if (launchDetails != null &&
+            launchDetails.didNotificationLaunchApp &&
+            launchDetails.notificationResponse?.payload != null &&
+            launchDetails.notificationResponse!.payload!.isNotEmpty) {
+          _log.i(
+            'PushNotificationService::App launched from local notification payload: ${launchDetails.notificationResponse!.payload}',
+          );
+          NotificationNavigationService.handlePayloadString(
+            launchDetails.notificationResponse!.payload,
+          );
+        }
+      } catch (e) {
+        _log.d('PushNotificationService::getNotificationAppLaunchDetails check skipped: $e');
+      }
 
       if (!kIsWeb && Platform.isAndroid) {
         final androidPlugin = _localNotifications
@@ -397,6 +419,7 @@ class PushNotificationService {
           '[FCM Click] App opened from background notification: ${message.data}',
         );
         await handleIncomingRemoteMessage(message, showBanner: false);
+        await NotificationNavigationService.handlePayloadMap(message.data);
       });
 
       // When app is terminated and user taps on notification to launch app
@@ -408,6 +431,7 @@ class PushNotificationService {
             '[FCM Click] App launched from terminated notification: ${message.data}',
           );
           await handleIncomingRemoteMessage(message, showBanner: false);
+          await NotificationNavigationService.handlePayloadMap(message.data);
         }
       });
     } catch (e) {
@@ -790,6 +814,16 @@ class PushNotificationService {
           '[FCM] Authenticated session is not yet available. Token saved; deferring backend registration.',
         );
         return false;
+      }
+
+      // For groomer sessions, the /api/notifications/device-token endpoint is strictly customer-scoped
+      final isGroomerOnlySession =
+          isGroomer == true || (!session.isLoggedIn && session.isGroomerLoggedIn);
+      if (isGroomerOnlySession) {
+        _log.d(
+          '[FCM] Device token cached locally for groomer session (backend notification endpoint is customer-scoped)',
+        );
+        return true;
       }
 
       // 4. Dynamic platform

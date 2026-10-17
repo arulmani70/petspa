@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/services/bloc/service_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/services/repo/service_repository.dart';
 import 'package:shear_heaven_pet_spa/src/services/views/mobile/service_detail_page_mobile.dart';
-import 'package:shear_heaven_pet_spa/src/services/views/mobile/services_page_mobile.dart';
 import 'package:shear_heaven_pet_spa/src/services/views/service_detail_page.dart';
 
 class _FakeServiceRepositoryWithCatalog extends ServiceRepository {

@@ -5,8 +5,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/bloc/booking_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/views/mobile/booking_details_page_mobile.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/views/mobile/customer_checkout_confirmation_page.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/views/mobile/widgets/customer_checkout_summary_sheet.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
+import 'package:shear_heaven_pet_spa/src/common/utils/toast_util.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -459,6 +461,125 @@ void main() {
 
       // Verify banner action button
       expect(find.text('Review Checkout Summary & Tip'), findsOneWidget);
+    });
+  });
+
+  group('Step 9 – Blank Screen & App Close Crash Prevention Safeguards', () {
+    testWidgets('ToastUtil does not throw unhandled exception on showSuccessToast or showErrorToast', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) {
+                return ElevatedButton(
+                  onPressed: () {
+                    ToastUtil.showSuccessToast(ctx, 'Test Success');
+                    ToastUtil.showErrorToast(ctx, 'Test Error');
+                  },
+                  child: const Text('Show Toast'),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Show Toast'));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+
+      // Advance time past autoCloseDuration (4s) so no timers remain pending
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+    });
+
+    testWidgets('CustomerCheckoutConfirmationPage renders embedded sheet without unbounded height errors', (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final session = ServicesLocator.sessionService;
+      await session.saveSession({'id': 101, 'name': 'Alice Smith'});
+      await session.saveTokens(accessToken: 'valid_access_token', refreshToken: 'valid_refresh_token');
+      addTearDown(() async => await session.clearSession());
+
+      const mockBooking = {
+        'id': 920,
+        'bookingId': 920,
+        'customerId': 101,
+        'petName': 'Milo',
+        'serviceName': 'Bath & Brush',
+        'totalPrice': 75.0,
+        'status': 'ready_for_checkout',
+      };
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: CustomerCheckoutConfirmationPage(
+            bookingId: 920,
+            initialBookingData: mockBooking,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Ensure summary and tip section are displayed without crash
+      expect(find.text('Checkout Summary'), findsOneWidget);
+      expect(find.text('Confirm Tip (\$15.00)'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('CustomerCheckoutSummarySheet didUpdateWidget updates confirmed tip cleanly', (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      const initial = {
+        'id': 921,
+        'bookingId': 921,
+        'totalPrice': 100.0,
+        'status': 'ready_for_checkout',
+      };
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: CustomerCheckoutSummarySheet(booking: initial),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Confirm Tip (\$20.00)'), findsOneWidget);
+
+      // Re-pump with updated confirmed tip
+      const updated = {
+        'id': 921,
+        'bookingId': 921,
+        'totalPrice': 100.0,
+        'status': 'ready_for_checkout',
+        'isTipConfirmed': true,
+        'tipAmount': 25.0,
+      };
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: CustomerCheckoutSummarySheet(booking: updated),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Tip Confirmed: \$25.00'), findsOneWidget);
+      expect(find.text('Change Tip'), findsOneWidget);
+      expect(find.text('Done'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      // Tap Done button: must safely handle dismissal without throwing GoRouter assertion errors
+      await tester.tap(find.text('Done'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
     });
   });
 }

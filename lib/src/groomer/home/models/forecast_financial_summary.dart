@@ -176,7 +176,6 @@ class ForecastFinancialSummary {
     final hasForecast = json['forecastServiceAmount'] != null;
     final hasSales = json['completedSalesAmount'] != null || json['completedSales'] != null;
     final hasTips = json['completedTipAmount'] != null || json['tipsCollected'] != null;
-    final hasTax = json['completedTaxAmount'] != null || json['taxCollected'] != null;
     final hasTotal = json['completedTotalCollected'] != null || json['totalCollected'] != null;
 
     final forecastAmount = double.tryParse(json['forecastServiceAmount']?.toString() ?? '') ?? 0.0;
@@ -186,12 +185,28 @@ class ForecastFinancialSummary {
     final tipsAmount = hasTips
         ? double.tryParse(json['completedTipAmount']?.toString() ?? json['tipsCollected']?.toString() ?? '')
         : null;
-    final taxAmount = hasTax
-        ? double.tryParse(json['completedTaxAmount']?.toString() ?? json['taxCollected']?.toString() ?? '')
-        : null;
     final totalAmount = hasTotal
         ? double.tryParse(json['completedTotalCollected']?.toString() ?? json['totalCollected']?.toString() ?? '')
         : null;
+
+    final hasTax = json['completedTaxAmount'] != null ||
+        json['taxCollected'] != null ||
+        json['salesTaxCollected'] != null ||
+        json['salesTaxTotal'] != null ||
+        (hasTotal && hasSales);
+
+    final taxAmount = (json['completedTaxAmount'] != null ||
+            json['taxCollected'] != null ||
+            json['salesTaxCollected'] != null ||
+            json['salesTaxTotal'] != null)
+        ? double.tryParse(json['completedTaxAmount']?.toString() ??
+            json['taxCollected']?.toString() ??
+            json['salesTaxCollected']?.toString() ??
+            json['salesTaxTotal']?.toString() ??
+            '')
+        : (hasTotal && hasSales && totalAmount != null && salesAmount != null)
+            ? double.parse(((totalAmount - salesAmount - (tipsAmount ?? 0.0))).toStringAsFixed(2))
+            : null;
 
     return ForecastFinancialSummary(
       forecastServiceAmount: forecastAmount,

@@ -660,6 +660,7 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
         _loadAllData();
       } else {
         ToastUtil.showErrorToast(context, res.message);
+        _loadAllData();
       }
     } catch (e) {
       if (mounted) {
@@ -5555,8 +5556,18 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
     String badgeText;
 
     final statusLower = booking.status.toLowerCase();
+    final isReadyForCheckout = statusLower == 'ready_for_checkout' || booking.isReadyForCheckout;
+    final effectiveStatusLower = (statusLower == 'completed' || booking.isCompleted)
+        ? 'completed'
+        : (isReadyForCheckout
+            ? 'ready_for_checkout'
+            : (booking.isGroomingCompleted && (statusLower == 'in_progress' || statusLower == 'in-progress')
+                ? 'grooming_completed'
+                : (booking.isBathCompleted && (statusLower == 'in_progress' || statusLower == 'in-progress')
+                    ? 'bath_completed'
+                    : statusLower)));
 
-    switch (statusLower) {
+    switch (effectiveStatusLower) {
       case 'in_progress':
       case 'in-progress':
         borderColor = const Color(0xFF2563EB); // Vibrant Blue
@@ -5622,7 +5633,6 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
     final isConfirmed = statusLower == 'confirmed';
     final isPending = statusLower == 'pending';
     final isCancellationRequested = statusLower == 'cancellation_requested';
-    final isReadyForCheckout = statusLower == 'ready_for_checkout' || booking.isReadyForCheckout;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -5892,36 +5902,32 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                     children: [
                       const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF16A34A)),
                       const SizedBox(width: 6),
-                      Text(
-                        booking.isGroomingCompleted
-                            ? 'Milestones: Bath & Grooming Completed'
-                            : 'Milestone: Bath Completed',
-                        style: AppFonts.poppins(
-                          size: 11.5,
-                          weight: FontWeight.w600,
-                          color: const Color(0xFF15803D),
+                      Expanded(
+                        child: Text(
+                          booking.requiresBath && booking.requiresGrooming
+                              ? (booking.isGroomingCompleted
+                                  ? (booking.groomingCompletedAt != null && booking.groomingCompletedAt!.isNotEmpty
+                                      ? 'Milestones: Bath & Grooming Completed • ${_formatMilestoneTimestamp(booking.groomingCompletedAt!)}'
+                                      : 'Milestones: Bath & Grooming Completed')
+                                  : (booking.bathCompletedAt != null && booking.bathCompletedAt!.isNotEmpty
+                                      ? 'Milestone: Bath Completed • ${_formatMilestoneTimestamp(booking.bathCompletedAt!)}'
+                                      : 'Milestone: Bath Completed'))
+                              : (booking.requiresBath
+                                  ? (booking.bathCompletedAt != null && booking.bathCompletedAt!.isNotEmpty
+                                      ? 'Milestone: Bath Completed • ${_formatMilestoneTimestamp(booking.bathCompletedAt!)}'
+                                      : 'Milestone: Bath Completed')
+                                  : (booking.groomingCompletedAt != null && booking.groomingCompletedAt!.isNotEmpty
+                                      ? 'Milestone: Grooming Completed • ${_formatMilestoneTimestamp(booking.groomingCompletedAt!)}'
+                                      : 'Milestone: Grooming Completed')),
+                          style: AppFonts.poppins(
+                            size: 11.5,
+                            weight: FontWeight.w600,
+                            color: const Color(0xFF15803D),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (booking.bathCompletedAt != null && booking.bathCompletedAt!.isNotEmpty && !booking.isGroomingCompleted) ...[
-                        const SizedBox(width: 4),
-                        Text(
-                          '• ${_formatMilestoneTimestamp(booking.bathCompletedAt!)}',
-                          style: AppFonts.poppins(
-                            size: 11,
-                            color: const Color(0xFF166534),
-                          ),
-                        ),
-                      ],
-                      if (booking.groomingCompletedAt != null && booking.groomingCompletedAt!.isNotEmpty) ...[
-                        const SizedBox(width: 4),
-                        Text(
-                          '• ${_formatMilestoneTimestamp(booking.groomingCompletedAt!)}',
-                          style: AppFonts.poppins(
-                            size: 11,
-                            color: const Color(0xFF166534),
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                   if (booking.bathNotes != null && booking.bathNotes!.isNotEmpty) ...[
@@ -6091,113 +6097,28 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
 
           // Actions for in-progress bookings (Milestones: Bath Done / Grooming Done / Complete Appointment)
           if ((isInProgress ||
+                  isReadyForCheckout ||
                   booking.status.toLowerCase() == 'bath_completed' ||
                   booking.status.toLowerCase() == 'grooming_completed') &&
+              !booking.isCompleted &&
+              statusLower != 'completed' &&
               booking.bookingId > 0) ...[
             const SizedBox(height: 10),
             const Divider(height: 1, color: Color(0xFFF3F4F6)),
             const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                if (!booking.isBathCompleted)
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0284C7), // Blue for Bath
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 7,
-                      ),
-                      minimumSize: const Size(0, 36),
-                    ),
-                    onPressed: () => _handleMilestoneBooking(booking, MilestoneType.bath),
-                    icon: const Icon(
-                      Icons.bathtub_outlined,
-                      size: 17,
-                      color: Colors.white,
-                    ),
-                    label: Text(
-                      'Bath Done',
-                      style: AppFonts.poppins(
-                        size: 12,
-                        weight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                  )
-                else if (!booking.isGroomingCompleted)
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF7C3AED), // Purple for Grooming
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 7,
-                      ),
-                      minimumSize: const Size(0, 36),
-                    ),
-                    onPressed: () => _handleMilestoneBooking(booking, MilestoneType.grooming),
-                    icon: const Icon(
-                      Icons.content_cut_rounded,
-                      size: 17,
-                      color: Colors.white,
-                    ),
-                    label: Text(
-                      'Grooming Done',
-                      style: AppFonts.poppins(
-                        size: 12,
-                        weight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                  )
-                else if (!isReadyForCheckout)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEDE9FE),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: const Color(0xFFDDD6FE)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.check_circle_outline_rounded,
-                              size: 16,
-                              color: Color(0xFF6D28D9),
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              'Grooming Done',
-                              style: AppFonts.poppins(
-                                size: 12,
-                                weight: FontWeight.w600,
-                                color: const Color(0xFF6D28D9),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
+            SizedBox(
+              width: double.infinity,
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  if (!booking.areRequiredMilestonesCompleted) ...[
+                    if (booking.nextPendingMilestone == 'bath_completed')
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0F766E), // Brand Teal
+                          backgroundColor: const Color(0xFF0284C7), // Blue for Bath
                           foregroundColor: Colors.white,
                           elevation: 0,
                           shape: RoundedRectangleBorder(
@@ -6209,90 +6130,75 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                           ),
                           minimumSize: const Size(0, 36),
                         ),
-                        onPressed: _processingBookingIds.contains(booking.bookingId)
-                            ? null
-                            : () => _handleReadyForCheckoutBooking(booking),
-                        icon: _processingBookingIds.contains(booking.bookingId)
-                            ? const SizedBox(
-                                width: 14,
-                                height: 14,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                              )
-                            : const Icon(
-                                Icons.point_of_sale_rounded,
-                                size: 16,
-                                color: Colors.white,
-                              ),
-                        label: Text(
-                          _processingBookingIds.contains(booking.bookingId)
-                              ? 'Updating...'
-                              : 'Ready for Checkout',
-                          style: AppFonts.poppins(
-                            size: 12,
-                            weight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ],
-                  )
-                else if (isReadyForCheckout)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFCCFBF1),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: const Color(0xFF99F6E4)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.check_circle_rounded,
-                              size: 16,
-                              color: Color(0xFF0F766E),
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              'Ready for Checkout',
-                              style: AppFonts.poppins(
-                                size: 12,
-                                weight: FontWeight.w600,
-                                color: const Color(0xFF0F766E),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1F2937),
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 7,
-                          ),
-                          minimumSize: const Size(0, 36),
-                        ),
-                        onPressed: () => _handleCompleteBooking(booking),
+                        onPressed: () => _handleMilestoneBooking(booking, MilestoneType.bath),
                         icon: const Icon(
-                          Icons.check_circle_outline_rounded,
-                          size: 16,
+                          Icons.bathtub_outlined,
+                          size: 17,
                           color: Colors.white,
                         ),
                         label: Text(
-                          'Complete',
+                          'Bath Done',
+                          style: AppFonts.poppins(
+                            size: 12,
+                            weight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      )
+                    else if (booking.nextPendingMilestone == 'grooming_completed') ...[
+                      if (booking.requiresBath && booking.isBathCompleted)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE0F2FE),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: const Color(0xFFBAE6FD)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.check_circle_outline_rounded,
+                                size: 15,
+                                color: Color(0xFF0284C7),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Bath Done',
+                                style: AppFonts.poppins(
+                                  size: 11.5,
+                                  weight: FontWeight.w600,
+                                  color: const Color(0xFF0284C7),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF7C3AED), // Purple for Grooming
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 7,
+                          ),
+                          minimumSize: const Size(0, 36),
+                        ),
+                        onPressed: () => _handleMilestoneBooking(booking, MilestoneType.grooming),
+                        icon: const Icon(
+                          Icons.content_cut_rounded,
+                          size: 17,
+                          color: Colors.white,
+                        ),
+                        label: Text(
+                          'Grooming Done',
                           style: AppFonts.poppins(
                             size: 12,
                             weight: FontWeight.w600,
@@ -6301,8 +6207,139 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                         ),
                       ),
                     ],
-                  ),
-              ],
+                  ] else if (!isReadyForCheckout) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDCFCE7),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFBBF7D0)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.check_circle_outline_rounded,
+                            size: 15,
+                            color: Color(0xFF16A34A),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            booking.requiresGrooming ? 'Grooming Done' : 'Bath Done',
+                            style: AppFonts.poppins(
+                              size: 11.5,
+                              weight: FontWeight.w600,
+                              color: const Color(0xFF16A34A),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0F766E), // Brand Teal
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        minimumSize: const Size(0, 34),
+                      ),
+                      onPressed: _processingBookingIds.contains(booking.bookingId)
+                          ? null
+                          : () => _handleReadyForCheckoutBooking(booking),
+                      icon: _processingBookingIds.contains(booking.bookingId)
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(
+                              Icons.point_of_sale_rounded,
+                              size: 15,
+                              color: Colors.white,
+                            ),
+                      label: Text(
+                        _processingBookingIds.contains(booking.bookingId)
+                            ? 'Updating...'
+                            : 'Ready for Checkout',
+                        style: AppFonts.poppins(
+                          size: 11.5,
+                          weight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ] else if (isReadyForCheckout) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFCCFBF1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFF99F6E4)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.check_circle_rounded,
+                            size: 15,
+                            color: Color(0xFF0F766E),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Ready for Checkout',
+                            style: AppFonts.poppins(
+                              size: 11.5,
+                              weight: FontWeight.w600,
+                              color: const Color(0xFF0F766E),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1F2937),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 6,
+                        ),
+                        minimumSize: const Size(0, 34),
+                      ),
+                      onPressed: () => _handleCompleteBooking(booking),
+                      icon: const Icon(
+                        Icons.check_circle_outline_rounded,
+                        size: 15,
+                        color: Colors.white,
+                      ),
+                      label: Text(
+                        'Complete',
+                        style: AppFonts.poppins(
+                          size: 11.5,
+                          weight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ],
 

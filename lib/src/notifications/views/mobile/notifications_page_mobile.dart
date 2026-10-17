@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:shear_heaven_pet_spa/src/account/models/app_notification.dart';
 import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
+import 'package:shear_heaven_pet_spa/src/common/services/notification_navigation_service.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/toast_util.dart';
@@ -66,22 +67,7 @@ class _NotificationsPageMobileState extends State<NotificationsPageMobile> {
     if (!notification.isRead) {
       context.read<NotificationBloc>().add(MarkNotificationRead(notification.id));
     }
-
-    final metadata = notification.metadata;
-    final rawBookingId = metadata?['bookingId'] ??
-        metadata?['booking_id'] ??
-        metadata?['entityId'];
-    final type = notification.type.toLowerCase();
-
-    if (rawBookingId != null ||
-        type.contains('booking') ||
-        type.contains('appointment') ||
-        type.contains('confirm') ||
-        type.contains('groom')) {
-      _pushNamedSafe(context, RouteNames.myBookings);
-    } else if (type.contains('offer') || type.contains('promo') || type.contains('discount')) {
-      _pushNamedSafe(context, RouteNames.offers);
-    }
+    NotificationNavigationService.handleAppNotification(notification, context: context);
   }
 
   @override

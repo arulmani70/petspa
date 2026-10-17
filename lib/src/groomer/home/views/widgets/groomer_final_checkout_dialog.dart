@@ -33,6 +33,7 @@ class GroomerFinalCheckoutDialog extends StatefulWidget {
     return showModalBottomSheet<GroomerBooking>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => GroomerFinalCheckoutDialog(
         booking: booking,
@@ -47,8 +48,63 @@ class GroomerFinalCheckoutDialog extends StatefulWidget {
 
 class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog> {
   bool _isSubmitting = false;
+  Map<String, dynamic>? _checkoutStatus;
+  bool _isLoadingStatus = true;
 
-  bool get _isReadyForCheckout => widget.booking.isReadyForCheckout;
+  @override
+  void initState() {
+    super.initState();
+    _loadCheckoutStatus();
+  }
+
+  Future<void> _loadCheckoutStatus() async {
+    try {
+      final status = await ServicesLocator.groomerHomeRepository.getCheckoutStatus(
+        widget.booking.bookingId,
+      );
+      if (mounted) {
+        setState(() {
+          _checkoutStatus = status;
+          _isLoadingStatus = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingStatus = false);
+    }
+  }
+
+  bool get _isReadyForCheckout =>
+      (_checkoutStatus?['readyForFinalCheckout'] == true) ||
+      widget.booking.isReadyForCheckout;
+
+  double get _authoritativeServiceCharge =>
+      double.tryParse(_checkoutStatus?['serviceCharge']?.toString() ?? '') ??
+      widget.booking.totalPrice;
+
+  double? get _authoritativeTax =>
+      double.tryParse(_checkoutStatus?['salesTax']?.toString() ?? '') ??
+      widget.booking.taxAmount;
+
+  double? get _authoritativeTip =>
+      double.tryParse(_checkoutStatus?['tipAmount']?.toString() ?? '') ??
+      widget.booking.tipAmount;
+
+  double get _authoritativeFinalTotal =>
+      double.tryParse(_checkoutStatus?['finalTotal']?.toString() ?? '') ??
+      widget.booking.totalAuthoritativeAmountDue;
+
+  bool get _hasConfirmedTip {
+    if (_checkoutStatus != null && _checkoutStatus!['customerConfirmed'] == true) {
+      return true;
+    }
+    final tip = _authoritativeTip;
+    return tip != null && tip > 0;
+  }
+
+  bool get _hasConfirmedTax {
+    final tax = _authoritativeTax;
+    return tax != null && tax > 0;
+  }
 
   Future<void> _handleConfirmCheckout() async {
     if (_isSubmitting) return;
@@ -58,6 +114,66 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
         context,
         'Appointment must be in Ready for Checkout state before final checkout.',
       );
+      return;
+    }
+
+    final shouldProceed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Finalize Checkout?',
+          style: AppFonts.parkinsans(
+            size: 17,
+            weight: FontWeight.w700,
+            color: const Color(0xFF111827),
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to finalize checkout for ${widget.booking.petName} (Booking #${widget.booking.bookingId})?\n\n'
+          'Total amount to collect: \$${_authoritativeFinalTotal.toStringAsFixed(2)}',
+          style: AppFonts.poppins(
+            size: 13,
+            color: const Color(0xFF374151),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: Text(
+              'Cancel',
+              style: AppFonts.poppins(
+                size: 13,
+                weight: FontWeight.w600,
+                color: const Color(0xFF6B7280),
+              ),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0F766E),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              elevation: 0,
+            ),
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: Text(
+              'Confirm Final Checkout',
+              style: AppFonts.poppins(
+                size: 13,
+                weight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldProceed != true) {
+      // Groomer cancelled: close confirmation dialog, do not finalize transaction or change status
       return;
     }
 
@@ -76,6 +192,7 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
         final updated = res.updatedBooking ??
             widget.booking.copyWith(
               status: 'completed',
+              serviceStage: 'checkout_completed',
             );
 
         widget.onCheckoutSuccess?.call(updated);
@@ -108,9 +225,11 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
           // ── Drag Handle ───────────────────────────────────────────────────
           Center(
             child: Container(
@@ -153,6 +272,8 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
                           weight: FontWeight.w700,
                           color: const Color(0xFF111827),
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       Text(
                         'Booking #${booking.bookingId} • ${booking.petName}',
@@ -161,6 +282,8 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
                           weight: FontWeight.w400,
                           color: const Color(0xFF6B7280),
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
@@ -243,12 +366,16 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       side: const BorderSide(color: Color(0xFFD1D5DB)),
                     ),
-                    child: Text(
-                      'Cancel',
-                      style: AppFonts.poppins(
-                        size: 13,
-                        weight: FontWeight.w600,
-                        color: const Color(0xFF4B5563),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'Cancel',
+                        style: AppFonts.poppins(
+                          size: 13,
+                          weight: FontWeight.w600,
+                          color: const Color(0xFF4B5563),
+                        ),
+                        maxLines: 1,
                       ),
                     ),
                   ),
@@ -266,7 +393,7 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
                       disabledBackgroundColor: const Color(0xFF9CA3AF),
                       disabledForegroundColor: Colors.white70,
                       elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     icon: _isSubmitting
@@ -276,12 +403,16 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
                             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                           )
                         : const Icon(Icons.check_circle_rounded, size: 18),
-                    label: Text(
-                      _isSubmitting ? 'Completing Checkout...' : 'Confirm & Complete Checkout',
-                      style: AppFonts.poppins(
-                        size: 13,
-                        weight: FontWeight.w600,
-                        color: Colors.white,
+                    label: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        _isSubmitting ? 'Completing Checkout...' : 'Confirm & Complete Checkout',
+                        style: AppFonts.poppins(
+                          size: 13,
+                          weight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                        maxLines: 1,
                       ),
                     ),
                   ),
@@ -291,7 +422,8 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
           ),
         ],
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildAppointmentOverviewCard(GroomerBooking booking) {
@@ -331,6 +463,8 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
                         weight: FontWeight.w700,
                         color: const Color(0xFF111827),
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     Text(
                       booking.breed.isNotEmpty ? booking.breed : 'Breed not specified',
@@ -339,10 +473,13 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
                         weight: FontWeight.w400,
                         color: const Color(0xFF6B7280),
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
@@ -365,6 +502,7 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
                         ? const Color(0xFF0F766E)
                         : const Color(0xFFB45309),
                   ),
+                  maxLines: 1,
                 ),
               ),
             ],
@@ -413,8 +551,10 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
   }
 
   Widget _buildChargesBreakdownCard(GroomerBooking booking) {
-    final hasConfirmedTip = booking.tipAmount != null && booking.tipAmount! > 0;
-    final hasConfirmedTax = booking.taxAmount != null && booking.taxAmount! > 0;
+    final hasConfirmedTip = _hasConfirmedTip;
+    final hasConfirmedTax = _hasConfirmedTax;
+    final tipVal = _authoritativeTip;
+    final taxVal = _authoritativeTax;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -438,6 +578,14 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
                   color: const Color(0xFF111827),
                 ),
               ),
+              if (_isLoadingStatus) ...[
+                const Spacer(),
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F766E)),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 10),
@@ -447,7 +595,7 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
           // Base Service Price
           _buildChargeRow(
             'Base Service / Package',
-            '\$${booking.totalPrice.toStringAsFixed(2)}',
+            '\$${_authoritativeServiceCharge.toStringAsFixed(2)}',
             isBold: false,
           ),
           const SizedBox(height: 8),
@@ -517,14 +665,20 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
                   ],
                 ],
               ),
-              Text(
-                hasConfirmedTip
-                    ? '\$${booking.tipAmount!.toStringAsFixed(2)}'
-                    : 'No tip confirmed on server',
-                style: AppFonts.poppins(
-                  size: 12,
-                  weight: hasConfirmedTip ? FontWeight.w600 : FontWeight.w400,
-                  color: hasConfirmedTip ? const Color(0xFF0F766E) : const Color(0xFF9CA3AF),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  hasConfirmedTip
+                      ? '\$${(tipVal ?? 0.0).toStringAsFixed(2)}'
+                      : 'No tip confirmed on server',
+                  textAlign: TextAlign.end,
+                  style: AppFonts.poppins(
+                    size: 12,
+                    weight: hasConfirmedTip ? FontWeight.w600 : FontWeight.w400,
+                    color: hasConfirmedTip ? const Color(0xFF0F766E) : const Color(0xFF9CA3AF),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -545,7 +699,7 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
               ),
               Text(
                 hasConfirmedTax
-                    ? '\$${booking.taxAmount!.toStringAsFixed(2)}'
+                    ? '\$${(taxVal ?? 0.0).toStringAsFixed(2)}'
                     : 'Calculated at counter',
                 style: AppFonts.poppins(
                   size: 12,
@@ -572,7 +726,7 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
                 ),
               ),
               Text(
-                '\$${booking.totalAuthoritativeAmountDue.toStringAsFixed(2)}',
+                '\$${_authoritativeFinalTotal.toStringAsFixed(2)}',
                 style: AppFonts.poppins(
                   size: 16,
                   weight: FontWeight.w800,

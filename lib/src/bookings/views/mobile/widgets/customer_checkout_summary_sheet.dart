@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/bloc/booking_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/common/constants/constansts.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
@@ -38,6 +40,7 @@ class CustomerCheckoutSummarySheet extends StatefulWidget {
     return showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => CustomerCheckoutSummarySheet(
         booking: booking,
@@ -74,6 +77,21 @@ class _CustomerCheckoutSummarySheetState
           _isConfirmed = true;
         }
       }
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant CustomerCheckoutSummarySheet oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final newTip = widget.booking['tipAmount'] ?? widget.booking['tip_amount'];
+    if (newTip != null) {
+      final parsed = double.tryParse(newTip.toString());
+      if (parsed != null && parsed != _confirmedTipAmount) {
+        _confirmedTipAmount = parsed;
+      }
+    }
+    if (widget.booking['isTipConfirmed'] == true && !_isConfirmed) {
+      _isConfirmed = true;
     }
   }
 
@@ -449,6 +467,31 @@ class _CustomerCheckoutSummarySheetState
     }
   }
 
+  void _safeDismissOrNavigate() {
+    // 1. If displayed inside an imperative popup/modal bottom sheet (showModalBottomSheet),
+    // safely pop the modal bottom sheet only.
+    final modalRoute = ModalRoute.of(context);
+    if (modalRoute is PopupRoute) {
+      Navigator.of(context).pop(_isConfirmed ? widget.booking : null);
+      return;
+    }
+
+    // 2. If embedded in a page within GoRouter, check if GoRouter has routes to pop
+    final router = GoRouter.maybeOf(context);
+    if (router != null && router.canPop()) {
+      context.pop();
+      return;
+    }
+
+    // 3. If there is no previous route in the GoRouter stack (e.g. opened from notification),
+    // navigate safely to My Bookings without ever popping the last page off GoRouter.
+    if (router != null) {
+      router.goNamed(RouteNames.myBookings);
+    } else if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // UI Builder
   // ─────────────────────────────────────────────────────────────────────────
@@ -463,6 +506,7 @@ class _CustomerCheckoutSummarySheetState
       child: SafeArea(
         top: false,
         child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.fromLTRB(
             20,
             12,
@@ -514,7 +558,7 @@ class _CustomerCheckoutSummarySheetState
                   ),
                   IconButton(
                     icon: const Icon(Icons.close, color: Color(0xFF374151)),
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: _safeDismissOrNavigate,
                   ),
                 ],
               ),
@@ -632,23 +676,30 @@ class _CustomerCheckoutSummarySheetState
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(color: const Color(0xFF0F766E)),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.check_circle,
-                              color: Color(0xFF0F766E), size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            _confirmedTipAmount != null && _confirmedTipAmount! > 0
-                                ? 'Tip Confirmed: \$${_confirmedTipAmount!.toStringAsFixed(2)}'
-                                : 'Tip Preference Confirmed (No Tip)',
-                            style: AppFonts.parkinsans(
-                              size: 15,
-                              weight: FontWeight.w700,
-                              color: const Color(0xFF0F766E),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.check_circle,
+                                color: Color(0xFF0F766E), size: 20),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                _confirmedTipAmount != null && _confirmedTipAmount! > 0
+                                    ? 'Tip Confirmed: \$${_confirmedTipAmount!.toStringAsFixed(2)}'
+                                    : 'Tip Preference Confirmed (No Tip)',
+                                style: AppFonts.parkinsans(
+                                  size: 15,
+                                  weight: FontWeight.w700,
+                                  color: const Color(0xFF0F766E),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -691,7 +742,7 @@ class _CustomerCheckoutSummarySheetState
                               padding: const EdgeInsets.symmetric(vertical: 11),
                               elevation: 0,
                             ),
-                            onPressed: () => Navigator.of(context).pop(),
+                            onPressed: _safeDismissOrNavigate,
                             child: Text(
                               'Done',
                               style: AppFonts.poppins(
@@ -930,12 +981,18 @@ class _CustomerCheckoutSummarySheetState
                 color: const Color(0xFF111827),
               ),
             ),
-            Text(
-              '100% goes to your groomer',
-              style: AppFonts.poppins(
-                size: 11.5,
-                weight: FontWeight.w500,
-                color: const Color(0xFF0F766E),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                '100% goes to your groomer',
+                style: AppFonts.poppins(
+                  size: 11.5,
+                  weight: FontWeight.w500,
+                  color: const Color(0xFF0F766E),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.end,
               ),
             ),
           ],
@@ -1176,29 +1233,36 @@ class _CustomerCheckoutSummarySheetState
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Total Due at Counter',
-                style: AppFonts.parkinsans(
-                  size: 14.5,
-                  weight: FontWeight.w700,
-                  color: const Color(0xFF0F766E),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Total Due at Counter',
+                  style: AppFonts.parkinsans(
+                    size: 14.5,
+                    weight: FontWeight.w700,
+                    color: const Color(0xFF0F766E),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                _currentTipAmount > 0
-                    ? 'Includes \$${_currentTipAmount.toStringAsFixed(2)} tip'
-                    : 'No tip added',
-                style: AppFonts.poppins(
-                  size: 12,
-                  color: const Color(0xFF134E4A),
+                const SizedBox(height: 2),
+                Text(
+                  _currentTipAmount > 0
+                      ? 'Includes \$${_currentTipAmount.toStringAsFixed(2)} tip'
+                      : 'No tip added',
+                  style: AppFonts.poppins(
+                    size: 12,
+                    color: const Color(0xFF134E4A),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
+          const SizedBox(width: 10),
           Text(
             '\$${_totalPayable.toStringAsFixed(2)}',
             style: AppFonts.parkinsans(

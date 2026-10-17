@@ -23,7 +23,7 @@ import 'package:shear_heaven_pet_spa/src/bookings/views/booking_details_page.dar
 import 'package:shear_heaven_pet_spa/src/bookings/views/booking_date_time_page.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/views/booking_review_page.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/views/booking_service_page.dart';
-import 'package:shear_heaven_pet_spa/src/bookings/views/mobile/widgets/customer_checkout_summary_sheet.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/views/mobile/customer_checkout_confirmation_page.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/models/booking_receipt.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/views/mobile/booking_receipt_page_mobile.dart';
 
@@ -369,16 +369,32 @@ class Routes {
         name: RouteNames.customerCheckoutSummary,
         path: '/${RouteNames.customerCheckoutSummary}',
         builder: (context, state) {
-          final extra = state.extra is Map<String, dynamic>
-              ? state.extra as Map<String, dynamic>
-              : (state.extra is Map ? Map<String, dynamic>.from(state.extra as Map) : <String, dynamic>{});
-          return Scaffold(
-            backgroundColor: const Color(0xFFFAFAFA),
-            body: SafeArea(
-              child: SingleChildScrollView(
-                child: CustomerCheckoutSummarySheet(booking: extra),
-              ),
-            ),
+          final queryBookingId = state.uri.queryParameters['bookingId'] ??
+              state.uri.queryParameters['id'] ??
+              state.uri.queryParameters['booking_id'];
+          final parsedQueryId = queryBookingId != null ? int.tryParse(queryBookingId) : null;
+
+          Map<String, dynamic>? extraMap;
+          if (state.extra is Map<String, dynamic>) {
+            extraMap = state.extra as Map<String, dynamic>;
+          } else if (state.extra is Map) {
+            extraMap = Map<String, dynamic>.from(state.extra as Map);
+          } else if (state.extra is int) {
+            extraMap = {'bookingId': state.extra as int};
+          }
+
+          final rawExtraId = extraMap?['bookingId'] ??
+              extraMap?['id'] ??
+              extraMap?['booking_id'];
+          final parsedExtraId = rawExtraId is int
+              ? rawExtraId
+              : (rawExtraId != null ? int.tryParse(rawExtraId.toString()) : null);
+
+          final resolvedBookingId = parsedQueryId ?? parsedExtraId;
+
+          return CustomerCheckoutConfirmationPage(
+            bookingId: resolvedBookingId,
+            initialBookingData: extraMap,
           );
         },
       ),
@@ -468,9 +484,11 @@ class Routes {
     try {
       const targetRoute = '/${RouteNames.login}';
 
-      // Clear all imperatively pushed modal/route layers on the root Navigator
-      while (navigatorKey.currentState?.canPop() == true) {
-        navigatorKey.currentState?.pop();
+      // Safely dismiss imperatively pushed modal layers (dialogs, bottom sheets) without popping the root page
+      try {
+        navigatorKey.currentState?.popUntil((route) => route.isFirst);
+      } catch (popErr) {
+        _staticLog.w('Routes::redirectToLogin::popUntil warning: $popErr');
       }
 
       String? currentRoute;
