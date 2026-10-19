@@ -151,7 +151,7 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0F766E),
+              backgroundColor: const Color(0xFF111827),
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -176,6 +176,8 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
       // Groomer cancelled: close confirmation dialog, do not finalize transaction or change status
       return;
     }
+
+    if (!mounted || _isSubmitting) return;
 
     setState(() => _isSubmitting = true);
 
@@ -251,12 +253,12 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFCCFBF1),
+                    color: const Color(0xFFF3F4F6),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(
                     Icons.point_of_sale_rounded,
-                    color: Color(0xFF0F766E),
+                    color: Color(0xFF111827),
                     size: 22,
                   ),
                 ),
@@ -388,7 +390,7 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
                         ? null
                         : _handleConfirmCheckout,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0F766E),
+                      backgroundColor: const Color(0xFF111827),
                       foregroundColor: Colors.white,
                       disabledBackgroundColor: const Color(0xFF9CA3AF),
                       disabledForegroundColor: Colors.white70,
@@ -441,13 +443,13 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
             children: [
               CircleAvatar(
                 radius: 20,
-                backgroundColor: const Color(0xFFCCFBF1),
+                backgroundColor: const Color(0xFFF3F4F6),
                 child: Text(
                   booking.petName.isNotEmpty ? booking.petName[0].toUpperCase() : 'P',
                   style: AppFonts.poppins(
                     size: 15,
                     weight: FontWeight.w700,
-                    color: const Color(0xFF0F766E),
+                    color: const Color(0xFF111827),
                   ),
                 ),
               ),
@@ -484,12 +486,12 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: booking.isReadyForCheckout
-                      ? const Color(0xFFCCFBF1)
+                      ? const Color(0xFFF3F4F6)
                       : const Color(0xFFFEF3C7),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: booking.isReadyForCheckout
-                        ? const Color(0xFF99F6E4)
+                        ? const Color(0xFFE5E7EB)
                         : const Color(0xFFFDE68A),
                   ),
                 ),
@@ -499,7 +501,7 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
                     size: 11,
                     weight: FontWeight.w600,
                     color: booking.isReadyForCheckout
-                        ? const Color(0xFF0F766E)
+                        ? const Color(0xFF111827)
                         : const Color(0xFFB45309),
                   ),
                   maxLines: 1,
@@ -568,7 +570,7 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
         children: [
           Row(
             children: [
-              const Icon(Icons.receipt_long_rounded, size: 17, color: Color(0xFF0F766E)),
+              const Icon(Icons.receipt_long_rounded, size: 17, color: Color(0xFF111827)),
               const SizedBox(width: 8),
               Text(
                 'Authoritative Charges',
@@ -583,7 +585,7 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
                 const SizedBox(
                   width: 14,
                   height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F766E)),
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF111827)),
                 ),
               ],
             ],
@@ -612,7 +614,7 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
                         padding: const EdgeInsets.symmetric(vertical: 2),
                         child: Row(
                           children: [
-                            const Icon(Icons.add_circle_outline_rounded, size: 12, color: Color(0xFF0F766E)),
+                            const Icon(Icons.add_circle_outline_rounded, size: 12, color: Color(0xFF111827)),
                             const SizedBox(width: 5),
                             Text(
                               addon,
@@ -675,7 +677,7 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
                   style: AppFonts.poppins(
                     size: 12,
                     weight: hasConfirmedTip ? FontWeight.w600 : FontWeight.w400,
-                    color: hasConfirmedTip ? const Color(0xFF0F766E) : const Color(0xFF9CA3AF),
+                    color: hasConfirmedTip ? const Color(0xFF111827) : const Color(0xFF9CA3AF),
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -730,7 +732,7 @@ class _GroomerFinalCheckoutDialogState extends State<GroomerFinalCheckoutDialog>
                 style: AppFonts.poppins(
                   size: 16,
                   weight: FontWeight.w800,
-                  color: const Color(0xFF0F766E),
+                  color: const Color(0xFF111827),
                 ),
               ),
             ],

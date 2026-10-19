@@ -2111,11 +2111,13 @@ class GroomerHomeRepository {
         'status': status,
         'isRead': false,
         'is_read': false,
+        'isLocalDispatch': true,
         'createdAt': nowIso,
         'data': <String, dynamic>{
           'bookingId': bookingId,
           'entityId': bookingId,
           'status': status,
+          'isLocalDispatch': true,
           if (userId != null && userId > 0) 'userId': userId,
           if (groomerId != null && groomerId > 0) 'groomerId': groomerId,
         },

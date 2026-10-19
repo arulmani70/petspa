@@ -213,7 +213,7 @@ class _BreakScheduleDialogState extends State<BreakScheduleDialog> {
                 alignment: Alignment.centerRight,
                 child: Text(
                   'Duration: $durationText',
-                  style: AppFonts.poppins(size: 11, color: const Color(0xFF0F766E), weight: FontWeight.w600),
+                  style: AppFonts.poppins(size: 11, color: const Color(0xFF111827), weight: FontWeight.w600),
                 ),
               ),
             ],
@@ -266,7 +266,7 @@ class _BreakScheduleDialogState extends State<BreakScheduleDialog> {
                       ),
                     ),
                     selected: isSelected,
-                    selectedColor: const Color(0xFF0F766E),
+                    selectedColor: const Color(0xFF111827),
                     backgroundColor: const Color(0xFFF3F4F6),
                     showCheckmark: false,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -290,7 +290,7 @@ class _BreakScheduleDialogState extends State<BreakScheduleDialog> {
                     ),
                   ),
                   selected: _isCustomReason,
-                  selectedColor: const Color(0xFF0F766E),
+                  selectedColor: const Color(0xFF111827),
                   backgroundColor: const Color(0xFFF3F4F6),
                   showCheckmark: false,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -329,7 +329,7 @@ class _BreakScheduleDialogState extends State<BreakScheduleDialog> {
                 const SizedBox(width: 8),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0F766E),
+                    backgroundColor: const Color(0xFF111827),
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),

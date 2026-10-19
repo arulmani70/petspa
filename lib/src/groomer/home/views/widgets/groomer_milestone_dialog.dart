@@ -457,14 +457,14 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: (allRequiredDone ? const Color(0xFF10B981) : const Color(0xFF0F766E))
+                      color: (allRequiredDone ? const Color(0xFF10B981) : const Color(0xFF111827))
                           .withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
                       headerIcon,
                       size: 22,
-                      color: allRequiredDone ? const Color(0xFF10B981) : const Color(0xFF0F766E),
+                      color: allRequiredDone ? const Color(0xFF10B981) : const Color(0xFF111827),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -644,10 +644,10 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF0F766E), width: 1.5),
+        border: Border.all(color: const Color(0xFF111827), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0F766E).withValues(alpha: 0.08),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -657,7 +657,7 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
         child: DropdownButton<String>(
           value: selectedKey,
           isExpanded: true,
-          icon: const Icon(Icons.arrow_drop_down_circle_outlined, color: Color(0xFF0F766E)),
+          icon: const Icon(Icons.arrow_drop_down_circle_outlined, color: Color(0xFF111827)),
           borderRadius: BorderRadius.circular(14),
           items: inStoreList.map((config) {
             final isDone = _booking.isMilestoneDone(config.key);
@@ -671,7 +671,7 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
                     size: 18,
                     color: isDone
                         ? const Color(0xFF16A34A)
-                        : (isCurrent ? const Color(0xFF0F766E) : const Color(0xFF6B7280)),
+                        : (isCurrent ? const Color(0xFF111827) : const Color(0xFF6B7280)),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -774,7 +774,7 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: stage.isCurrent
-                        ? const Color(0xFF0F766E)
+                        ? const Color(0xFF111827)
                         : (stage.isDone ? const Color(0xFF10B981) : const Color(0xFFE5E7EB)),
                   ),
                   child: Center(
@@ -782,9 +782,9 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
                         ? const Icon(Icons.check, size: 13, color: Colors.white)
                         : Text(
                             '${i + 1}',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
+                            style: AppFonts.poppins(
+                              size: 10,
+                              weight: FontWeight.w700,
                               color: stage.isCurrent ? Colors.white : const Color(0xFF6B7280),
                             ),
                           ),
@@ -796,7 +796,7 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
                   style: AppFonts.poppins(
                     size: 11.5,
                     weight: stage.isCurrent ? FontWeight.w700 : FontWeight.w500,
-                    color: stage.isCurrent ? const Color(0xFF0F766E) : const Color(0xFF4B5563),
+                    color: stage.isCurrent ? const Color(0xFF111827) : const Color(0xFF4B5563),
                   ),
                 ),
                 if (i < stages.length - 1)
@@ -841,7 +841,7 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
                 weight: FontWeight.w600,
                 color: completedCount == list.length
                     ? const Color(0xFF10B981)
-                    : const Color(0xFF0F766E),
+                    : const Color(0xFF111827),
               ),
             ),
           ],
@@ -860,11 +860,11 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: isSelected ? const Color(0xFFF0FDFA) : const Color(0xFFF9FAFB),
+                color: isSelected ? const Color(0xFFF3F4F6) : const Color(0xFFF9FAFB),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isSelected
-                      ? const Color(0xFF0F766E)
+                      ? const Color(0xFF111827)
                       : (isDone ? const Color(0xFFBBF7D0) : const Color(0xFFE5E7EB)),
                   width: isSelected ? 1.5 : 1.0,
                 ),
@@ -880,7 +880,7 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
                           color: isDone
                               ? const Color(0xFFDCFCE7)
                               : (isSelected
-                                  ? const Color(0xFF0F766E).withValues(alpha: 0.1)
+                                  ? const Color(0xFF111827).withValues(alpha: 0.1)
                                   : const Color(0xFFF3F4F6)),
                           borderRadius: BorderRadius.circular(8),
                         ),
@@ -889,7 +889,7 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
                           size: 18,
                           color: isDone
                               ? const Color(0xFF16A34A)
-                              : (isSelected ? const Color(0xFF0F766E) : const Color(0xFF6B7280)),
+                              : (isSelected ? const Color(0xFF111827) : const Color(0xFF6B7280)),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -927,7 +927,7 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
                               ? const Color(0xFFDCFCE7)
                               : (!isPrereqMet
                                   ? const Color(0xFFF3F4F6)
-                                  : (isSelected ? const Color(0xFFCCFBF1) : const Color(0xFFE5E7EB))),
+                                  : (isSelected ? const Color(0xFF111827) : const Color(0xFFE5E7EB))),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
@@ -943,7 +943,7 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
                                 ? const Color(0xFF15803D)
                                 : (!isPrereqMet
                                     ? const Color(0xFF9CA3AF)
-                                    : (isSelected ? const Color(0xFF0F766E) : const Color(0xFF4B5563))),
+                                    : (isSelected ? Colors.white : const Color(0xFF4B5563))),
                           ),
                         ),
                       ),
@@ -1105,7 +1105,7 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF0F766E), width: 1.5),
+              borderSide: const BorderSide(color: Color(0xFF111827), width: 1.5),
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           ),
@@ -1145,7 +1145,7 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
               flex: 2,
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isPrereqMet ? const Color(0xFF0F766E) : const Color(0xFF9CA3AF),
+                  backgroundColor: isPrereqMet ? const Color(0xFF111827) : const Color(0xFF9CA3AF),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
                   shape: RoundedRectangleBorder(
@@ -1319,7 +1319,7 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
               width: double.infinity,
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0F766E),
+                  backgroundColor: const Color(0xFF111827),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 13),
                   shape: RoundedRectangleBorder(
@@ -1357,13 +1357,13 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
         children: [
           CircleAvatar(
             radius: 20,
-            backgroundColor: const Color(0xFF0F766E).withValues(alpha: 0.1),
+            backgroundColor: const Color(0xFFF3F4F6),
             child: Text(
               booking.petName.isNotEmpty ? booking.petName[0].toUpperCase() : 'P',
               style: AppFonts.parkinsans(
                 size: 16,
                 weight: FontWeight.w700,
-                color: const Color(0xFF0F766E),
+                color: const Color(0xFF111827),
               ),
             ),
           ),
@@ -1402,7 +1402,7 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
                   style: AppFonts.poppins(
                     size: 11.5,
                     weight: FontWeight.w500,
-                    color: const Color(0xFF0F766E),
+                    color: const Color(0xFF111827),
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

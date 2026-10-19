@@ -669,8 +669,8 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                       style: AppFonts.parkinsans(
                                         size: 17,
                                         weight: FontWeight.w700,
-                                        color: const Color(0xFF111827),
-                                      ),
+                                        color: Color(0xFF111827),
+                                     ),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
@@ -1139,11 +1139,11 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                                 height: 64,
                                                 alignment: Alignment.center,
                                                 decoration: BoxDecoration(
-                                                  color: isSelected ? const Color(0xFF0F766E) : Colors.black,
+                                                  color: isSelected ? const Color(0xFF111827) : Colors.black,
                                                   shape: BoxShape.circle,
                                                   border: isSelected
                                                       ? Border.all(
-                                                          color: const Color(0xFF0F766E),
+                                                          color: const Color(0xFF111827),
                                                           width: 2.5,
                                                         )
                                                       : null,
@@ -1188,7 +1188,7 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                               style: AppFonts.poppins(
                                                 size: 11,
                                                 weight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                                                color: isSelected ? const Color(0xFF0F766E) : const Color(0xFF111827),
+                                                color: const Color(0xFF111827),
                                               ),
                                             ),
                                           ),
@@ -1242,11 +1242,11 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                                   height: 64,
                                                   alignment: Alignment.center,
                                                   decoration: BoxDecoration(
-                                                    color: isSelected ? const Color(0xFF0F766E) : Colors.black,
+                                                    color: isSelected ? const Color(0xFF111827) : Colors.black,
                                                     shape: BoxShape.circle,
                                                     border: isSelected
                                                         ? Border.all(
-                                                            color: const Color(0xFF0F766E),
+                                                            color: const Color(0xFF111827),
                                                             width: 2.5,
                                                           )
                                                         : null,
@@ -1329,7 +1329,7 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                               style: AppFonts.poppins(
                                                 size: 11,
                                                 weight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                                                color: isSelected ? const Color(0xFF0F766E) : const Color(0xFF111827),
+                                                color: const Color(0xFF111827),
                                               ),
                                             ),
                                           ),
@@ -1427,7 +1427,7 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                               _isPackageMode ? Icons.card_giftcard_rounded : Icons.spa_outlined,
                                               size: 18,
                                               color: selectedItem != null
-                                                  ? (_isPackageMode ? const Color(0xFF7C3AED) : const Color(0xFF0F766E))
+                                                  ? (_isPackageMode ? const Color(0xFF7C3AED) : const Color(0xFF111827))
                                                   : const Color(0xFF9CA3AF),
                                             ),
                                             const SizedBox(width: 10),
@@ -1456,7 +1456,7 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                                   style: AppFonts.poppins(
                                                     size: 12,
                                                     weight: FontWeight.w700,
-                                                    color: _isPackageMode ? const Color(0xFF7C3AED) : const Color(0xFF0F766E),
+                                                    color: _isPackageMode ? const Color(0xFF7C3AED) : const Color(0xFF111827),
                                                   ),
                                                 ),
                                               ),
@@ -1678,7 +1678,7 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                                             weight: FontWeight.w700,
                                                             color: isSelected
                                                                 ? Colors.white
-                                                                : (_isPackageMode ? const Color(0xFF7C3AED) : const Color(0xFF0F766E)),
+                                                                : (_isPackageMode ? const Color(0xFF7C3AED) : const Color(0xFF111827)),
                                                           ),
                                                         ),
                                                       ),
@@ -1708,13 +1708,13 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                   Container(
                                     padding: const EdgeInsets.all(4),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF0F766E).withValues(alpha: 0.1),
+                                      color: const Color(0xFFF3F4F6),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: const Icon(
                                       Icons.add_circle_outline_rounded,
                                       size: 15,
-                                      color: Color(0xFF0F766E),
+                                      color: Color(0xFF111827),
                                     ),
                                   ),
                                   const SizedBox(width: 8),
@@ -1734,7 +1734,7 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                         child: Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                                           decoration: BoxDecoration(
-                                            color: const Color(0xFF0F766E).withValues(alpha: 0.12),
+                                            color: const Color(0xFFF3F4F6),
                                             borderRadius: BorderRadius.circular(10),
                                           ),
                                           child: Text(
@@ -1742,7 +1742,7 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                             style: AppFonts.poppins(
                                               size: 11,
                                               weight: FontWeight.w600,
-                                              color: const Color(0xFF0F766E),
+                                              color: const Color(0xFF111827),
                                             ),
                                             overflow: TextOverflow.ellipsis,
                                             maxLines: 1,
@@ -1814,16 +1814,16 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                         curve: Curves.easeInOut,
                                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                         decoration: BoxDecoration(
-                                          color: isSelected ? const Color(0xFFF0FDFA) : Colors.white,
+                                          color: isSelected ? const Color(0xFFF3F4F6) : Colors.white,
                                           borderRadius: BorderRadius.circular(12),
                                           border: Border.all(
-                                            color: isSelected ? const Color(0xFF0F766E) : const Color(0xFFE5E7EB),
+                                            color: isSelected ? const Color(0xFF111827) : const Color(0xFFE5E7EB),
                                             width: isSelected ? 1.5 : 1.0,
                                           ),
                                           boxShadow: isSelected
                                               ? [
                                                   BoxShadow(
-                                                    color: const Color(0xFF0F766E).withValues(alpha: 0.08),
+                                                    color: Colors.black.withValues(alpha: 0.04),
                                                     blurRadius: 6,
                                                     offset: const Offset(0, 2),
                                                   )
@@ -1840,10 +1840,10 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                               width: 20,
                                               height: 20,
                                               decoration: BoxDecoration(
-                                                color: isSelected ? const Color(0xFF0F766E) : Colors.white,
+                                                color: isSelected ? const Color(0xFF111827) : Colors.white,
                                                 borderRadius: BorderRadius.circular(5),
                                                 border: Border.all(
-                                                  color: isSelected ? const Color(0xFF0F766E) : const Color(0xFFD1D5DB),
+                                                  color: isSelected ? const Color(0xFF111827) : const Color(0xFFD1D5DB),
                                                   width: 1.5,
                                                 ),
                                               ),
@@ -1915,7 +1915,7 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                             Container(
                                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
                                               decoration: BoxDecoration(
-                                                color: isSelected ? const Color(0xFF0F766E) : const Color(0xFFF3F4F6),
+                                                color: isSelected ? const Color(0xFF111827) : const Color(0xFFF3F4F6),
                                                 borderRadius: BorderRadius.circular(6),
                                               ),
                                               child: Text(
@@ -1923,7 +1923,7 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                                 style: AppFonts.poppins(
                                                   size: 11.5,
                                                   weight: FontWeight.w700,
-                                                  color: isSelected ? Colors.white : const Color(0xFF0F766E),
+                                                  color: isSelected ? Colors.white : const Color(0xFF111827),
                                                 ),
                                               ),
                                             ),
@@ -2009,7 +2009,7 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                       style: AppFonts.poppins(
                                         size: 12,
                                         weight: FontWeight.w500,
-                                        color: const Color(0xFF0F766E),
+                                        color: const Color(0xFF111827),
                                       ),
                                     ),
                                   ],
@@ -2359,7 +2359,7 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                     style: AppFonts.poppins(
                                       size: 15,
                                       weight: FontWeight.w700,
-                                      color: const Color(0xFF0F766E),
+                                      color: const Color(0xFF111827),
                                     ),
                                   ),
                                 ],
@@ -2488,7 +2488,7 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
             style: AppFonts.poppins(
               size: 12.5,
               weight: isHighlight ? FontWeight.w700 : FontWeight.w600,
-              color: isHighlight ? const Color(0xFF0F766E) : const Color(0xFF111827),
+              color: const Color(0xFF111827),
             ),
           ),
         ),
@@ -2574,13 +2574,11 @@ class _GroomerSlotButton extends StatelessWidget {
         child: Text(
           fmt12(startTime),
           textAlign: TextAlign.center,
-          style: TextStyle(
-            fontFamily: 'Poppins',
-            fontSize: 13,
-            fontWeight: (isSelected || !isUnavailable) ? FontWeight.w600 : FontWeight.w400,
+          style: AppFonts.poppins(
+            size: 13,
+            weight: (isSelected || !isUnavailable) ? FontWeight.w600 : FontWeight.w400,
             color: fg,
             decoration: isUnavailable ? TextDecoration.lineThrough : null,
-            decorationColor: fg,
           ),
         ),
       ),

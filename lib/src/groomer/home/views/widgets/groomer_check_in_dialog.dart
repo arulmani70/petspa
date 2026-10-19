@@ -90,7 +90,7 @@ class _GroomerCheckInDialogState extends State<GroomerCheckInDialog> {
   }
 
   Future<void> _submitCheckIn() async {
-    if (!_canSubmit) return;
+    if (!_canSubmit || _isSubmitting) return;
 
     setState(() => _isSubmitting = true);
 
@@ -176,12 +176,12 @@ class _GroomerCheckInDialogState extends State<GroomerCheckInDialog> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0F766E).withValues(alpha: 0.1),
+                    color: const Color(0xFFF3F4F6),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(
                     Icons.assignment_turned_in_outlined,
-                    color: Color(0xFF0F766E),
+                    color: Color(0xFF111827),
                     size: 22,
                   ),
                 ),
@@ -386,7 +386,7 @@ class _GroomerCheckInDialogState extends State<GroomerCheckInDialog> {
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _canSubmit
-                          ? const Color(0xFF0F766E)
+                          ? const Color(0xFF111827)
                           : const Color(0xFF9CA3AF),
                       foregroundColor: Colors.white,
                       elevation: 0,
@@ -479,14 +479,14 @@ class _GroomerCheckInDialogState extends State<GroomerCheckInDialog> {
         children: [
           Row(
             children: [
-              const Icon(Icons.speaker_notes_outlined, size: 15, color: Color(0xFF0F766E)),
+              const Icon(Icons.speaker_notes_outlined, size: 15, color: Color(0xFF111827)),
               const SizedBox(width: 6),
               Text(
                 'Customer Service Instructions',
                 style: AppFonts.parkinsans(
                   size: 12.5,
                   weight: FontWeight.w700,
-                  color: const Color(0xFF0F766E),
+                  color: const Color(0xFF111827),
                 ),
               ),
             ],
@@ -559,10 +559,10 @@ class _GroomerCheckInDialogState extends State<GroomerCheckInDialog> {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: value ? const Color(0xFFF0FDFA) : const Color(0xFFF9FAFB),
+          color: value ? const Color(0xFFF3F4F6) : const Color(0xFFF9FAFB),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: value ? const Color(0xFF0F766E) : const Color(0xFFE5E7EB),
+            color: value ? const Color(0xFF111827) : const Color(0xFFE5E7EB),
             width: value ? 1.5 : 1,
           ),
         ),
@@ -572,7 +572,7 @@ class _GroomerCheckInDialogState extends State<GroomerCheckInDialog> {
             Checkbox(
               value: value,
               onChanged: onChanged,
-              activeColor: const Color(0xFF0F766E),
+              activeColor: const Color(0xFF111827),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               visualDensity: VisualDensity.compact,
@@ -584,7 +584,7 @@ class _GroomerCheckInDialogState extends State<GroomerCheckInDialog> {
                 children: [
                   Row(
                     children: [
-                      Icon(icon, size: 15, color: value ? const Color(0xFF0F766E) : const Color(0xFF6B7280)),
+                      Icon(icon, size: 15, color: value ? const Color(0xFF111827) : const Color(0xFF6B7280)),
                       const SizedBox(width: 6),
                       Text(
                         title,

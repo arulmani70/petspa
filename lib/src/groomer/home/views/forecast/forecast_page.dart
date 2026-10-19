@@ -27,6 +27,7 @@ class ForecastPage extends StatefulWidget {
   final String? initialGroomerFilterId;
   final DateTime? initialDate;
   final bool initialIsPaginationTruncated;
+  final bool isEmbedded;
 
   const ForecastPage({
     super.key,
@@ -36,6 +37,7 @@ class ForecastPage extends StatefulWidget {
     this.initialGroomerFilterId,
     this.initialDate,
     this.initialIsPaginationTruncated = false,
+    this.isEmbedded = false,
   });
 
   @override
@@ -656,7 +658,7 @@ class _ForecastPageState extends State<ForecastPage> {
     return Theme(
       data: Theme.of(context).copyWith(
         colorScheme: const ColorScheme.light(
-          primary: Color(0xFF0F766E),
+          primary: Color(0xFF111827),
           onPrimary: Colors.white,
           onSurface: Color(0xFF111827),
         ),
@@ -664,7 +666,7 @@ class _ForecastPageState extends State<ForecastPage> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
-          headerBackgroundColor: const Color(0xFF0F766E),
+          headerBackgroundColor: const Color(0xFF111827),
           headerForegroundColor: Colors.white,
         ),
       ),
@@ -770,17 +772,20 @@ class _ForecastPageState extends State<ForecastPage> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        automaticallyImplyLeading: !widget.isEmbedded,
         centerTitle: false,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Color(0xFF111827)),
-          onPressed: () {
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
-            } else {
-              context.go('/groomer-home');
-            }
-          },
-        ),
+        leading: widget.isEmbedded
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Color(0xFF111827)),
+                onPressed: () {
+                  if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                  } else {
+                    context.go('/groomer-home');
+                  }
+                },
+              ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -808,9 +813,9 @@ class _ForecastPageState extends State<ForecastPage> {
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F766E)),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF111827)),
                   )
-                : const Icon(Icons.refresh_rounded, size: 22, color: Color(0xFF0F766E)),
+                : const Icon(Icons.refresh_rounded, size: 22, color: Color(0xFF111827)),
             tooltip: 'Refresh forecast',
             onPressed: _isLoading ? null : _loadData,
           ),
@@ -822,10 +827,10 @@ class _ForecastPageState extends State<ForecastPage> {
         ),
       ),
       body: RefreshIndicator(
-        color: const Color(0xFF0F766E),
+        color: const Color(0xFF111827),
         onRefresh: _loadData,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+          padding: EdgeInsets.fromLTRB(16, 16, 16, widget.isEmbedded ? 120 : 40),
           children: [
             if (_errorMessage != null) ...[
               Container(
@@ -917,9 +922,9 @@ class _ForecastPageState extends State<ForecastPage> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF0FDFA),
+                      color: const Color(0xFFF3F4F6),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFF0F766E).withValues(alpha: 0.25)),
+                      border: Border.all(color: const Color(0xFFE5E7EB)),
                     ),
                     child: Text(
                       _selectedGroomerFilterIds.length == 1
@@ -928,7 +933,7 @@ class _ForecastPageState extends State<ForecastPage> {
                       style: AppFonts.poppins(
                         size: 11.5,
                         weight: FontWeight.w600,
-                        color: const Color(0xFF0F766E),
+                        color: const Color(0xFF111827),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -949,7 +954,7 @@ class _ForecastPageState extends State<ForecastPage> {
               const Padding(
                 padding: EdgeInsets.all(40.0),
                 child: Center(
-                  child: CircularProgressIndicator(color: Color(0xFF0F766E)),
+                  child: CircularProgressIndicator(color: Color(0xFF111827)),
                 ),
               )
             else if (_errorMessage != null && _allBookings.isEmpty)
@@ -974,12 +979,12 @@ class _ForecastPageState extends State<ForecastPage> {
                         style: AppFonts.poppins(
                           size: 12.5,
                           weight: FontWeight.w600,
-                          color: const Color(0xFF0F766E),
+                          color: const Color(0xFF111827),
                         ),
                       ),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF0F766E),
-                        side: const BorderSide(color: Color(0xFF0F766E)),
+                        foregroundColor: const Color(0xFF111827),
+                        side: const BorderSide(color: Color(0xFF111827)),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       ),
@@ -1001,7 +1006,7 @@ class _ForecastPageState extends State<ForecastPage> {
                         style: AppFonts.poppins(
                           size: 12.5,
                           weight: FontWeight.w600,
-                          color: const Color(0xFF0F766E),
+                          color: const Color(0xFF111827),
                         ),
                       ),
                     ),
@@ -1014,7 +1019,7 @@ class _ForecastPageState extends State<ForecastPage> {
                   child: _isLoadingMore
                       ? const Padding(
                           padding: EdgeInsets.symmetric(vertical: 12),
-                          child: CircularProgressIndicator(color: Color(0xFF0F766E)),
+                          child: CircularProgressIndicator(color: Color(0xFF111827)),
                         )
                       : OutlinedButton.icon(
                           icon: const Icon(Icons.arrow_downward_rounded, size: 16),
@@ -1023,12 +1028,12 @@ class _ForecastPageState extends State<ForecastPage> {
                             style: AppFonts.poppins(
                               size: 13,
                               weight: FontWeight.w600,
-                              color: const Color(0xFF0F766E),
+                              color: const Color(0xFF111827),
                             ),
                           ),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF0F766E),
-                            side: const BorderSide(color: Color(0xFF0F766E)),
+                            foregroundColor: const Color(0xFF111827),
+                            side: const BorderSide(color: Color(0xFF111827)),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
                           ),
@@ -1058,7 +1063,7 @@ class _ForecastPageState extends State<ForecastPage> {
                 subcaption: !summary.isForecastDataComplete && summary.totalAppointmentsCount > 0
                     ? 'Payment status omitted by API'
                     : (summary.forecastAppointmentsCount == 1 ? '1 unpaid appt' : '${summary.forecastAppointmentsCount} unpaid appts'),
-                accentColor: const Color(0xFF0F766E),
+                accentColor: const Color(0xFF111827),
                 icon: Icons.trending_up_rounded,
                 isWarningOrIncomplete: !summary.isForecastDataComplete && summary.totalAppointmentsCount > 0,
               ),
@@ -1224,7 +1229,7 @@ class _ForecastPageState extends State<ForecastPage> {
         children: [
           Row(
             children: [
-              const Icon(Icons.analytics_outlined, size: 18, color: Color(0xFF0F766E)),
+              const Icon(Icons.analytics_outlined, size: 18, color: Color(0xFF111827)),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -1316,13 +1321,13 @@ class _ForecastPageState extends State<ForecastPage> {
                           children: [
                             CircleAvatar(
                               radius: 12,
-                              backgroundColor: const Color(0xFF0F766E).withValues(alpha: 0.15),
+                              backgroundColor: const Color(0xFFF3F4F6),
                               child: Text(
                                 g.name.isNotEmpty ? g.name[0].toUpperCase() : 'G',
                                 style: AppFonts.poppins(
                                   size: 11,
                                   weight: FontWeight.w700,
-                                  color: const Color(0xFF0F766E),
+                                  color: const Color(0xFF111827),
                                 ),
                               ),
                             ),
@@ -1367,7 +1372,7 @@ class _ForecastPageState extends State<ForecastPage> {
                                 gSummary.isForecastDataComplete || gSummary.totalAppointmentsCount == 0
                                     ? gSummary.formattedForecastServiceAmount
                                     : '${gSummary.formattedForecastServiceAmount}*',
-                                style: AppFonts.poppins(size: 11, weight: FontWeight.w600, color: const Color(0xFF0F766E)),
+                                style: AppFonts.poppins(size: 11, weight: FontWeight.w600, color: const Color(0xFF111827)),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
@@ -1467,7 +1472,7 @@ class _ForecastPageState extends State<ForecastPage> {
                           Icon(
                             _isDateRangeMode ? Icons.date_range_rounded : Icons.calendar_today_outlined,
                             size: 16,
-                            color: const Color(0xFF0F766E),
+                            color: const Color(0xFF111827),
                           ),
                           const SizedBox(width: 8),
                           Text(
@@ -1568,11 +1573,11 @@ class _ForecastPageState extends State<ForecastPage> {
                 ),
                 const SizedBox(height: 16),
                 ListTile(
-                  leading: const Icon(Icons.today_rounded, color: Color(0xFF0F766E)),
+                  leading: const Icon(Icons.today_rounded, color: Color(0xFF111827)),
                   title: Text('Single Date Picker', style: AppFonts.poppins(size: 14, weight: FontWeight.w600)),
                   subtitle: Text('View forecast for a specific single day', style: AppFonts.poppins(size: 12)),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  tileColor: !_isDateRangeMode ? const Color(0xFFF0FDFA) : null,
+                  tileColor: !_isDateRangeMode ? const Color(0xFFF3F4F6) : null,
                   onTap: () {
                     Navigator.pop(context);
                     _pickSingleDate();
@@ -1580,11 +1585,11 @@ class _ForecastPageState extends State<ForecastPage> {
                 ),
                 const SizedBox(height: 8),
                 ListTile(
-                  leading: const Icon(Icons.date_range_rounded, color: Color(0xFF0F766E)),
+                  leading: const Icon(Icons.date_range_rounded, color: Color(0xFF111827)),
                   title: Text('Date Range Picker', style: AppFonts.poppins(size: 14, weight: FontWeight.w600)),
                   subtitle: Text('Select custom multi-day or multi-week range', style: AppFonts.poppins(size: 12)),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  tileColor: _isDateRangeMode ? const Color(0xFFF0FDFA) : null,
+                  tileColor: _isDateRangeMode ? const Color(0xFFF3F4F6) : null,
                   onTap: () {
                     Navigator.pop(context);
                     _pickDateRange();
@@ -1691,21 +1696,21 @@ class _ForecastPageState extends State<ForecastPage> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF0FDFA),
+                    color: const Color(0xFFF3F4F6),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFF0F766E).withValues(alpha: 0.25)),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.close_rounded, size: 12, color: Color(0xFF0F766E)),
+                      const Icon(Icons.close_rounded, size: 12, color: Color(0xFF111827)),
                       const SizedBox(width: 4),
                       Text(
                         'Show All',
                         style: AppFonts.poppins(
                           size: 11,
                           weight: FontWeight.w600,
-                          color: const Color(0xFF0F766E),
+                          color: const Color(0xFF111827),
                         ),
                       ),
                     ],
@@ -1770,16 +1775,16 @@ class _ForecastPageState extends State<ForecastPage> {
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF0F766E) : Colors.white,
+          color: isSelected ? const Color(0xFF111827) : Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? const Color(0xFF0F766E) : const Color(0xFFE5E7EB),
+            color: isSelected ? const Color(0xFF111827) : const Color(0xFFE5E7EB),
             width: isSelected ? 1.5 : 1,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: const Color(0xFF0F766E).withValues(alpha: 0.2),
+                    color: const Color(0xFFE5E7EB),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
@@ -1866,7 +1871,7 @@ class _ForecastPageState extends State<ForecastPage> {
               style: AppFonts.poppins(size: 13, weight: FontWeight.w600, color: Colors.white),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0F766E),
+              backgroundColor: const Color(0xFF111827),
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -1924,12 +1929,12 @@ class _ForecastPageState extends State<ForecastPage> {
                 style: AppFonts.poppins(
                   size: 13,
                   weight: FontWeight.w600,
-                  color: const Color(0xFF0F766E),
+                  color: const Color(0xFF111827),
                 ),
               ),
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF0F766E),
-                side: const BorderSide(color: Color(0xFF0F766E)),
+                foregroundColor: const Color(0xFF111827),
+                side: const BorderSide(color: Color(0xFF111827)),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               ),
@@ -1992,7 +1997,7 @@ class _ForecastPageState extends State<ForecastPage> {
               style: AppFonts.poppins(size: 13, weight: FontWeight.w600, color: Colors.white),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0F766E),
+              backgroundColor: const Color(0xFF111827),
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
@@ -2030,16 +2035,16 @@ class _ForecastPageState extends State<ForecastPage> {
               duration: const Duration(milliseconds: 180),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: isSelected ? const Color(0xFF0F766E) : Colors.white,
+                color: isSelected ? const Color(0xFF111827) : Colors.white,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isSelected ? const Color(0xFF0F766E) : const Color(0xFFE5E7EB),
+                  color: isSelected ? const Color(0xFF111827) : const Color(0xFFE5E7EB),
                   width: isSelected ? 1.5 : 1,
                 ),
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: const Color(0xFF0F766E).withValues(alpha: 0.18),
+                          color: Colors.black.withValues(alpha: 0.04),
                           blurRadius: 4,
                           offset: const Offset(0, 1),
                         ),
@@ -2127,11 +2132,11 @@ class _ForecastPageState extends State<ForecastPage> {
             icon: const Icon(Icons.clear_all_rounded, size: 16),
             label: Text(
               'Show All Statuses (${_filteredBookings.length})',
-              style: AppFonts.poppins(size: 13, weight: FontWeight.w600, color: const Color(0xFF0F766E)),
+              style: AppFonts.poppins(size: 13, weight: FontWeight.w600, color: const Color(0xFF111827)),
             ),
             style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFF0F766E),
-              side: const BorderSide(color: Color(0xFF0F766E)),
+              foregroundColor: const Color(0xFF111827),
+              side: const BorderSide(color: Color(0xFF111827)),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
             ),
@@ -2341,7 +2346,7 @@ class _ForecastPageState extends State<ForecastPage> {
                     // Service Description
                     Row(
                       children: [
-                        const Icon(Icons.content_cut_rounded, size: 13, color: Color(0xFF0F766E)),
+                        const Icon(Icons.content_cut_rounded, size: 13, color: Color(0xFF111827)),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
@@ -2365,7 +2370,7 @@ class _ForecastPageState extends State<ForecastPage> {
                     // Service Fee & Verified Payment Status
                     Row(
                       children: [
-                        const Icon(Icons.payments_outlined, size: 13, color: Color(0xFF0F766E)),
+                        const Icon(Icons.payments_outlined, size: 13, color: Color(0xFF111827)),
                         const SizedBox(width: 4),
                         Text(
                           'Fee: ',
@@ -2380,7 +2385,7 @@ class _ForecastPageState extends State<ForecastPage> {
                           style: AppFonts.poppins(
                             size: 12.5,
                             weight: FontWeight.w700,
-                            color: const Color(0xFF0F766E),
+                            color: const Color(0xFF111827),
                           ),
                         ),
                         if (booking.isPaidVerified) ...[
@@ -2485,14 +2490,14 @@ class _ForecastPageState extends State<ForecastPage> {
                 constraints: const BoxConstraints(maxWidth: 190),
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF0FDFA),
+                  color: const Color(0xFFF3F4F6),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFF0F766E).withValues(alpha: 0.2)),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.badge_outlined, size: 13, color: Color(0xFF0F766E)),
+                    const Icon(Icons.badge_outlined, size: 13, color: Color(0xFF111827)),
                     const SizedBox(width: 4),
                     Flexible(
                       child: Text(
@@ -2500,7 +2505,7 @@ class _ForecastPageState extends State<ForecastPage> {
                         style: AppFonts.poppins(
                           size: 11.5,
                           weight: FontWeight.w600,
-                          color: const Color(0xFF0F766E),
+                          color: const Color(0xFF111827),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -2554,7 +2559,7 @@ class _ForecastPageState extends State<ForecastPage> {
           child: SizedBox(
             width: 16,
             height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F766E)),
+            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF111827)),
           ),
         ),
       ),

@@ -4,6 +4,14 @@ import 'package:toastification/toastification.dart';
 class ToastUtil {
   static String? _lastMessage;
   static DateTime? _lastTime;
+  static ToastificationType? _lastType;
+
+  @visibleForTesting
+  static void resetForTesting() {
+    _lastMessage = null;
+    _lastTime = null;
+    _lastType = null;
+  }
 
   static void showSuccessToast(BuildContext context, String message) {
     _showToast(
@@ -57,15 +65,36 @@ class ToastUtil {
     required IconData icon,
   }) {
     final now = DateTime.now();
+
+    // 1. Strict duplicate suppression: identical message within 2500ms
     if (_lastMessage == message &&
         _lastTime != null &&
-        now.difference(_lastTime!).inMilliseconds < 1500) {
+        now.difference(_lastTime!).inMilliseconds < 2500) {
       return;
     }
+
+    // 2. Prevent double toast: if any success toast was shown in the last 2000ms,
+    // suppress follow-up info/notification toasts
+    if (type == ToastificationType.info &&
+        _lastType == ToastificationType.success &&
+        _lastTime != null &&
+        now.difference(_lastTime!).inMilliseconds < 2000) {
+      return;
+    }
+
+    // 3. Debounce rapid-fire toasts within 600ms to guarantee only 1 toast at a time
+    if (_lastTime != null && now.difference(_lastTime!).inMilliseconds < 600) {
+      return;
+    }
+
     _lastMessage = message;
     _lastTime = now;
+    _lastType = type;
 
     try {
+      // Dismiss any existing toast so toasts never stack on screen
+      toastification.dismissAll(delayForAnimation: false);
+
       toastification.show(
         context: context,
         type: type,
@@ -112,6 +141,7 @@ class ToastUtil {
       try {
         final messenger = ScaffoldMessenger.maybeOf(context);
         if (messenger != null) {
+          messenger.hideCurrentSnackBar();
           messenger.showSnackBar(
             SnackBar(
               content: Text(message),

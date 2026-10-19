@@ -428,7 +428,7 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
     return Theme(
       data: Theme.of(context).copyWith(
         colorScheme: const ColorScheme.light(
-          primary: Color(0xFF0F766E),
+          primary: Color(0xFF111827),
           onPrimary: Colors.white,
           onSurface: Color(0xFF111827),
         ),
@@ -436,7 +436,7 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
-          headerBackgroundColor: const Color(0xFF0F766E),
+          headerBackgroundColor: const Color(0xFF111827),
           headerForegroundColor: Colors.white,
         ),
       ),
@@ -485,11 +485,11 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                 ),
                 const SizedBox(height: 16),
                 ListTile(
-                  leading: const Icon(Icons.today_rounded, color: Color(0xFF0F766E)),
+                  leading: const Icon(Icons.today_rounded, color: Color(0xFF111827)),
                   title: Text('Single Date Picker', style: AppFonts.poppins(size: 14, weight: FontWeight.w600)),
                   subtitle: Text('View schedule for a specific single day', style: AppFonts.poppins(size: 12)),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  tileColor: !_isDateRangeMode ? const Color(0xFFF0FDFA) : null,
+                  tileColor: !_isDateRangeMode ? const Color(0xFFF3F4F6) : null,
                   onTap: () {
                     Navigator.pop(context);
                     _pickSingleDate();
@@ -497,11 +497,11 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                 ),
                 const SizedBox(height: 8),
                 ListTile(
-                  leading: const Icon(Icons.date_range_rounded, color: Color(0xFF0F766E)),
+                  leading: const Icon(Icons.date_range_rounded, color: Color(0xFF111827)),
                   title: Text('Date Range Picker', style: AppFonts.poppins(size: 14, weight: FontWeight.w600)),
                   subtitle: Text('Select custom multi-day range (up to 92 days)', style: AppFonts.poppins(size: 12)),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  tileColor: _isDateRangeMode ? const Color(0xFFF0FDFA) : null,
+                  tileColor: _isDateRangeMode ? const Color(0xFFF3F4F6) : null,
                   onTap: () {
                     Navigator.pop(context);
                     _pickDateRange();
@@ -922,9 +922,9 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F766E)),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF111827)),
                   )
-                : const Icon(Icons.refresh_rounded, size: 22, color: Color(0xFF0F766E)),
+                : const Icon(Icons.refresh_rounded, size: 22, color: Color(0xFF111827)),
             tooltip: 'Refresh appointments',
             onPressed: _isLoading ? null : _loadData,
           ),
@@ -936,7 +936,7 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
         ),
       ),
       body: RefreshIndicator(
-        color: const Color(0xFF0F766E),
+        color: const Color(0xFF111827),
         onRefresh: _loadData,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
@@ -963,7 +963,7 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                   child: _buildStatCard(
                     number: _formatCount(_statTotal),
                     label: 'Total Bookings',
-                    accentColor: const Color(0xFF0F766E),
+                    accentColor: const Color(0xFF111827),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -1037,9 +1037,9 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF0FDFA),
+                        color: const Color(0xFFF3F4F6),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFF0F766E).withValues(alpha: 0.25)),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
                       ),
                       child: Text(
                         _selectedGroomerFilterIds.length > 1
@@ -1048,7 +1048,7 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                         style: AppFonts.poppins(
                           size: 11.5,
                           weight: FontWeight.w600,
-                          color: const Color(0xFF0F766E),
+                          color: const Color(0xFF111827),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -1065,7 +1065,7 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
               const Padding(
                 padding: EdgeInsets.all(40.0),
                 child: Center(
-                  child: CircularProgressIndicator(color: Color(0xFF0F766E)),
+                  child: CircularProgressIndicator(color: Color(0xFF111827)),
                 ),
               )
             else if (_errorMessage != null && _allBookings.isEmpty)
@@ -1082,7 +1082,7 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                   child: _isLoadingMore
                       ? const Padding(
                           padding: EdgeInsets.symmetric(vertical: 12),
-                          child: CircularProgressIndicator(color: Color(0xFF0F766E)),
+                          child: CircularProgressIndicator(color: Color(0xFF111827)),
                         )
                       : OutlinedButton.icon(
                           icon: const Icon(Icons.arrow_downward_rounded, size: 16),
@@ -1091,12 +1091,12 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                             style: AppFonts.poppins(
                               size: 13,
                               weight: FontWeight.w600,
-                              color: const Color(0xFF0F766E),
+                              color: const Color(0xFF111827),
                             ),
                           ),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF0F766E),
-                            side: const BorderSide(color: Color(0xFF0F766E)),
+                            foregroundColor: const Color(0xFF111827),
+                            side: const BorderSide(color: Color(0xFF111827)),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
                           ),
@@ -1237,7 +1237,7 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                           Icon(
                             _isDateRangeMode ? Icons.date_range_rounded : Icons.calendar_today_outlined,
                             size: 16,
-                            color: const Color(0xFF0F766E),
+                            color: const Color(0xFF111827),
                           ),
                           const SizedBox(width: 8),
                           Text(
@@ -1432,21 +1432,21 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF0FDFA),
+                    color: const Color(0xFFF3F4F6),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFF0F766E).withValues(alpha: 0.25)),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.close_rounded, size: 12, color: Color(0xFF0F766E)),
+                      const Icon(Icons.close_rounded, size: 12, color: Color(0xFF111827)),
                       const SizedBox(width: 4),
                       Text(
                         'Show All',
                         style: AppFonts.poppins(
                           size: 11,
                           weight: FontWeight.w600,
-                          color: const Color(0xFF0F766E),
+                          color: const Color(0xFF111827),
                         ),
                       ),
                     ],
@@ -1512,16 +1512,16 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF0F766E) : Colors.white,
+          color: isSelected ? const Color(0xFF111827) : Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? const Color(0xFF0F766E) : const Color(0xFFE5E7EB),
+            color: isSelected ? const Color(0xFF111827) : const Color(0xFFE5E7EB),
             width: isSelected ? 1.5 : 1,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: const Color(0xFF0F766E).withValues(alpha: 0.2),
+                    color: const Color(0xFFE5E7EB),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
@@ -1608,7 +1608,7 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
               style: AppFonts.poppins(size: 13, weight: FontWeight.w600, color: Colors.white),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0F766E),
+              backgroundColor: const Color(0xFF111827),
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -1673,12 +1673,12 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                 style: AppFonts.poppins(
                   size: 13,
                   weight: FontWeight.w600,
-                  color: const Color(0xFF0F766E),
+                  color: const Color(0xFF111827),
                 ),
               ),
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF0F766E),
-                side: const BorderSide(color: Color(0xFF0F766E)),
+                foregroundColor: const Color(0xFF111827),
+                side: const BorderSide(color: Color(0xFF111827)),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               ),
@@ -1746,7 +1746,7 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                   style: AppFonts.poppins(size: 13, weight: FontWeight.w600, color: Colors.white),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0F766E),
+                  backgroundColor: const Color(0xFF111827),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
@@ -1759,7 +1759,7 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                       ? const SizedBox(
                           width: 14,
                           height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F766E)),
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF111827)),
                         )
                       : const Icon(Icons.arrow_downward_rounded, size: 16),
                   label: Text(
@@ -1767,12 +1767,12 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                     style: AppFonts.poppins(
                       size: 13,
                       weight: FontWeight.w600,
-                      color: const Color(0xFF0F766E),
+                      color: const Color(0xFF111827),
                     ),
                   ),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF0F766E),
-                    side: const BorderSide(color: Color(0xFF0F766E)),
+                    foregroundColor: const Color(0xFF111827),
+                    side: const BorderSide(color: Color(0xFF111827)),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
                   ),
@@ -1820,9 +1820,9 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
         badgeText = 'Grooming Completed';
         break;
       case 'ready_for_checkout':
-        borderColor = const Color(0xFF0F766E);
-        badgeBgColor = const Color(0xFFCCFBF1);
-        badgeTextColor = const Color(0xFF0F766E);
+        borderColor = const Color(0xFF111827);
+        badgeBgColor = const Color(0xFFF3F4F6);
+        badgeTextColor = const Color(0xFF111827);
         badgeText = 'Ready for Checkout';
         break;
       case 'confirmed':
@@ -2030,7 +2030,7 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                     // Service Description
                     Row(
                       children: [
-                        const Icon(Icons.content_cut_rounded, size: 13, color: Color(0xFF0F766E)),
+                        const Icon(Icons.content_cut_rounded, size: 13, color: Color(0xFF111827)),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
@@ -2285,14 +2285,14 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                       constraints: const BoxConstraints(maxWidth: 190),
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF0FDFA),
+                        color: const Color(0xFFF3F4F6),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFF0F766E).withValues(alpha: 0.2)),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.badge_outlined, size: 13, color: Color(0xFF0F766E)),
+                          const Icon(Icons.badge_outlined, size: 13, color: Color(0xFF111827)),
                           const SizedBox(width: 4),
                           Flexible(
                             child: Text(
@@ -2300,7 +2300,7 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                               style: AppFonts.poppins(
                                 size: 11.5,
                                 weight: FontWeight.w600,
-                                color: const Color(0xFF0F766E),
+                                color: const Color(0xFF111827),
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -2319,7 +2319,7 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                   const SizedBox(
                     width: 20,
                     height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F766E)),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF111827)),
                   )
                 else if (canManage && isPending && booking.bookingId > 0)
                   Row(
@@ -2378,7 +2378,7 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                       if (!booking.isCheckedIn)
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0F766E), // Brand Teal
+                            backgroundColor: const Color(0xFF111827), // Brand Deep Slate
                             foregroundColor: Colors.white,
                             elevation: 0,
                             shape: RoundedRectangleBorder(
@@ -2402,8 +2402,8 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                       else ...[
                         OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF0F766E),
-                            side: const BorderSide(color: Color(0xFF0F766E)),
+                            foregroundColor: const Color(0xFF111827),
+                            side: const BorderSide(color: Color(0xFF111827)),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(20),
                             ),
@@ -2412,20 +2412,20 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
                           onPressed: () => _handleCheckIn(booking),
-                          icon: const Icon(Icons.checklist_rounded, size: 14, color: Color(0xFF0F766E)),
+                          icon: const Icon(Icons.checklist_rounded, size: 14, color: Color(0xFF111827)),
                           label: Text(
                             'Checklist',
                             style: AppFonts.poppins(
                               size: 11.5,
                               weight: FontWeight.w600,
-                              color: const Color(0xFF0F766E),
+                              color: const Color(0xFF111827),
                             ),
                           ),
                         ),
                         const SizedBox(width: 6),
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0F766E), // Brand Teal
+                            backgroundColor: const Color(0xFF111827), // Brand Deep Slate
                             foregroundColor: Colors.white,
                             elevation: 0,
                             shape: RoundedRectangleBorder(
@@ -2583,7 +2583,7 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                       ),
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0F766E), // Brand Teal
+                          backgroundColor: const Color(0xFF111827), // Brand Deep Slate
                           foregroundColor: Colors.white,
                           elevation: 0,
                           shape: RoundedRectangleBorder(
@@ -2622,21 +2622,21 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFCCFBF1),
+                          color: const Color(0xFFF3F4F6),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFF99F6E4)),
+                          border: Border.all(color: const Color(0xFFE5E7EB)),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF0F766E)),
+                            const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF111827)),
                             const SizedBox(width: 4),
                             Text(
                               'Ready for Checkout',
                               style: AppFonts.poppins(
                                 size: 11.5,
                                 weight: FontWeight.w600,
-                                color: const Color(0xFF0F766E),
+                                color: const Color(0xFF111827),
                               ),
                             ),
                           ],
@@ -2747,7 +2747,7 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
           child: SizedBox(
             width: 16,
             height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F766E)),
+            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF111827)),
           ),
         ),
       ),

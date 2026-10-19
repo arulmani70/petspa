@@ -13,13 +13,13 @@ class AppConstants {
   final String BASE_URL = "https://api.shearheavenpetspa.com";
   final String API_KEY = "";
 
-  final Color PRIMARY_COLOR = const Color(0xFF0F766E);
-  final Color SECONDARY_COLOR = const Color(0xFF14B8A6);
-  final Color ACCENT_COLOR = const Color(0xFFFFB800);
-  final Color BACKGROUND_COLOR = const Color(0xFFFFFFFF);
-  final Color SURFACE_COLOR = const Color(0xFFF4F6F8);
-  final Color TEXT_PRIMARY_COLOR = const Color(0xFF1F2933);
-  final Color TEXT_SECONDARY_COLOR = const Color(0xFF7B8794);
+  final Color PRIMARY_COLOR = const Color(0xFF111827);
+  final Color SECONDARY_COLOR = const Color(0xFF374151);
+  final Color ACCENT_COLOR = const Color(0xFF10B981);
+  final Color BACKGROUND_COLOR = const Color(0xFFFAFAFA);
+  final Color SURFACE_COLOR = const Color(0xFFFFFFFF);
+  final Color TEXT_PRIMARY_COLOR = const Color(0xFF111827);
+  final Color TEXT_SECONDARY_COLOR = const Color(0xFF6B7280);
 
   final String SESSION_KEY = "shear_heaven_session";
   final String USER_KEY = "shear_heaven_user";

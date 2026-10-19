@@ -80,18 +80,18 @@ class TimePickerSelector extends StatelessWidget {
 
                     return ListTile(
                       dense: true,
-                      tileColor: isSelected ? const Color(0xFF0F766E).withValues(alpha: 0.08) : null,
+                      tileColor: isSelected ? const Color(0xFFF3F4F6) : null,
                       leading: Icon(
                         isSelected ? Icons.check_circle : Icons.access_time,
                         size: 18,
-                        color: isSelected ? const Color(0xFF0F766E) : const Color(0xFF9CA3AF),
+                        color: isSelected ? const Color(0xFF111827) : const Color(0xFF9CA3AF),
                       ),
                       title: Text(
                         display,
                         style: AppFonts.poppins(
                           size: 13.5,
                           weight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                          color: isSelected ? const Color(0xFF0F766E) : const Color(0xFF111827),
+                          color: isSelected ? const Color(0xFF111827) : const Color(0xFF111827),
                         ),
                       ),
                       onTap: () {

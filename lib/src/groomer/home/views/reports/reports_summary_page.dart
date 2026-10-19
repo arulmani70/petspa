@@ -24,6 +24,7 @@ class ReportsSummaryPage extends StatefulWidget {
   final ReportDatePreset? initialPreset;
   final String? initialGroomerFilterId;
   final DateTimeRange? initialCustomRange;
+  final bool isEmbedded;
 
   const ReportsSummaryPage({
     super.key,
@@ -32,6 +33,7 @@ class ReportsSummaryPage extends StatefulWidget {
     this.initialPreset,
     this.initialGroomerFilterId,
     this.initialCustomRange,
+    this.isEmbedded = false,
   });
 
   @override
@@ -420,7 +422,7 @@ class _ReportsSummaryPageState extends State<ReportsSummaryPage> {
           return Theme(
             data: Theme.of(context).copyWith(
               colorScheme: const ColorScheme.light(
-                primary: Color(0xFF0F766E),
+                primary: Color(0xFF111827),
                 onPrimary: Colors.white,
                 surface: Colors.white,
                 onSurface: Color(0xFF111827),
@@ -482,18 +484,21 @@ class _ReportsSummaryPageState extends State<ReportsSummaryPage> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        automaticallyImplyLeading: !widget.isEmbedded,
         centerTitle: false,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              size: 20, color: Color(0xFF111827)),
-          onPressed: () {
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
-            } else {
-              context.go('/groomer-home');
-            }
-          },
-        ),
+        leading: widget.isEmbedded
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                    size: 20, color: Color(0xFF111827)),
+                onPressed: () {
+                  if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                  } else {
+                    context.go('/groomer-home');
+                  }
+                },
+              ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -522,10 +527,10 @@ class _ReportsSummaryPageState extends State<ReportsSummaryPage> {
                     width: 18,
                     height: 18,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Color(0xFF0F766E)),
+                        strokeWidth: 2, color: Color(0xFF111827)),
                   )
                 : const Icon(Icons.refresh_rounded,
-                    size: 22, color: Color(0xFF0F766E)),
+                    size: 22, color: Color(0xFF111827)),
             tooltip: 'Refresh report',
             onPressed: _isLoading ? null : _loadData,
           ),
@@ -537,10 +542,10 @@ class _ReportsSummaryPageState extends State<ReportsSummaryPage> {
         ),
       ),
       body: RefreshIndicator(
-        color: const Color(0xFF0F766E),
+        color: const Color(0xFF111827),
         onRefresh: _loadData,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+          padding: EdgeInsets.fromLTRB(16, 16, 16, widget.isEmbedded ? 120 : 40),
           children: [
             if (_errorMessage != null) ...[
               Container(
@@ -603,7 +608,7 @@ class _ReportsSummaryPageState extends State<ReportsSummaryPage> {
               const Padding(
                 padding: EdgeInsets.all(40.0),
                 child: Center(
-                  child: CircularProgressIndicator(color: Color(0xFF0F766E)),
+                  child: CircularProgressIndicator(color: Color(0xFF111827)),
                 ),
               )
             else if (matchingAppointments.isEmpty)
@@ -625,12 +630,12 @@ class _ReportsSummaryPageState extends State<ReportsSummaryPage> {
                       style: AppFonts.poppins(
                         size: 12.5,
                         weight: FontWeight.w600,
-                        color: const Color(0xFF0F766E),
+                        color: const Color(0xFF111827),
                       ),
                     ),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF0F766E),
-                      side: const BorderSide(color: Color(0xFF0F766E)),
+                      foregroundColor: const Color(0xFF111827),
+                      side: const BorderSide(color: Color(0xFF111827)),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20)),
                       padding: const EdgeInsets.symmetric(
@@ -669,7 +674,7 @@ class _ReportsSummaryPageState extends State<ReportsSummaryPage> {
           Row(
             children: [
               const Icon(Icons.calendar_month_rounded,
-                  size: 16, color: Color(0xFF0F766E)),
+                  size: 16, color: Color(0xFF111827)),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -686,17 +691,17 @@ class _ReportsSummaryPageState extends State<ReportsSummaryPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF0FDFA),
+                  color: const Color(0xFFF3F4F6),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                      color: const Color(0xFF0F766E).withValues(alpha: 0.2)),
+                      color: const Color(0xFFE5E7EB)),
                 ),
                 child: Text(
                   _formatDateRangeDisplay(),
                   style: AppFonts.poppins(
                     size: 11,
                     weight: FontWeight.w600,
-                    color: const Color(0xFF0F766E),
+                    color: const Color(0xFF111827),
                   ),
                 ),
               ),
@@ -717,7 +722,7 @@ class _ReportsSummaryPageState extends State<ReportsSummaryPage> {
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? const Color(0xFF0F766E)
+                            ? const Color(0xFF111827)
                             : const Color(0xFFF3F4F6),
                         borderRadius: BorderRadius.circular(10),
                         border: isSelected
@@ -764,7 +769,7 @@ class _ReportsSummaryPageState extends State<ReportsSummaryPage> {
           Row(
             children: [
               const Icon(Icons.badge_outlined,
-                  size: 15, color: Color(0xFF0F766E)),
+                  size: 15, color: Color(0xFF111827)),
               const SizedBox(width: 6),
               Text(
                 'Staff Scope',
@@ -827,11 +832,11 @@ class _ReportsSummaryPageState extends State<ReportsSummaryPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF0F766E) : const Color(0xFFF9FAFB),
+          color: isSelected ? const Color(0xFF111827) : const Color(0xFFF9FAFB),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected
-                ? const Color(0xFF0F766E)
+                ? const Color(0xFF111827)
                 : const Color(0xFFD1D5DB),
           ),
         ),
@@ -861,7 +866,7 @@ class _ReportsSummaryPageState extends State<ReportsSummaryPage> {
                 subtitle:
                     '${summary.totalAppointments - summary.completedAppointments - summary.cancelledAppointments} active unpaid appts',
                 disclosure: 'Projected pure service charges',
-                accentColor: const Color(0xFF0F766E),
+                accentColor: const Color(0xFF111827),
                 icon: Icons.trending_up_rounded,
                 isWarning: false,
               ),
@@ -1053,7 +1058,7 @@ class _ReportsSummaryPageState extends State<ReportsSummaryPage> {
           Row(
             children: [
               const Icon(Icons.pie_chart_outline_rounded,
-                  size: 16, color: Color(0xFF0F766E)),
+                  size: 16, color: Color(0xFF111827)),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -1109,8 +1114,8 @@ class _ReportsSummaryPageState extends State<ReportsSummaryPage> {
                 child: _buildStatusCountCard(
                   label: 'Confirmed',
                   count: summary.confirmedAppointments,
-                  color: const Color(0xFF0F766E),
-                  bgColor: const Color(0xFFF0FDFA),
+                  color: const Color(0xFF111827),
+                  bgColor: const Color(0xFFF3F4F6),
                 ),
               ),
             ],
@@ -1206,7 +1211,7 @@ class _ReportsSummaryPageState extends State<ReportsSummaryPage> {
           Row(
             children: [
               const Icon(Icons.people_alt_outlined,
-                  size: 16, color: Color(0xFF0F766E)),
+                  size: 16, color: Color(0xFF111827)),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -1248,13 +1253,13 @@ class _ReportsSummaryPageState extends State<ReportsSummaryPage> {
                         children: [
                           CircleAvatar(
                             radius: 12,
-                            backgroundColor: const Color(0xFFCCFBF1),
+                            backgroundColor: const Color(0xFFF3F4F6),
                             child: Text(
                               g.name.isNotEmpty ? g.name[0].toUpperCase() : 'G',
                               style: AppFonts.poppins(
                                 size: 11,
                                 weight: FontWeight.w700,
-                                color: const Color(0xFF0F766E),
+                                color: const Color(0xFF111827),
                               ),
                             ),
                           ),
@@ -1307,7 +1312,7 @@ class _ReportsSummaryPageState extends State<ReportsSummaryPage> {
                               style: AppFonts.poppins(
                                 size: 11,
                                 weight: FontWeight.w600,
-                                color: const Color(0xFF0F766E),
+                                color: const Color(0xFF111827),
                               ),
                               textAlign: TextAlign.end,
                               overflow: TextOverflow.ellipsis,
@@ -1470,13 +1475,13 @@ class _ReportsSummaryPageState extends State<ReportsSummaryPage> {
           // Pet Avatar Initial
           CircleAvatar(
             radius: 20,
-            backgroundColor: const Color(0xFFCCFBF1),
+            backgroundColor: const Color(0xFFF3F4F6),
             child: Text(
               b.petName.isNotEmpty ? b.petName[0].toUpperCase() : 'P',
               style: AppFonts.poppins(
                 size: 14,
                 weight: FontWeight.w700,
-                color: const Color(0xFF0F766E),
+                color: const Color(0xFF111827),
               ),
             ),
           ),
@@ -1592,7 +1597,7 @@ class _ReportsSummaryPageState extends State<ReportsSummaryPage> {
       case 'completed':
         return const Color(0xFF4338CA);
       case 'confirmed':
-        return const Color(0xFF0F766E);
+        return const Color(0xFF10B981);
       case 'in_progress':
       case 'in-progress':
       case 'checked_in':
@@ -1600,7 +1605,7 @@ class _ReportsSummaryPageState extends State<ReportsSummaryPage> {
       case 'grooming_completed':
         return const Color(0xFF0284C7);
       case 'ready_for_checkout':
-        return const Color(0xFF0D9488);
+        return const Color(0xFF111827);
       case 'pending':
         return const Color(0xFFD97706);
       case 'cancelled':

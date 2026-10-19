@@ -189,8 +189,8 @@ class GroomerWorkingHoursTableWidget extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: isToday ? const Color(0xFF0F766E).withValues(alpha: 0.035) : null,
-        border: isToday ? const Border(left: BorderSide(color: Color(0xFF0F766E), width: 3)) : null,
+        color: isToday ? const Color(0xFF111827).withValues(alpha: 0.035) : null,
+        border: isToday ? const Border(left: BorderSide(color: Color(0xFF111827), width: 3)) : null,
       ),
       padding: EdgeInsets.fromLTRB(isToday ? 11 : 14, 10, 14, 10),
       child: Column(
@@ -207,7 +207,7 @@ class GroomerWorkingHoursTableWidget extends StatelessWidget {
                     style: AppFonts.poppins(
                       size: 12.5,
                       weight: isToday ? FontWeight.w700 : FontWeight.w600,
-                      color: isToday ? const Color(0xFF0F766E) : const Color(0xFF111827),
+                      color: isToday ? const Color(0xFF111827) : const Color(0xFF111827),
                     ),
                   ),
                   if (isToday) ...[
@@ -215,7 +215,7 @@ class GroomerWorkingHoursTableWidget extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0F766E),
+                        color: const Color(0xFF111827),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
@@ -300,8 +300,8 @@ class GroomerWorkingHoursTableWidget extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: isToday ? const Color(0xFF0F766E).withValues(alpha: 0.035) : null,
-        border: isToday ? const Border(left: BorderSide(color: Color(0xFF0F766E), width: 3)) : null,
+        color: isToday ? const Color(0xFF111827).withValues(alpha: 0.035) : null,
+        border: isToday ? const Border(left: BorderSide(color: Color(0xFF111827), width: 3)) : null,
       ),
       padding: EdgeInsets.fromLTRB(isToday ? 11 : 14, 9, 14, 9),
       child: Column(
@@ -319,7 +319,7 @@ class GroomerWorkingHoursTableWidget extends StatelessWidget {
                         style: AppFonts.poppins(
                           size: 12,
                           weight: isToday ? FontWeight.w700 : FontWeight.w500,
-                          color: isToday ? const Color(0xFF0F766E) : const Color(0xFF111827),
+                          color: isToday ? const Color(0xFF111827) : const Color(0xFF111827),
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -329,7 +329,7 @@ class GroomerWorkingHoursTableWidget extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF0F766E),
+                          color: const Color(0xFF111827),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
@@ -436,10 +436,10 @@ class GroomerWorkingHoursTableWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
       decoration: BoxDecoration(
-        color: isWorking ? const Color(0xFFF0FDFA) : const Color(0xFFF3F4F6),
+        color: isWorking ? const Color(0xFFF3F4F6) : const Color(0xFFF3F4F6),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: isWorking ? const Color(0xFF99F6E4) : const Color(0xFFE5E7EB),
+          color: isWorking ? const Color(0xFFE5E7EB) : const Color(0xFFE5E7EB),
         ),
       ),
       child: Row(
@@ -450,7 +450,7 @@ class GroomerWorkingHoursTableWidget extends StatelessWidget {
             height: 5,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: isWorking ? const Color(0xFF0F766E) : const Color(0xFF9CA3AF),
+              color: isWorking ? const Color(0xFF111827) : const Color(0xFF9CA3AF),
             ),
           ),
           const SizedBox(width: 3.5),
@@ -459,7 +459,7 @@ class GroomerWorkingHoursTableWidget extends StatelessWidget {
             style: AppFonts.poppins(
               size: 10.5,
               weight: FontWeight.w600,
-              color: isWorking ? const Color(0xFF0F766E) : const Color(0xFF6B7280),
+              color: isWorking ? const Color(0xFF111827) : const Color(0xFF6B7280),
             ),
           ),
         ],

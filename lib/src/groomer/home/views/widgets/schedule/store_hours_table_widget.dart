@@ -52,10 +52,10 @@ class StoreHoursTableWidget extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(7),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0F766E).withValues(alpha: 0.1),
+                    color: const Color(0xFFF3F4F6),
                     borderRadius: BorderRadius.circular(9),
                   ),
-                  child: const Icon(Icons.storefront_outlined, color: Color(0xFF0F766E), size: 18),
+                  child: const Icon(Icons.storefront_outlined, color: Color(0xFF111827), size: 18),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -185,8 +185,8 @@ class StoreHoursTableWidget extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: isToday ? const Color(0xFF0F766E).withValues(alpha: 0.035) : null,
-        border: isToday ? const Border(left: BorderSide(color: Color(0xFF0F766E), width: 3)) : null,
+        color: isToday ? const Color(0xFF111827).withValues(alpha: 0.035) : null,
+        border: isToday ? const Border(left: BorderSide(color: Color(0xFF111827), width: 3)) : null,
       ),
       padding: EdgeInsets.fromLTRB(isToday ? 11 : 14, 10, 14, 10),
       child: Column(
@@ -203,7 +203,7 @@ class StoreHoursTableWidget extends StatelessWidget {
                     style: AppFonts.poppins(
                       size: 12.5,
                       weight: isToday ? FontWeight.w700 : FontWeight.w600,
-                      color: isToday ? const Color(0xFF0F766E) : const Color(0xFF111827),
+                      color: isToday ? const Color(0xFF111827) : const Color(0xFF111827),
                     ),
                   ),
                   if (isToday) ...[
@@ -211,7 +211,7 @@ class StoreHoursTableWidget extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0F766E),
+                        color: const Color(0xFF111827),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
@@ -263,8 +263,8 @@ class StoreHoursTableWidget extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: isToday ? const Color(0xFF0F766E).withValues(alpha: 0.035) : null,
-        border: isToday ? const Border(left: BorderSide(color: Color(0xFF0F766E), width: 3)) : null,
+        color: isToday ? const Color(0xFF111827).withValues(alpha: 0.035) : null,
+        border: isToday ? const Border(left: BorderSide(color: Color(0xFF111827), width: 3)) : null,
       ),
       padding: EdgeInsets.fromLTRB(isToday ? 11 : 14, 9, 14, 9),
       child: Row(
@@ -279,7 +279,7 @@ class StoreHoursTableWidget extends StatelessWidget {
                     style: AppFonts.poppins(
                       size: 12,
                       weight: isToday ? FontWeight.w700 : FontWeight.w500,
-                      color: isToday ? const Color(0xFF0F766E) : const Color(0xFF111827),
+                      color: isToday ? const Color(0xFF111827) : const Color(0xFF111827),
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -289,7 +289,7 @@ class StoreHoursTableWidget extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0F766E),
+                      color: const Color(0xFF111827),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
