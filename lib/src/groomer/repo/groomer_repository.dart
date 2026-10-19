@@ -839,31 +839,69 @@ class GroomerRepository {
     try {
       log.d('GroomerRepository::getCustomerPets::Fetching pets for customer userId: $userId');
 
-      // Primary endpoint from Postman: /api/groomer-auth/customers/:userId/pets
-      var response = await ServicesLocator.apiRepository.get(
-        '/api/groomer-auth/customers/$userId/pets',
-      );
+      final candidateEndpoints = <(String, Map<String, dynamic>?)>[
+        ('/api/common/groomer/customers/$userId/pets', null),
+        ('/api/common/groomer/customers/$userId', null),
+        ('/api/common/customers/$userId/pets', null),
+        ('/api/common/customers/$userId', null),
+        ('/api/pets', {'userId': userId}),
+        ('/api/pets', {'customerId': userId}),
+        ('/api/common/groomer/customers', {'id': userId}),
+        ('/api/common/groomer/customers', {'userId': userId}),
+        ('/api/groomer-auth/customers/$userId/pets', null),
+        ('/api/groomer-auth/users/$userId/pets', null),
+      ];
 
-      // Fallback endpoint if primary returns null / false
-      if (response == null || response['success'] != true) {
-        response = await ServicesLocator.apiRepository.get(
-          '/api/groomer-auth/users/$userId/pets',
-        );
-      }
-      if (response == null || response['success'] != true) {
-        response = await ServicesLocator.apiRepository.get(
-          '/api/pets',
-          query: {'userId': userId},
-        );
+      Map<String, dynamic>? response;
+      for (final candidate in candidateEndpoints) {
+        try {
+          final res = await ServicesLocator.apiRepository.get(
+            candidate.$1,
+            query: candidate.$2,
+          );
+          if (res != null && (res['success'] == true || res['data'] != null || res['pets'] != null)) {
+            response = res;
+            break;
+          }
+        } catch (_) {
+          continue;
+        }
       }
 
-      if (response != null && response['data'] != null) {
-        final data = response['data'];
+      if (response != null) {
+        final data = response['data'] ?? response;
         List<dynamic> list = [];
-        if (data is Map && data['pets'] is List) {
-          list = data['pets'] as List;
+        if (data is Map) {
+          if (data['pets'] is List) {
+            list = data['pets'] as List;
+          } else if (data['customer'] is Map && data['customer']['pets'] is List) {
+            list = data['customer']['pets'] as List;
+          } else if (data['customers'] is List) {
+            final customersList = data['customers'] as List;
+            for (final c in customersList) {
+              if (c is Map) {
+                final cId = c['id'] ?? c['userId'];
+                if (cId == userId || customersList.length == 1) {
+                  if (c['pets'] is List) {
+                    list = c['pets'] as List;
+                    break;
+                  }
+                }
+              }
+            }
+          } else if (data['items'] is List) {
+            list = data['items'] as List;
+          } else if (data['rows'] is List) {
+            list = data['rows'] as List;
+          } else if (data['results'] is List) {
+            list = data['results'] as List;
+          }
         } else if (data is List) {
           list = data;
+        }
+
+        if (list.isEmpty && response['pets'] is List) {
+          list = response['pets'] as List;
         }
 
         return list
@@ -899,6 +937,7 @@ class GroomerRepository {
       final groomer = getCurrentGroomer();
       final body = <String, dynamic>{
         'userId': userId,
+        'customerId': userId,
         'petId': petId,
         'serviceId': serviceId,
         if (packageId != null && packageId > 0) 'packageId': packageId,
@@ -913,15 +952,49 @@ class GroomerRepository {
       };
 
       log.d('GroomerRepository::createBookingForUser::Creating booking for user $userId (groomerId: ${groomerId ?? groomer?.id})');
-      final response = await ServicesLocator.apiRepository.post(
-        '/api/groomer-auth/bookings/create-for-user',
-        body,
-      );
 
-      if (response != null && response['success'] == true) {
+      final candidateEndpoints = [
+        '/api/common/groomer/bookings',
+        '/api/common/bookings',
+        '/api/groomer-auth/bookings/create-for-user',
+        '/api/groomer-auth/bookings',
+      ];
+
+      Map<String, dynamic>? response;
+      for (final endpoint in candidateEndpoints) {
+        try {
+          final res = await ServicesLocator.apiRepository.post(
+            endpoint,
+            body,
+          );
+          if (res != null && (res['success'] == true || res['id'] != null || res['bookingId'] != null || res['data'] != null)) {
+            response = res;
+            break;
+          }
+        } catch (_) {
+          continue;
+        }
+      }
+
+      if (response != null && (response['success'] == true || response['data'] != null || response['id'] != null || response['bookingId'] != null)) {
         return response['data'] as Map<String, dynamic>? ?? response;
       }
-      return null;
+
+      // Fallback: Delegate to GroomerHomeRepository for consistent local booking and notification dispatch
+      return await ServicesLocator.groomerHomeRepository.createBookingForUser(
+        userId: userId,
+        petId: petId,
+        serviceId: serviceId,
+        packageId: packageId,
+        addOnIds: addOnIds,
+        groomerId: groomerId,
+        bookingDate: bookingDate,
+        startTime: startTime,
+        endTime: endTime,
+        clientId: clientId,
+        regionId: regionId,
+        storeId: storeId,
+      );
     } catch (e) {
       log.e('GroomerRepository::createBookingForUser::Error: $e');
       return null;

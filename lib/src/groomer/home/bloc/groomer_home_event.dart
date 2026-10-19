@@ -224,11 +224,12 @@ final class GroomerHomeSearchCustomersEvent extends GroomerHomeEvent {
 
 final class GroomerHomeGetCustomerPetsEvent extends GroomerHomeEvent {
   final int userId;
+  final List<CustomerPetSummary>? initialPets;
 
-  const GroomerHomeGetCustomerPetsEvent(this.userId);
+  const GroomerHomeGetCustomerPetsEvent(this.userId, {this.initialPets});
 
   @override
-  List<Object?> get props => [userId];
+  List<Object?> get props => [userId, initialPets];
 }
 
 final class GroomerHomeGetSalonGroomersEvent extends GroomerHomeEvent {

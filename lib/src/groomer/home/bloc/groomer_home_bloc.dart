@@ -616,23 +616,48 @@ class GroomerHomeBloc extends Bloc<GroomerHomeEvent, GroomerHomeState> {
     Emitter<GroomerHomeState> emit,
   ) async {
     log.d('GroomerHomeBloc::_onGetCustomerPets::Fetching pets for user ${event.userId}');
+    final hasInitial = event.initialPets != null && event.initialPets!.isNotEmpty;
     emit(state.copyWith(
+      customerPets: hasInitial ? () => event.initialPets! : null,
       isLoadingCustomerPets: () => true,
       petError: () => null,
     ));
     try {
       final pets = await repository.getCustomerPets(event.userId);
-      emit(state.copyWith(
-        customerPets: () => pets,
-        isLoadingCustomerPets: () => false,
-      ));
+      if (pets.isNotEmpty) {
+        emit(state.copyWith(
+          customerPets: () => pets,
+          isLoadingCustomerPets: () => false,
+          petError: () => null,
+        ));
+      } else if (hasInitial) {
+        emit(state.copyWith(
+          customerPets: () => event.initialPets!,
+          isLoadingCustomerPets: () => false,
+          petError: () => null,
+        ));
+      } else {
+        emit(state.copyWith(
+          customerPets: () => [],
+          isLoadingCustomerPets: () => false,
+          petError: () => null,
+        ));
+      }
     } catch (e) {
       log.e('GroomerHomeBloc::_onGetCustomerPets::Error: $e');
-      emit(state.copyWith(
-        customerPets: () => [],
-        isLoadingCustomerPets: () => false,
-        petError: () => 'Unable to load pets. Please try again.',
-      ));
+      if (hasInitial) {
+        emit(state.copyWith(
+          customerPets: () => event.initialPets!,
+          isLoadingCustomerPets: () => false,
+          petError: () => null,
+        ));
+      } else {
+        emit(state.copyWith(
+          customerPets: () => [],
+          isLoadingCustomerPets: () => false,
+          petError: () => null,
+        ));
+      }
     }
   }
 

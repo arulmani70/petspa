@@ -34,8 +34,13 @@ class CustomerSummary {
         json['photoUrl']?.toString();
 
     List<CustomerPetSummary> petsList = [];
-    if (json['pets'] != null && json['pets'] is List) {
-      petsList = (json['pets'] as List)
+    final rawPets = json['pets'] ??
+        json['customerPets'] ??
+        json['customer_pets'] ??
+        json['petList'] ??
+        json['petsList'];
+    if (rawPets != null && rawPets is List) {
+      petsList = rawPets
           .whereType<Map<String, dynamic>>()
           .map((p) => CustomerPetSummary.fromJson(p))
           .toList();
@@ -106,7 +111,13 @@ class CustomerPetSummary {
     this.profilePictureUrl,
   });
 
-  factory CustomerPetSummary.fromJson(Map<String, dynamic> json) {
+  factory CustomerPetSummary.fromJson(Map<String, dynamic> rawJson) {
+    final json = (rawJson['pet'] is Map<String, dynamic>)
+        ? rawJson['pet'] as Map<String, dynamic>
+        : (rawJson['petData'] is Map<String, dynamic>
+            ? rawJson['petData'] as Map<String, dynamic>
+            : rawJson);
+
     final idVal = json['id'] ?? json['petId'] ?? json['pet_id'] ?? json['_id'] ?? 0;
     final id = idVal is int ? idVal : int.tryParse(idVal.toString()) ?? 0;
 

@@ -30,7 +30,9 @@ class ApiRepository {
         _notificationAuthIsGroomer == true ||
         (_notificationAuthIsGroomer != false &&
             session.isGroomerLoggedIn &&
-            (path.contains('/api/groomer-availability') ||
+            (path.contains('/api/common') ||
+                path.contains('/api/pets') ||
+                path.contains('/api/groomer-availability') ||
                 path.contains('/api/availability') ||
                 (path.contains('/api/notifications') && !session.isLoggedIn)));
   }
@@ -374,7 +376,7 @@ class ApiRepository {
   }
 
   bool _isGroomerNotificationUserNotFound(String path, dynamic responseData) {
-    if (path.contains('/api/notifications')) {
+    if (path.contains('/api/notifications') || path.contains('/api/bookings')) {
       return true;
     }
     return false;

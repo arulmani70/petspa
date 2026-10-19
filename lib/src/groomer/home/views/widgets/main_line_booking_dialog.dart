@@ -91,8 +91,11 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
     // Initialize selections if bloc state is already populated
     if (_bloc.state.searchedCustomers.isNotEmpty) {
       _selectedCustomer = _bloc.state.searchedCustomers.first;
+      if (_selectedCustomer!.pets.isNotEmpty) {
+        _selectedPet = _selectedCustomer!.pets.first;
+      }
     }
-    if (_bloc.state.customerPets.isNotEmpty) {
+    if (_selectedPet == null && _bloc.state.customerPets.isNotEmpty) {
       _selectedPet = _bloc.state.customerPets.first;
     }
     if (_bloc.state.bookingServices.isNotEmpty) {
@@ -146,11 +149,14 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
   void _onCustomerSelected(CustomerSummary customer) {
     setState(() {
       _selectedCustomer = customer;
-      _selectedPet = null;
+      _selectedPet = customer.pets.isNotEmpty ? customer.pets.first : null;
     });
     // Fetch pets strictly for the real customer userId from backend API
     if (!_bloc.isClosed) {
-      _bloc.add(GroomerHomeGetCustomerPetsEvent(customer.id));
+      _bloc.add(GroomerHomeGetCustomerPetsEvent(
+        customer.id,
+        initialPets: customer.pets,
+      ));
     }
   }
 
@@ -362,7 +368,7 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
 
     // Verify selected slot still belongs to latest real availability response
     final latestSlot = _bloc.state.availableTimeSlots.firstWhere(
-      (s) => s['startTime']?.toString() == _selectedStartTime,
+      (s) => BookingDateUtils.isSameTimeSlot(s['startTime'], _selectedStartTime),
       orElse: () => <String, dynamic>{},
     );
 
@@ -446,11 +452,22 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
           }
         }
 
-        // Auto-select first pet when real backend pets arrive
-        if (_selectedPet == null && state.customerPets.isNotEmpty) {
-          setState(() {
-            _selectedPet = state.customerPets.first;
-          });
+        // Auto-select first pet when real backend pets arrive or from selected customer
+        final currentPets = state.customerPets.isNotEmpty
+            ? state.customerPets
+            : (_selectedCustomer?.pets ?? const <CustomerPetSummary>[]);
+        if (currentPets.isNotEmpty) {
+          if (_selectedPet == null || !currentPets.any((p) => p.id == _selectedPet!.id)) {
+            setState(() {
+              _selectedPet = currentPets.first;
+            });
+          }
+        } else if (!state.isLoadingCustomerPets) {
+          if (_selectedPet != null) {
+            setState(() {
+              _selectedPet = null;
+            });
+          }
         }
 
         // If a specific groomer was selected but is no longer in the list, fallback to "Any Groomer"
@@ -555,7 +572,9 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
       },
       builder: (context, state) {
         final customers = state.searchedCustomers;
-        final pets = state.customerPets;
+        final pets = state.customerPets.isNotEmpty
+            ? state.customerPets
+            : (_selectedCustomer?.pets ?? const <CustomerPetSummary>[]);
         final groomers = state.salonGroomers;
         final services = state.bookingServices;
         final packages = state.bookingPackages;
@@ -581,7 +600,7 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
         final bool isSlotValid = _selectedStartTime != null &&
             !state.isCheckingAvailability &&
             state.availableTimeSlots.any((s) =>
-                s['startTime']?.toString() == _selectedStartTime &&
+                BookingDateUtils.isSameTimeSlot(s['startTime'], _selectedStartTime) &&
                 s['isAvailable'] != false &&
                 (s['remaining'] == null || (s['remaining'] is num && s['remaining'] > 0)));
 
@@ -1022,7 +1041,9 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                   child: Text(
                                     state.petError ??
                                         (_selectedCustomer != null
-                                            ? 'Unable to load pets. Please try again.'
+                                            ? (state.isLoadingCustomerPets
+                                                ? 'Loading customer pets...'
+                                                : 'This customer has no pets registered.')
                                             : 'Please select a registered customer above to view pets.'),
                                     style: AppFonts.poppins(
                                       size: 11.5,
@@ -1044,7 +1065,10 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                     onPressed: () {
                                       final userId = _selectedCustomer?.id;
                                       if (userId != null) {
-                                        _bloc.add(GroomerHomeGetCustomerPetsEvent(userId));
+                                        _bloc.add(GroomerHomeGetCustomerPetsEvent(
+                                          userId,
+                                          initialPets: _selectedCustomer?.pets,
+                                        ));
                                       }
                                     },
                                   ),
