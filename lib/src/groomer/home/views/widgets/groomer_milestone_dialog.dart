@@ -211,17 +211,11 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
       catalog = list;
     }
 
-    // Filter intermediate service milestones based on the selected booking's required services
-    return catalog.where((m) {
-      if (m.key == 'bath_completed' && !_booking.requiresBath) {
-        return false;
-      }
-      if ((m.key == 'grooming_completed' || m.key == 'grooming_in_progress') &&
-          !_booking.requiresGrooming) {
-        return false;
-      }
-      return true;
-    }).toList();
+    // Combine store configuration with booking services & eliminate duplicate milestones
+    return GroomerMilestoneResolver.filterMilestonesForBooking(
+      storeCatalog: catalog,
+      booking: _booking,
+    );
   }
 
   StoreMilestoneConfig _getConfigForMilestone(String key) {
@@ -1188,6 +1182,27 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
             ),
           ],
         ),
+        if (_booking.isCheckedIn && !_booking.areRequiredMilestonesCompleted && !config.isReadyForCheckout) ...[
+          const SizedBox(height: 10),
+          Center(
+            child: TextButton.icon(
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFFB45309),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              onPressed: _isSubmitting ? null : () => _handleReadyForCheckout(skipMilestones: true),
+              icon: const Icon(Icons.fast_forward_rounded, size: 16, color: Color(0xFFD97706)),
+              label: Text(
+                'Busy? Skip intermediate steps & move to Ready for Checkout',
+                style: AppFonts.poppins(
+                  size: 11.5,
+                  weight: FontWeight.w600,
+                  color: const Color(0xFFB45309),
+                ),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }

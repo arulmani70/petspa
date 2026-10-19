@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/customer_socket_service.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/groomer_socket_service.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
+import 'package:shear_heaven_pet_spa/src/common/constants/constansts.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/bloc/groomer_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/bloc/groomer_home_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/utils/booking_date_utils.dart';
@@ -221,7 +222,7 @@ void main() {
       expect(booking1.petName, equals('Milo'));
       expect(
         booking1.profilePicture,
-        equals('https://devapi.shearheavenpetspa.com/uploads/pets/milo.png'),
+        equals('${Constants.app.BASE_URL}/uploads/pets/milo.png'),
       );
 
       // 2. Nested pet object with full https image URL
@@ -248,7 +249,7 @@ void main() {
       expect(booking3.petName, equals('Rocky'));
       expect(
         booking3.profilePicture,
-        equals('https://devapi.shearheavenpetspa.com/uploads/rocky.png'),
+        equals('${Constants.app.BASE_URL}/uploads/rocky.png'),
       );
 
       // 4. Null or empty image

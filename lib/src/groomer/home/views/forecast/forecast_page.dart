@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/utils/booking_date_utils.dart';
+import 'package:shear_heaven_pet_spa/src/common/common.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/forecast_financial_summary.dart';
@@ -2543,57 +2544,25 @@ class _ForecastPageState extends State<ForecastPage> {
   }
 
   Widget _buildPetImage(String? url, String petName) {
-    final fallbackAsset = petName.toLowerCase().contains('teddy')
-        ? 'assets/images/common/pet_2.png'
-        : (petName.toLowerCase().contains('doodles')
-            ? 'assets/images/chat/pet_teddy.png'
-            : 'assets/images/common/pet_1.png');
-
-    if (url != null && url.isNotEmpty) {
-      if (url.startsWith('http://') || url.startsWith('https://')) {
-        return Image.network(
-          url,
-          fit: BoxFit.cover,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return Container(
-              color: const Color(0xFFF3F4F6),
-              child: const Center(
-                child: SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F766E)),
-                ),
-              ),
-            );
-          },
-          errorBuilder: (context, error, stackTrace) {
-            return Image.asset(
-              fallbackAsset,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => _buildAvatarFallback(petName),
-            );
-          },
-        );
-      } else {
-        return Image.asset(
-          url,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            return Image.asset(
-              fallbackAsset,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => _buildAvatarFallback(petName),
-            );
-          },
-        );
-      }
-    }
-
-    return Image.asset(
-      fallbackAsset,
+    return PetImageHelper.buildImage(
+      photoUrl: url,
+      petName: petName,
       fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) => _buildAvatarFallback(petName),
+      loadingWidget: Container(
+        color: const Color(0xFFF3F4F6),
+        child: const Center(
+          child: SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F766E)),
+          ),
+        ),
+      ),
+      customFallback: Image.asset(
+        PetImageHelper.getFallbackAsset(petName: petName),
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _buildAvatarFallback(petName),
+      ),
     );
   }
 

@@ -1687,14 +1687,8 @@ Widget _buildMyPets(BuildContext context) {
                       pet['petName']?.toString() ??
                       pet['name']?.toString() ??
                       '';
-                  final photoUrl = pet[Constants.database.COLUMN_PHOTO_URL]?.toString() ??
-                      pet['profilePictureUrl']?.toString() ??
-                      pet['profilePicture']?.toString() ??
-                      pet['petProfilePicture']?.toString() ??
-                      pet['photo_url']?.toString();
-                  final fallbackAsset = entry.key.isEven
-                      ? 'assets/images/common/pet_1.png'
-                      : 'assets/images/common/pet_2.png';
+                  final photoUrl = PetImageHelper.extractPetPhoto(pet);
+                  final fallbackAsset = PetImageHelper.getFallbackAsset(petName: name, index: entry.key);
                   return Padding(
                     padding: const EdgeInsets.only(right: 20),
                     child: _buildPetAvatar(
@@ -1810,44 +1804,10 @@ Widget _buildPetAvatar(
 }
 
 Widget _buildAvatarImage(String? photoUrl, String fallbackAsset) {
-  final raw = photoUrl?.trim();
-  if (raw == null || raw.isEmpty || raw.toLowerCase() == 'null' || raw.toLowerCase() == 'undefined') {
-    return Image.asset(fallbackAsset, fit: BoxFit.cover);
-  }
-
-  if (raw.startsWith('assets/')) {
-    return Image.asset(
-      raw,
-      fit: BoxFit.cover,
-      errorBuilder: (ctx, err, st) => Image.asset(fallbackAsset, fit: BoxFit.cover),
-    );
-  }
-
-  if (raw.startsWith('http://') || raw.startsWith('https://')) {
-    return Image.network(
-      raw,
-      fit: BoxFit.cover,
-      errorBuilder: (ctx, err, st) => Image.asset(fallbackAsset, fit: BoxFit.cover),
-    );
-  }
-
-  try {
-    final file = File(raw);
-    if (file.existsSync()) {
-      return Image.file(
-        file,
-        fit: BoxFit.cover,
-        errorBuilder: (ctx, err, st) => Image.asset(fallbackAsset, fit: BoxFit.cover),
-      );
-    }
-  } catch (_) {}
-
-  final clean = raw.startsWith('/') ? raw.substring(1) : raw;
-  final fullUrl = '${Constants.app.BASE_URL}/$clean';
-  return Image.network(
-    fullUrl,
+  return PetImageHelper.buildImage(
+    photoUrl: photoUrl,
+    fallbackAsset: fallbackAsset,
     fit: BoxFit.cover,
-    errorBuilder: (ctx, err, st) => Image.asset(fallbackAsset, fit: BoxFit.cover),
   );
 }
 

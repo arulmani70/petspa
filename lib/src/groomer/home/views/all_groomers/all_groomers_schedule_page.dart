@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/utils/booking_date_utils.dart';
+import 'package:shear_heaven_pet_spa/src/common/common.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/toast_util.dart';
@@ -760,6 +761,95 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
     } catch (e) {
       if (mounted) {
         ToastUtil.showErrorToast(context, 'Failed to mark ready for checkout: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _processingBookingIds.remove(booking.bookingId));
+    }
+  }
+
+  Future<void> _handleSkipMilestones(GroomerBooking booking, {bool showConfirmation = false}) async {
+    if (!_isOwnBooking(booking)) {
+      ToastUtil.showErrorToast(context, 'You cannot skip milestones on another groomer\'s appointment.');
+      return;
+    }
+    if (_processingBookingIds.contains(booking.bookingId)) return;
+
+    if (showConfirmation) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.fast_forward_rounded, color: Color(0xFFD97706), size: 22),
+              const SizedBox(width: 8),
+              Text(
+                'Skip Milestones?',
+                style: AppFonts.poppins(size: 16, weight: FontWeight.w600, color: const Color(0xFF1F2937)),
+              ),
+            ],
+          ),
+          content: Text(
+            'Skip intermediate service milestones and mark booking #${booking.bookingId} (${booking.petName}) ready for checkout?',
+            style: AppFonts.poppins(size: 13, color: const Color(0xFF4B5563)),
+          ),
+          actions: [
+            TextButton(
+              key: const Key('appointment_skip_cancel_button'),
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(
+                'Cancel',
+                style: AppFonts.poppins(size: 13, weight: FontWeight.w500, color: const Color(0xFF6B7280)),
+              ),
+            ),
+            ElevatedButton(
+              key: const Key('appointment_skip_confirm_button'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFD97706),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 0,
+              ),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: Text(
+                'Skip & Ready',
+                style: AppFonts.poppins(size: 13, weight: FontWeight.w600, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+
+    if (!mounted) return;
+    setState(() => _processingBookingIds.add(booking.bookingId));
+
+    try {
+      final res = await ServicesLocator.groomerHomeRepository.markReadyForCheckoutDetails(
+        bookingId: booking.bookingId,
+        booking: booking,
+        skipMilestones: true,
+      );
+
+      if (!mounted) return;
+
+      if (res.success) {
+        ToastUtil.showSuccessToast(context, res.message);
+        final updatedBooking = res.updatedBooking ?? booking.copyWith(status: 'ready_for_checkout');
+        setState(() {
+          final idx = _allBookings.indexWhere((b) => b.bookingId == updatedBooking.bookingId);
+          if (idx >= 0) {
+            _allBookings[idx] = updatedBooking;
+          }
+        });
+        await _loadSchedule();
+      } else {
+        ToastUtil.showErrorToast(context, res.message);
+      }
+    } catch (e) {
+      if (mounted) {
+        ToastUtil.showErrorToast(context, 'Failed to skip milestones: $e');
       }
     } finally {
       if (mounted) setState(() => _processingBookingIds.remove(booking.bookingId));
@@ -2185,34 +2275,43 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
               runSpacing: 8,
               spacing: 8,
               children: [
-                // Dedicated Groomer Badge
-                Container(
-                  constraints: const BoxConstraints(maxWidth: 190),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF0FDFA),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFF0F766E).withValues(alpha: 0.2)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.badge_outlined, size: 13, color: Color(0xFF0F766E)),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          'Groomer: ${booking.effectiveGroomerName}',
-                          style: AppFonts.poppins(
-                            size: 11.5,
-                            weight: FontWeight.w600,
-                            color: const Color(0xFF0F766E),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                // Left Side: Dedicated Groomer Badge + Optional Skip Button (after check-in)
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    Container(
+                      constraints: const BoxConstraints(maxWidth: 190),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0FDFA),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF0F766E).withValues(alpha: 0.2)),
                       ),
-                    ],
-                  ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.badge_outlined, size: 13, color: Color(0xFF0F766E)),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              'Groomer: ${booking.effectiveGroomerName}',
+                              style: AppFonts.poppins(
+                                size: 11.5,
+                                weight: FontWeight.w600,
+                                color: const Color(0xFF0F766E),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (canManage && booking.canShowSkipOption)
+                      _buildSkipButton(booking),
+                  ],
                 ),
 
                 // Action Buttons (Only enabled for the logged-in groomer's own appointments)
@@ -2600,58 +2699,63 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
     );
   }
 
-  Widget _buildPetImage(String? url, String petName) {
-    final fallbackAsset = petName.toLowerCase().contains('teddy')
-        ? 'assets/images/common/pet_2.png'
-        : (petName.toLowerCase().contains('doodles')
-            ? 'assets/images/chat/pet_teddy.png'
-            : 'assets/images/common/pet_1.png');
-
-    if (url != null && url.isNotEmpty) {
-      if (url.startsWith('http://') || url.startsWith('https://')) {
-        return Image.network(
-          url,
-          fit: BoxFit.cover,
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return Container(
-              color: const Color(0xFFF3F4F6),
-              child: const Center(
-                child: SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F766E)),
-                ),
+  Widget _buildSkipButton(GroomerBooking booking) {
+    final isProcessing = _processingBookingIds.contains(booking.bookingId);
+    return OutlinedButton.icon(
+      key: Key('appointment_skip_button_${booking.bookingId}'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: const Color(0xFFD97706),
+        backgroundColor: const Color(0xFFFFFBEB),
+        side: const BorderSide(color: Color(0xFFFCD34D), width: 1.2),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        minimumSize: const Size(0, 28),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      onPressed: isProcessing ? null : () => _handleSkipMilestones(booking),
+      icon: isProcessing
+          ? const SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.8,
+                color: Color(0xFFD97706),
               ),
-            );
-          },
-          errorBuilder: (context, error, stackTrace) {
-            return Image.asset(
-              fallbackAsset,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => _buildAvatarFallback(petName),
-            );
-          },
-        );
-      } else {
-        return Image.asset(
-          url,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            return Image.asset(
-              fallbackAsset,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => _buildAvatarFallback(petName),
-            );
-          },
-        );
-      }
-    }
+            )
+          : const Icon(Icons.fast_forward_rounded, size: 14, color: Color(0xFFD97706)),
+      label: Text(
+        isProcessing ? 'Skipping...' : 'Skip',
+        style: AppFonts.poppins(
+          size: 11.5,
+          weight: FontWeight.w600,
+          color: const Color(0xFFD97706),
+        ),
+      ),
+    );
+  }
 
-    return Image.asset(
-      fallbackAsset,
+  Widget _buildPetImage(String? url, String petName) {
+    return PetImageHelper.buildImage(
+      photoUrl: url,
+      petName: petName,
       fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) => _buildAvatarFallback(petName),
+      loadingWidget: Container(
+        color: const Color(0xFFF3F4F6),
+        child: const Center(
+          child: SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F766E)),
+          ),
+        ),
+      ),
+      customFallback: Image.asset(
+        PetImageHelper.getFallbackAsset(petName: petName),
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _buildAvatarFallback(petName),
+      ),
     );
   }
 

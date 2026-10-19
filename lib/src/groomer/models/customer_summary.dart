@@ -1,3 +1,5 @@
+import 'package:shear_heaven_pet_spa/src/common/common.dart';
+
 class CustomerSummary {
   final int id;
   final String name;
@@ -161,12 +163,7 @@ class CustomerPetSummary {
     final notes = json['notesAllergies']?.toString() ??
         json['notes_allergies']?.toString() ??
         json['notes']?.toString();
-    final profilePicture = json['profilePictureUrl']?.toString() ??
-        json['profile_picture_url']?.toString() ??
-        json['profilePicture']?.toString() ??
-        json['profile_picture']?.toString() ??
-        json['photoUrl']?.toString() ??
-        json['photo_url']?.toString();
+    final profilePicture = PetImageHelper.extractPetPhoto(json);
 
     return CustomerPetSummary(
       id: id,

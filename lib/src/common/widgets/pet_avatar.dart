@@ -25,15 +25,16 @@ class PetAvatar extends StatelessWidget {
         shape: BoxShape.circle,
         border: Border.all(color: const Color(0xFF14B8A6), width: 2),
       ),
-      child: photoUrl != null && photoUrl!.isNotEmpty
-          ? ClipOval(
-              child: Image.network(
-                photoUrl!.startsWith('/') ? '${Constants.app.BASE_URL}$photoUrl' : photoUrl!,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => _buildFallback(initial),
-              ),
-            )
-          : _buildFallback(initial),
+      child: ClipOval(
+        child: PetImageHelper.buildImage(
+          photoUrl: photoUrl,
+          petName: name,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          customFallback: _buildFallback(initial),
+        ),
+      ),
     );
   }
 

@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 
 import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/bloc/booking_bloc.dart';
-import 'package:shear_heaven_pet_spa/src/common/constants/constansts.dart';
+import 'package:shear_heaven_pet_spa/src/common/common.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/toast_util.dart';
@@ -138,18 +138,7 @@ class _CustomerCheckoutSummarySheetState
   }
 
   String? get _petPhoto {
-    final pet = widget.booking['pet'] is Map ? widget.booking['pet'] as Map : null;
-    final photo = widget.booking['petPhotoUrl'] ??
-        widget.booking['pet_photo_url'] ??
-        widget.booking['photoUrl'] ??
-        widget.booking['photo_url'] ??
-        pet?['profilePictureUrl'] ??
-        pet?['profile_picture_url'] ??
-        pet?['photoUrl'] ??
-        pet?['photo_url'];
-    final s = photo?.toString().trim();
-    if (s != null && s.isNotEmpty && s != 'null') return s;
-    return null;
+    return PetImageHelper.extractPetPhoto(widget.booking);
   }
 
   String get _groomerName {
@@ -1345,32 +1334,12 @@ class _CustomerCheckoutSummarySheetState
   }
 
   Widget _buildPetAvatar() {
-    final photo = _petPhoto;
-    if (photo != null && photo.isNotEmpty) {
-      if (photo.startsWith('http://') || photo.startsWith('https://')) {
-        return Image.network(
-          photo,
-          fit: BoxFit.cover,
-          errorBuilder: (c, e, s) => _petAvatarFallback(),
-        );
-      } else if (photo.startsWith('assets/')) {
-        return Image.asset(
-          photo,
-          fit: BoxFit.cover,
-          errorBuilder: (c, e, s) => _petAvatarFallback(),
-        );
-      } else {
-        final url = photo.startsWith('/')
-            ? '${Constants.app.BASE_URL}$photo'
-            : '${Constants.app.BASE_URL}/$photo';
-        return Image.network(
-          url,
-          fit: BoxFit.cover,
-          errorBuilder: (c, e, s) => _petAvatarFallback(),
-        );
-      }
-    }
-    return _petAvatarFallback();
+    return PetImageHelper.buildImage(
+      photoUrl: _petPhoto,
+      petName: _petName,
+      fit: BoxFit.cover,
+      customFallback: _petAvatarFallback(),
+    );
   }
 
   Widget _petAvatarFallback() {

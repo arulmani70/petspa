@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -7,7 +6,7 @@ import 'package:logger/logger.dart';
 import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/services/booking_calendar_service.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/services/booking_draft.dart';
-import 'package:shear_heaven_pet_spa/src/common/constants/constansts.dart';
+import 'package:shear_heaven_pet_spa/src/common/common.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/views/mobile/widgets/customer_checkout_summary_sheet.dart';
@@ -102,52 +101,16 @@ class _BookingDetailsPageMobileState extends State<BookingDetailsPageMobile> {
     Map<String, dynamic>? embeddedPet,
     Map<String, dynamic> summary,
   ) {
-    final candidates = [
-      matchedPet?[Constants.database.COLUMN_PHOTO_URL],
-      matchedPet?['profilePictureUrl'],
-      matchedPet?['profilePicture'],
-      matchedPet?['profile_picture_url'],
-      matchedPet?['profile_picture'],
-      matchedPet?['photo_url'],
-      matchedPet?['photoUrl'],
-      matchedPet?['petPhotoUrl'],
-      matchedPet?['pet_photo_url'],
-      matchedPet?['petPhoto'],
-      matchedPet?['pet_photo'],
-      matchedPet?['image'],
-      matchedPet?['avatar'],
-      matchedPet?['petImage'],
-      matchedPet?['pet_image'],
-      embeddedPet?[Constants.database.COLUMN_PHOTO_URL],
-      embeddedPet?['profilePictureUrl'],
-      embeddedPet?['profilePicture'],
-      embeddedPet?['photo_url'],
-      embeddedPet?['photoUrl'],
-      embeddedPet?['pet_photo_url'],
-      embeddedPet?['petPhotoUrl'],
-      embeddedPet?['pet_photo'],
-      embeddedPet?['image'],
-      embeddedPet?['avatar'],
-      summary['pet_photo'],
-      summary['pet_photo_url'],
-      summary['petPhotoUrl'],
-      summary['petPhoto'],
-      summary['photo_url'],
-      summary['photoUrl'],
-      summary['profilePictureUrl'],
-      summary['profilePicture'],
-      summary['image'],
-      summary['avatar'],
-    ];
-
-    for (final c in candidates) {
-      if (c != null) {
-        final s = c.toString().trim();
-        if (s.isNotEmpty && s != 'null' && s != 'undefined') {
-          return s;
-        }
-      }
+    if (matchedPet != null) {
+      final p = PetImageHelper.extractPetPhoto(matchedPet);
+      if (p != null && p.isNotEmpty) return p;
     }
+    if (embeddedPet != null) {
+      final p = PetImageHelper.extractPetPhoto(embeddedPet);
+      if (p != null && p.isNotEmpty) return p;
+    }
+    final s = PetImageHelper.extractPetPhoto(summary);
+    if (s != null && s.isNotEmpty) return s;
     return null;
   }
 
@@ -1220,70 +1183,18 @@ class _BookingDetailsPageMobileState extends State<BookingDetailsPageMobile> {
   }
 
   Widget _buildPetImage(String? photo) {
-    if (photo != null) {
-      final clean = photo.trim();
-      if (clean.isNotEmpty && clean != 'null' && clean != 'undefined') {
-        if (clean.startsWith('http://') || clean.startsWith('https://')) {
-          return Image.network(
-            clean,
-            width: double.infinity,
-            height: double.infinity,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
-          );
-        } else if (clean.startsWith('assets/')) {
-          return Image.asset(
-            clean,
-            width: double.infinity,
-            height: double.infinity,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
-          );
-        } else if (clean.startsWith('/') ||
-            clean.startsWith('uploads/') ||
-            clean.startsWith('images/')) {
-          final url = clean.startsWith('/')
-              ? '${Constants.app.BASE_URL}$clean'
-              : '${Constants.app.BASE_URL}/$clean';
-          return Image.network(
-            url,
-            width: double.infinity,
-            height: double.infinity,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
-          );
-        } else {
-          try {
-            final file = File(clean);
-            if (file.existsSync()) {
-              return Image.file(
-                file,
-                width: double.infinity,
-                height: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) =>
-                    _buildPlaceholder(),
-              );
-            }
-          } catch (_) {}
-          if (clean.contains('/') && !clean.contains('\\')) {
-            return Image.network(
-              '${Constants.app.BASE_URL}/$clean',
-              width: double.infinity,
-              height: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
-            );
-          }
-        }
-      }
-    }
-    return _buildPlaceholder();
+    return PetImageHelper.buildImage(
+      photoUrl: photo,
+      width: double.infinity,
+      height: double.infinity,
+      fit: BoxFit.cover,
+      customFallback: _buildPlaceholder(),
+    );
   }
 
   Widget _buildPlaceholder() {
     return Image.asset(
-      'assets/images/pets/sample_pet.png',
+      PetImageHelper.defaultPetAsset1,
       width: double.infinity,
       height: double.infinity,
       fit: BoxFit.cover,

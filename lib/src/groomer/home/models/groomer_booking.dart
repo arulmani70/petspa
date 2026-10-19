@@ -1,6 +1,6 @@
 import 'package:intl/intl.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/utils/booking_date_utils.dart';
-import 'package:shear_heaven_pet_spa/src/common/constants/constansts.dart';
+import 'package:shear_heaven_pet_spa/src/common/common.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/session_service.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_check_in_record.dart';
@@ -44,6 +44,7 @@ class GroomerBooking {
   final String? petMedicalNotes;
   final GroomerMilestoneRecord? milestoneRecord;
   final String? serviceStage;
+  final List<String> bookedServices;
 
   const GroomerBooking({
     required this.bookingId,
@@ -82,6 +83,7 @@ class GroomerBooking {
     this.petMedicalNotes,
     this.milestoneRecord,
     this.serviceStage,
+    this.bookedServices = const [],
   });
 
   double? get totalCollected {
@@ -133,6 +135,65 @@ class GroomerBooking {
 
   // ── Step 7 Dynamic Service Milestone helpers ─────────────────────────────
 
+  /// Complete list of service and add-on names booked for this appointment.
+  List<String> get allBookedServiceNames {
+    final names = <String>[];
+    if (serviceName.isNotEmpty && serviceName != 'Service') {
+      names.add(serviceName);
+    }
+    if (packageName != null && packageName!.trim().isNotEmpty) {
+      names.add(packageName!.trim());
+    }
+    names.addAll(addOns);
+    names.addAll(bookedServices);
+    return names;
+  }
+
+  /// Whether customer booked a nail service (Nail Cut, Nail Trimming, Nail Grinding).
+  bool get hasNailService {
+    if (serviceId == 14 || addOnIds.contains(1) || addOnIds.contains(14)) return true;
+    return allBookedServiceNames.any((s) {
+      final l = s.toLowerCase();
+      return l.contains('nail') || l.contains('paw');
+    });
+  }
+
+  /// Whether customer booked a teeth or dental service (Teeth Cleaning, Teeth Brushing).
+  bool get hasTeethService {
+    if (serviceId == 16 || addOnIds.contains(2) || addOnIds.contains(6)) return true;
+    return allBookedServiceNames.any((s) {
+      final l = s.toLowerCase();
+      return l.contains('teeth') || l.contains('dental');
+    });
+  }
+
+  /// Whether customer booked a medicated shampoo or treatment service.
+  bool get hasMedicatedService {
+    if (serviceId == 17 || serviceId == 20 || addOnIds.contains(4) || addOnIds.contains(7)) return true;
+    return allBookedServiceNames.any((s) {
+      final l = s.toLowerCase();
+      return l.contains('medicated') || l.contains('flea') || l.contains('skin care');
+    });
+  }
+
+  /// Whether customer booked an ear cleaning service.
+  bool get hasEarService {
+    if (serviceId == 15) return true;
+    return allBookedServiceNames.any((s) {
+      final l = s.toLowerCase();
+      return l.contains('ear');
+    });
+  }
+
+  /// Whether customer booked a de-shedding treatment.
+  bool get hasDeSheddingService {
+    if (serviceId == 19 || addOnIds.contains(5)) return true;
+    return allBookedServiceNames.any((s) {
+      final l = s.toLowerCase();
+      return l.contains('de-shed') || l.contains('deshed') || l.contains('furminator');
+    });
+  }
+
   /// Dynamically resolved list of required milestone keys for this booking based on selected services.
   List<String> get requiredMilestones => GroomerMilestoneResolver.resolveRequiredMilestones(
         serviceId: serviceId,
@@ -141,6 +202,7 @@ class GroomerBooking {
         packageName: packageName,
         addOnIds: addOnIds,
         addOns: addOns,
+        bookedServices: bookedServices,
       );
 
   bool get requiresBath => requiredMilestones.contains(GroomerMilestoneResolver.bathMilestone);
@@ -253,6 +315,20 @@ class GroomerBooking {
       status.toLowerCase() != 'cancelled' &&
       status.toLowerCase() != 'pending';
 
+  /// Whether this booking can show the Skip option on the appointment card.
+  /// Displayed immediately after check-in is completed, and hidden before check-in or
+  /// once ready for checkout, completed, cancelled, or all milestones are already done.
+  bool get canShowSkipOption {
+    if (!isCheckedIn) return false;
+    final sLower = status.toLowerCase();
+    if (sLower == 'ready_for_checkout' || isReadyForCheckout) return false;
+    if (sLower == 'completed' || isCompleted) return false;
+    if (sLower == 'cancelled' || sLower == 'rejected' || sLower == 'pending') return false;
+    if (bookingId <= 0) return false;
+    if (areRequiredMilestonesCompleted) return false;
+    return true;
+  }
+
   // Step 10 Groomer Final Checkout helpers
   bool get isCompleted =>
       status.toLowerCase() == 'completed' ||
@@ -330,23 +406,6 @@ class GroomerBooking {
     return buffer.toString();
   }
 
-  static String? _normalizeImageUrl(dynamic raw) {
-    if (raw == null) return null;
-    final str = raw.toString().trim();
-    if (str.isEmpty || str == 'null' || str == 'undefined') return null;
-    if (str.startsWith('http://') || str.startsWith('https://')) {
-      return str;
-    }
-    if (str.startsWith('assets/')) {
-      return str;
-    }
-    final base = Constants.app.BASE_URL;
-    if (str.startsWith('/')) {
-      return '$base$str';
-    }
-    return '$base/$str';
-  }
-
   factory GroomerBooking.fromJson(Map<String, dynamic> json) {
     int parsedId = 0;
     if (json['bookingId'] != null) {
@@ -360,19 +419,11 @@ class GroomerBooking {
     String pBreed = '';
     String? pPic;
     int? pId = int.tryParse(json['petId']?.toString() ?? json['pet_id']?.toString() ?? '');
-    if (json['pet'] is Map<String, dynamic>) {
-      final petMap = json['pet'] as Map<String, dynamic>;
+    if (json['pet'] is Map) {
+      final petMap = json['pet'] as Map;
       pName = petMap['petName']?.toString() ?? petMap['name']?.toString() ?? 'Pet';
       pBreed = petMap['breed']?.toString() ?? petMap['petBreed']?.toString() ?? '';
-      final rawPic = petMap['profilePictureUrl'] ??
-          petMap['profilePicture'] ??
-          petMap['petProfilePicture'] ??
-          petMap['photoUrl'] ??
-          petMap['petPhotoUrl'] ??
-          petMap['pet_photo_url'] ??
-          petMap['image'] ??
-          petMap['avatar'];
-      pPic = _normalizeImageUrl(rawPic);
+      pPic = PetImageHelper.extractPetPhoto(petMap);
       pId ??= int.tryParse(petMap['id']?.toString() ?? petMap['petId']?.toString() ?? '');
     } else {
       pName = json['petName']?.toString() ??
@@ -382,25 +433,11 @@ class GroomerBooking {
           json['petBreed']?.toString() ??
           json['pet_breed']?.toString() ??
           '';
-      final rawPic = json['petProfilePicture'] ??
-          json['profilePictureUrl'] ??
-          json['profilePicture'] ??
-          json['petPhotoUrl'] ??
-          json['pet_photo_url'] ??
-          json['photoUrl'] ??
-          json['petImage'];
-      pPic = _normalizeImageUrl(rawPic);
+      pPic = PetImageHelper.extractPetPhoto(json);
     }
 
     if (pPic == null || pPic.isEmpty) {
-      final fallbackRaw = json['petProfilePicture'] ??
-          json['profilePictureUrl'] ??
-          json['profilePicture'] ??
-          json['petPhotoUrl'] ??
-          json['pet_photo_url'] ??
-          json['photoUrl'] ??
-          json['petImage'];
-      pPic = _normalizeImageUrl(fallbackRaw);
+      pPic = PetImageHelper.extractPetPhoto(json);
     }
 
     // Parse User
@@ -489,6 +526,20 @@ class GroomerBooking {
           if (s.isNotEmpty) parsedAddOns.add(s);
         }
       }
+    }
+
+    // Parse Multiple Booked Services (if present)
+    List<String> parsedBookedServices = [];
+    if (json['bookedServices'] is List) {
+      parsedBookedServices = (json['bookedServices'] as List)
+          .map((e) => e is Map ? (e['name'] ?? e['serviceName'] ?? '').toString() : e.toString().trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
+    } else if (json['services'] is List) {
+      parsedBookedServices = (json['services'] as List)
+          .map((e) => e is Map ? (e['name'] ?? e['serviceName'] ?? '').toString() : e.toString().trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
     }
 
     double price = 0.0;
@@ -720,6 +771,7 @@ class GroomerBooking {
       petMedicalNotes: pMedical != null && pMedical.trim().isNotEmpty ? pMedical.trim() : null,
       milestoneRecord: parsedMilestoneRecord,
       serviceStage: (json['serviceStage'] ?? json['service_stage'])?.toString(),
+      bookedServices: parsedBookedServices,
     );
   }
 
@@ -760,6 +812,7 @@ class GroomerBooking {
     if (petMedicalNotes != null) 'petMedicalNotes': petMedicalNotes,
     if (milestoneRecord != null) 'milestoneRecord': milestoneRecord!.toJson(),
     if (serviceStage != null) 'serviceStage': serviceStage,
+    if (bookedServices.isNotEmpty) 'bookedServices': bookedServices,
   };
 
   GroomerBooking copyWith({
@@ -799,6 +852,7 @@ class GroomerBooking {
     String? petMedicalNotes,
     GroomerMilestoneRecord? milestoneRecord,
     String? serviceStage,
+    List<String>? bookedServices,
   }) {
     return GroomerBooking(
       bookingId: bookingId ?? this.bookingId,
@@ -837,6 +891,7 @@ class GroomerBooking {
       petMedicalNotes: petMedicalNotes ?? this.petMedicalNotes,
       milestoneRecord: milestoneRecord ?? this.milestoneRecord,
       serviceStage: serviceStage ?? this.serviceStage,
+      bookedServices: bookedServices ?? this.bookedServices,
     );
   }
 }

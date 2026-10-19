@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -8,7 +7,7 @@ import 'package:shear_heaven_pet_spa/src/bookings/utils/booking_date_utils.dart'
 import 'package:logger/logger.dart';
 import 'package:shear_heaven_pet_spa/src/account/models/app_notification.dart';
 import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
-import 'package:shear_heaven_pet_spa/src/common/constants/constansts.dart';
+import 'package:shear_heaven_pet_spa/src/common/common.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/toast_util.dart';
@@ -906,17 +905,9 @@ class _BookingCard extends StatelessWidget {
       for (final p in userPets) {
         final pId = p[Constants.database.COLUMN_ID] ?? p['id'] ?? p['petId'];
         if (pId == id || pId.toString() == id.toString()) {
-          final photo = p[Constants.database.COLUMN_PHOTO_URL]?.toString() ??
-              p['profilePictureUrl']?.toString() ??
-              p['profilePicture']?.toString() ??
-              p['photoUrl']?.toString() ??
-              p['petPhotoUrl']?.toString() ??
-              p['image']?.toString();
-          if (photo != null &&
-              photo.trim().isNotEmpty &&
-              photo != 'null' &&
-              photo != 'undefined') {
-            return photo.trim();
+          final photo = PetImageHelper.extractPetPhoto(p);
+          if (photo != null && photo.isNotEmpty) {
+            return photo;
           }
         }
       }
@@ -929,17 +920,9 @@ class _BookingCard extends StatelessWidget {
                 p['petName'])
             ?.toString();
         if (pName != null && pName.toLowerCase() == name.toLowerCase()) {
-          final photo = p[Constants.database.COLUMN_PHOTO_URL]?.toString() ??
-              p['profilePictureUrl']?.toString() ??
-              p['profilePicture']?.toString() ??
-              p['photoUrl']?.toString() ??
-              p['petPhotoUrl']?.toString() ??
-              p['image']?.toString();
-          if (photo != null &&
-              photo.trim().isNotEmpty &&
-              photo != 'null' &&
-              photo != 'undefined') {
-            return photo.trim();
+          final photo = PetImageHelper.extractPetPhoto(p);
+          if (photo != null && photo.isNotEmpty) {
+            return photo;
           }
         }
       }
@@ -992,8 +975,6 @@ class _BookingCard extends StatelessWidget {
 
   // ── helpers ───────────────────────────────────────────────────────────────
 
-  static const _kBaseUrl = 'https://devapi.shearheavenpetspa.com';
-
   String _fmt12(String hhmm) {
     if (hhmm.isEmpty) return '';
     final clean = hhmm.trim().toUpperCase();
@@ -1012,53 +993,20 @@ class _BookingCard extends StatelessWidget {
 
   Widget _buildPetImage() {
     final photo = _resolvedPetPhoto;
-    final fallbackAsset = (index % 2 == 0)
-        ? 'assets/images/common/pet_1.png'
-        : 'assets/images/common/pet_2.png';
+    final fallbackAsset = PetImageHelper.getFallbackAsset(petName: _petName, index: index);
 
-    Widget fallbackWidget() {
-      return Image.asset(
+    return PetImageHelper.buildImage(
+      photoUrl: photo,
+      petName: _petName,
+      fallbackAsset: fallbackAsset,
+      fit: BoxFit.cover,
+      customFallback: Image.asset(
         fallbackAsset,
         fit: BoxFit.cover,
         errorBuilder: (ctx, err, st) =>
             const Icon(Icons.pets, size: 28, color: _kSubText),
-      );
-    }
-
-    if (photo != null && photo.isNotEmpty) {
-      if (photo.startsWith('http://') || photo.startsWith('https://')) {
-        return Image.network(
-          photo,
-          fit: BoxFit.cover,
-          errorBuilder: (ctx, err, st) => fallbackWidget(),
-        );
-      }
-      if (photo.startsWith('assets/')) {
-        return Image.asset(
-          photo,
-          fit: BoxFit.cover,
-          errorBuilder: (ctx, err, st) => fallbackWidget(),
-        );
-      }
-      try {
-        final file = File(photo);
-        if (file.existsSync()) {
-          return Image.file(
-            file,
-            fit: BoxFit.cover,
-            errorBuilder: (ctx, err, st) => fallbackWidget(),
-          );
-        }
-      } catch (_) {}
-      final clean = photo.startsWith('/') ? photo.substring(1) : photo;
-      final fullUrl = '$_kBaseUrl/$clean';
-      return Image.network(
-        fullUrl,
-        fit: BoxFit.cover,
-        errorBuilder: (ctx, err, st) => fallbackWidget(),
-      );
-    }
-    return fallbackWidget();
+      ),
+    );
   }
 
   // ── Status chip ───────────────────────────────────────────────────────────

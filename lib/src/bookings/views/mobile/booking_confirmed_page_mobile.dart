@@ -1,11 +1,10 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shear_heaven_pet_spa/src/app/route_names.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/services/booking_calendar_service.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/services/booking_draft.dart';
-import 'package:shear_heaven_pet_spa/src/common/constants/constansts.dart';
+import 'package:shear_heaven_pet_spa/src/common/common.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 
@@ -24,17 +23,8 @@ class BookingConfirmedPageMobile extends StatelessWidget {
     final petWeightRaw = summary['pet_weight']?.toString();
     final petBirthDateRaw = summary['pet_birth_date']?.toString();
 
-    final petPhoto = summary['pet_photo']?.toString() ??
-        summary['pet_photo_url']?.toString() ??
-        summary['photo_url']?.toString() ??
-        summary['profilePictureUrl']?.toString() ??
-        summary['profilePicture']?.toString() ??
-        summary['avatar']?.toString() ??
-        summary['image']?.toString() ??
-        summary['photo']?.toString() ??
-        draft.pet?['photo_url']?.toString() ??
-        draft.pet?['profilePictureUrl']?.toString() ??
-        draft.pet?['profilePicture']?.toString();
+    final petPhoto = PetImageHelper.extractPetPhoto(summary) ??
+        PetImageHelper.extractPetPhoto(draft.pet);
 
     final rawServiceName = summary['service_name']?.toString().trim() ?? '';
     final serviceName = rawServiceName.isNotEmpty ? rawServiceName : 'Full Grooming';
@@ -182,7 +172,7 @@ class BookingConfirmedPageMobile extends StatelessWidget {
                                 color: const Color(0xFFFAFAFA),
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: Center(child: _buildPetImage(petPhoto)),
+                              child: Center(child: _buildPetImage(petPhoto, petName)),
                             ),
                             const SizedBox(width: 14),
                             Expanded(
@@ -644,52 +634,15 @@ class BookingConfirmedPageMobile extends StatelessWidget {
         : '${years}yrs';
   }
 
-  Widget _buildPetImage(String? photo) {
-    if (photo != null && photo.isNotEmpty) {
-      if (photo.startsWith('http')) {
-        return Image.network(
-          photo,
-          width: double.infinity,
-          height: double.infinity,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) =>
-              const Icon(Icons.pets, color: Colors.black, size: 28),
-        );
-      } else if (photo.startsWith('/')) {
-        return Image.network(
-          '${Constants.app.BASE_URL}$photo',
-          width: double.infinity,
-          height: double.infinity,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) =>
-              const Icon(Icons.pets, color: Colors.black, size: 28),
-        );
-      } else if (photo.startsWith('assets/')) {
-        return Image.asset(
-          photo,
-          width: double.infinity,
-          height: double.infinity,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) =>
-              const Icon(Icons.pets, color: Colors.black, size: 28),
-        );
-      } else {
-        try {
-          final file = File(photo);
-          if (file.existsSync()) {
-            return Image.file(
-              file,
-              width: double.infinity,
-              height: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) =>
-                  const Icon(Icons.pets, color: Colors.black, size: 28),
-            );
-          }
-        } catch (_) {}
-      }
-    }
-    return const Icon(Icons.pets, color: Colors.black, size: 28);
+  Widget _buildPetImage(String? photo, [String? petName]) {
+    return PetImageHelper.buildImage(
+      photoUrl: photo,
+      petName: petName,
+      width: double.infinity,
+      height: double.infinity,
+      fit: BoxFit.cover,
+      customFallback: const Icon(Icons.pets, color: Colors.black, size: 28),
+    );
   }
 
   Widget _detailRow({required Widget icon, required String label}) {

@@ -7,6 +7,7 @@ import 'package:shear_heaven_pet_spa/src/common/repos/api_repository.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_booking.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_milestone_record.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/home/utils/groomer_milestone_resolver.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/views/widgets/groomer_milestone_dialog.dart';
 
 class _MockApiRepository extends ApiRepository {
@@ -35,6 +36,139 @@ class _MockApiRepository extends ApiRepository {
     lastGetQuery = query;
     getCallCount++;
     if (path.contains('appointment-milestones')) {
+      final requestedStoreId = query?['storeId']?.toString() ?? 'SHEAR-001';
+      if (requestedStoreId == 'SHEAR-002') {
+        return {
+          'success': true,
+          'message': 'Store SHEAR-002 milestone catalog retrieved',
+          'data': {
+            'storeId': 'SHEAR-002',
+            'version': '1.1',
+            'source': 'store',
+            'milestones': [
+              {
+                'key': 'ready_for_check_in',
+                'order': 1,
+                'phase': 'pre_store',
+                'action': 'AutoReadyForCheckIn',
+                'status': 'ReadyForCheckIn',
+                'serviceStage': 'confirmed',
+                'groomerSelectable': false,
+              },
+              {
+                'key': 'check_in_completed',
+                'order': 2,
+                'phase': 'in_store',
+                'action': 'CheckInCompleted',
+                'status': 'DogServiceInProgress',
+                'serviceStage': 'checked_in',
+                'groomerSelectable': true,
+                'requiresCheckInPayload': true,
+              },
+              {
+                'key': 'bath_completed',
+                'order': 3,
+                'phase': 'in_store',
+                'action': 'CheckInCompleted',
+                'status': 'BathCompleted',
+                'serviceStage': 'bath_completed',
+                'groomerSelectable': true,
+              },
+              {
+                'key': 'medicated_shampoo',
+                'order': 4,
+                'phase': 'in_store',
+                'action': 'MedicatedBath',
+                'status': 'MedicatedShampooCompleted',
+                'serviceStage': 'bath_completed',
+                'groomerSelectable': true,
+              },
+              {
+                'key': 'grooming_in_progress',
+                'order': 5,
+                'phase': 'in_store',
+                'action': 'CheckInCompleted',
+                'status': 'GroomingInProgress',
+                'serviceStage': 'bath_completed',
+                'groomerSelectable': true,
+              },
+              {
+                'key': 'grooming_completed',
+                'order': 6,
+                'phase': 'in_store',
+                'action': 'CheckInCompleted',
+                'status': 'GroomingCompleted',
+                'serviceStage': 'grooming_completed',
+                'groomerSelectable': true,
+              },
+              {
+                'key': 'nail_cut_in_progress',
+                'order': 7,
+                'phase': 'in_store',
+                'action': 'NailCut',
+                'status': 'NailCutInProgress',
+                'serviceStage': 'in_progress',
+                'groomerSelectable': true,
+              },
+              {
+                'key': 'nail_cut_completed',
+                'order': 8,
+                'phase': 'in_store',
+                'action': 'NailCut',
+                'status': 'NailCutCompleted',
+                'serviceStage': 'in_progress',
+                'groomerSelectable': true,
+              },
+              {
+                'key': 'teeth_cleaning_in_progress',
+                'order': 9,
+                'phase': 'in_store',
+                'action': 'TeethCleaning',
+                'status': 'TeethCleaningInProgress',
+                'serviceStage': 'in_progress',
+                'groomerSelectable': true,
+              },
+              {
+                'key': 'teeth_cleaning_completed',
+                'order': 10,
+                'phase': 'in_store',
+                'action': 'TeethCleaning',
+                'status': 'TeethCleaningCompleted',
+                'serviceStage': 'in_progress',
+                'groomerSelectable': true,
+              },
+              {
+                'key': 'ready_for_checkout',
+                'order': 11,
+                'phase': 'in_store',
+                'action': 'ServiceCompleted',
+                'status': 'ReadyForCheckout',
+                'serviceStage': 'ready_for_checkout',
+                'groomerSelectable': true,
+              },
+              {
+                'key': 'final_checkout',
+                'order': 12,
+                'phase': 'checkout',
+                'action': 'EnterTipAndConfirm',
+                'status': 'FinalCheckout',
+                'serviceStage': 'ready_for_checkout',
+                'groomerSelectable': false,
+              },
+              {
+                'key': 'final_service_completed',
+                'order': 13,
+                'phase': 'checkout',
+                'action': 'Checkout',
+                'status': 'FinalServiceCompleted',
+                'serviceStage': 'checkout_completed',
+                'groomerSelectable': true,
+                'requiresCheckoutPayload': true,
+              },
+            ],
+          },
+        };
+      }
       return {
         'success': true,
         'message': 'Appointment milestone catalog retrieved',
@@ -779,6 +913,197 @@ void main() {
       expect(payload['milestoneKey'], 'ready_for_checkout');
       expect(payload['payload'], isA<Map>());
       expect(payload['payload']['skipMilestones'], isTrue);
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test 13: Service-based milestones: Nail Cut and Teeth Cleaning appointment
+    // ─────────────────────────────────────────────────────────────────────────
+    test('13. Booking service-based milestones: Customer books Nail Cut and Teeth Cleaning', () async {
+      final storeCatalog = await ServicesLocator.groomerHomeRepository.getMilestonesCatalog(
+        storeId: 'SHEAR-002',
+        forceRefresh: true,
+      );
+
+      // Customer booked Nail Cut & Teeth Cleaning walk-in / standalone services
+      const nailAndTeethBooking = GroomerBooking(
+        bookingId: 401,
+        status: 'in_progress',
+        bookingDate: '2026-10-17',
+        startTime: '10:00 AM',
+        endTime: '10:45 AM',
+        petName: 'Rocky',
+        customerName: 'Diana',
+        storeId: 'SHEAR-002',
+        serviceId: 14,
+        serviceName: 'Nail Trimming',
+        bookedServices: ['Nail Cut', 'Teeth Cleaning'],
+        groomerId: 10,
+      );
+
+      expect(nailAndTeethBooking.hasNailService, isTrue);
+      expect(nailAndTeethBooking.hasTeethService, isTrue);
+      expect(nailAndTeethBooking.requiresBath, isFalse);
+      expect(nailAndTeethBooking.requiresGrooming, isFalse);
+
+      final inStore = GroomerMilestoneResolver.filterMilestonesForBooking(
+        storeCatalog: storeCatalog,
+        booking: nailAndTeethBooking,
+      );
+
+      final inStoreKeys = inStore.map((m) => m.key).toList();
+
+      // Must include common in-store check-in and checkout
+      expect(inStoreKeys, contains('check_in_completed'));
+      expect(inStoreKeys, contains('ready_for_checkout'));
+
+      // Must include Nail Cut and Teeth Cleaning milestone options
+      expect(inStoreKeys, contains('nail_cut_in_progress'));
+      expect(inStoreKeys, contains('nail_cut_completed'));
+      expect(inStoreKeys, contains('teeth_cleaning_in_progress'));
+      expect(inStoreKeys, contains('teeth_cleaning_completed'));
+
+      // Strictly excludes unbooked bath and grooming milestones
+      expect(inStoreKeys, isNot(contains('bath_completed')));
+      expect(inStoreKeys, isNot(contains('grooming_in_progress')));
+      expect(inStoreKeys, isNot(contains('grooming_completed')));
+      expect(inStoreKeys, isNot(contains('medicated_shampoo')));
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test 14: Service-based milestones: Bath & Styling + Medicated Shampoo
+    // ─────────────────────────────────────────────────────────────────────────
+    test('14. Booking service-based milestones: Bath & Styling + Medicated Shampoo', () async {
+      final storeCatalog = await ServicesLocator.groomerHomeRepository.getMilestonesCatalog(
+        storeId: 'SHEAR-002',
+      );
+
+      const bathStylingMedicatedBooking = GroomerBooking(
+        bookingId: 402,
+        status: 'in_progress',
+        bookingDate: '2026-10-17',
+        startTime: '11:00 AM',
+        endTime: '12:30 PM',
+        petName: 'Max',
+        customerName: 'Ethan',
+        storeId: 'SHEAR-002',
+        serviceName: 'Bath & Styling',
+        addOns: ['Medicated Shampoo Treatment'],
+        groomerId: 10,
+      );
+
+      expect(bathStylingMedicatedBooking.requiresBath, isTrue);
+      expect(bathStylingMedicatedBooking.requiresGrooming, isTrue);
+      expect(bathStylingMedicatedBooking.hasMedicatedService, isTrue);
+      expect(bathStylingMedicatedBooking.hasNailService, isFalse);
+      expect(bathStylingMedicatedBooking.hasTeethService, isFalse);
+
+      final inStore = GroomerMilestoneResolver.filterMilestonesForBooking(
+        storeCatalog: storeCatalog,
+        booking: bathStylingMedicatedBooking,
+      );
+
+      final inStoreKeys = inStore.map((m) => m.key).toList();
+
+      // Must include bath, medicated, grooming, and checkout milestones
+      expect(inStoreKeys, contains('check_in_completed'));
+      expect(inStoreKeys, contains('bath_completed'));
+      expect(inStoreKeys, contains('medicated_shampoo'));
+      expect(inStoreKeys, contains('grooming_in_progress'));
+      expect(inStoreKeys, contains('grooming_completed'));
+      expect(inStoreKeys, contains('ready_for_checkout'));
+
+      // Strictly excludes unbooked nail and dental milestones
+      expect(inStoreKeys, isNot(contains('nail_cut_in_progress')));
+      expect(inStoreKeys, isNot(contains('nail_cut_completed')));
+      expect(inStoreKeys, isNot(contains('teeth_cleaning_in_progress')));
+      expect(inStoreKeys, isNot(contains('teeth_cleaning_completed')));
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test 15: Deduplication of milestones sharing actions across multiple services
+    // ─────────────────────────────────────────────────────────────────────────
+    test('15. Deduplication: multiple booked services sharing milestone action produce a single milestone', () async {
+      final storeCatalog = await ServicesLocator.groomerHomeRepository.getMilestonesCatalog(
+        storeId: 'SHEAR-002',
+      );
+
+      // Customer books Hair Trimming and Breed Styling (both map to grooming)
+      const multiGroomBooking = GroomerBooking(
+        bookingId: 403,
+        status: 'in_progress',
+        bookingDate: '2026-10-17',
+        startTime: '02:00 PM',
+        endTime: '03:00 PM',
+        petName: 'Daisy',
+        customerName: 'Fiona',
+        storeId: 'SHEAR-002',
+        serviceName: 'Hair Trimming',
+        bookedServices: ['Hair Trimming', 'Breed Styling'],
+        addOns: ['Custom Scissoring'],
+        groomerId: 10,
+      );
+
+      final inStore = GroomerMilestoneResolver.filterMilestonesForBooking(
+        storeCatalog: storeCatalog,
+        booking: multiGroomBooking,
+      );
+
+      final groomingCompletedCount = inStore.where((m) => m.key == 'grooming_completed').length;
+      expect(groomingCompletedCount, equals(1));
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Test 16: Action and status validation against store configuration
+    // ─────────────────────────────────────────────────────────────────────────
+    test('16. Action and status validation rejects invalid values against store configuration', () async {
+      // Ensure catalog is cached for SHEAR-002
+      await ServicesLocator.groomerHomeRepository.getMilestonesCatalog(storeId: 'SHEAR-002');
+
+      const checkedInBooking = GroomerBooking(
+        bookingId: 404,
+        status: 'in_progress',
+        bookingDate: '2026-10-17',
+        startTime: '03:00 PM',
+        endTime: '04:00 PM',
+        petName: 'Simba',
+        customerName: 'Grace',
+        serviceName: 'Bath & Brush',
+        storeId: 'SHEAR-002',
+        groomerId: 10,
+      );
+
+      // Attempt invalid action for bath_completed (configured action is CheckInCompleted)
+      final resInvalidAction = await ServicesLocator.groomerHomeRepository.updateServiceMilestone(
+        bookingId: checkedInBooking.bookingId,
+        milestone: 'bath_completed',
+        action: 'InvalidActionNotAllowed',
+        booking: checkedInBooking,
+        storeId: 'SHEAR-002',
+      );
+      expect(resInvalidAction.success, isFalse);
+      expect(resInvalidAction.message, contains('Action "InvalidActionNotAllowed" is not valid'));
+
+      // Attempt invalid status for bath_completed (configured status is BathCompleted)
+      final resInvalidStatus = await ServicesLocator.groomerHomeRepository.updateServiceMilestone(
+        bookingId: checkedInBooking.bookingId,
+        milestone: 'bath_completed',
+        action: 'CheckInCompleted',
+        status: 'WrongStatusNotConfigured',
+        booking: checkedInBooking,
+        storeId: 'SHEAR-002',
+      );
+      expect(resInvalidStatus.success, isFalse);
+      expect(resInvalidStatus.message, contains('Status "WrongStatusNotConfigured" is not valid'));
+
+      // Attempt milestone not configured for store
+      final resUnknownMilestone = await ServicesLocator.groomerHomeRepository.updateServiceMilestone(
+        bookingId: checkedInBooking.bookingId,
+        milestone: 'non_existent_milestone_xyz',
+        booking: checkedInBooking,
+        storeId: 'SHEAR-002',
+      );
+      expect(resUnknownMilestone.success, isFalse);
+      expect(resUnknownMilestone.message, contains('is not configured for store "SHEAR-002"'));
     });
   });
 }

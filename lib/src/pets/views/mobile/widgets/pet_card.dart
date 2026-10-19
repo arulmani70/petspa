@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shear_heaven_pet_spa/src/common/common.dart';
@@ -271,52 +269,6 @@ class PetCard extends StatelessWidget {
   }
 
   Widget _buildPhoto() {
-    final raw = photoUrl?.trim();
-    final hasPhoto = raw != null && raw.isNotEmpty && raw != 'null' && raw != 'undefined';
-    if (!hasPhoto) {
-      return _fallback();
-    }
-    final path = raw;
-    Widget img;
-    if (path.startsWith('http://') || path.startsWith('https://')) {
-      img = Image.network(
-        path,
-        fit: BoxFit.cover,
-        errorBuilder: (c, e, s) => _fallback(),
-      );
-    } else if (path.startsWith('assets/')) {
-      img = Image.asset(
-        path,
-        fit: BoxFit.cover,
-        errorBuilder: (c, e, s) => _fallback(),
-      );
-    } else {
-      try {
-        final file = File(path);
-        if (file.existsSync()) {
-          img = Image.file(
-            file,
-            fit: BoxFit.cover,
-            errorBuilder: (c, e, s) => _fallback(),
-          );
-        } else {
-          final clean = path.startsWith('/') ? path.substring(1) : path;
-          img = Image.network(
-            '${Constants.app.BASE_URL}/$clean',
-            fit: BoxFit.cover,
-            errorBuilder: (c, e, s) => _fallback(),
-          );
-        }
-      } catch (_) {
-        final clean = path.startsWith('/') ? path.substring(1) : path;
-        img = Image.network(
-          '${Constants.app.BASE_URL}/$clean',
-          fit: BoxFit.cover,
-          errorBuilder: (c, e, s) => _fallback(),
-        );
-      }
-    }
-
     return Container(
       width: 88,
       height: 88,
@@ -325,15 +277,24 @@ class PetCard extends StatelessWidget {
         color: const Color(0xFFE5E5E5),
         borderRadius: BorderRadius.circular(14),
       ),
-      child: img,
+      child: PetImageHelper.buildImage(
+        photoUrl: photoUrl,
+        petName: name,
+        fallbackAsset: assetFallback,
+        width: 88,
+        height: 88,
+        fit: BoxFit.cover,
+        customFallback: _fallback(),
+      ),
     );
   }
 
   Widget _fallback() {
+    final asset = assetFallback ?? PetImageHelper.getFallbackAsset(petName: name);
     return FigmaImage(
-      asset: assetFallback,
+      asset: asset,
       fit: BoxFit.cover,
-      fallback: const Icon(Icons.pets, color: Colors.white, size: 34),
+      fallback: const Icon(Icons.pets, color: Color(0xFF9CA3AF), size: 34),
     );
   }
 }

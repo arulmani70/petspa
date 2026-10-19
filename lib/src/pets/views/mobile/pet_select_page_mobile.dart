@@ -328,14 +328,8 @@ class _PetSelectPageMobileState extends State<PetSelectPageMobile> {
                       weight: weight,
                       age: age,
                       gender: gender,
-                      photoUrl: pet[Constants.database.COLUMN_PHOTO_URL]?.toString() ??
-                          pet['profilePictureUrl']?.toString() ??
-                          pet['profilePicture']?.toString() ??
-                          pet['petProfilePicture']?.toString() ??
-                          pet['photo_url']?.toString(),
-                      assetFallback: index.isEven
-                          ? 'assets/images/common/pet_1.png'
-                          : 'assets/images/common/pet_2.png',
+                      photoUrl: PetImageHelper.extractPetPhoto(pet),
+                      assetFallback: PetImageHelper.getFallbackAsset(petName: name, index: index),
                       selected: isSelected,
                       onTap: () {
                         context.read<PetBloc>().add(SelectPet(id));

@@ -1254,6 +1254,50 @@ class GroomerHomeRepository {
               ? booking.storeId
               : (session.storeId ?? 'SHEAR-001'));
 
+      // Validate milestone key, action, and status against store configuration if available
+      final catalog = getCachedMilestonesCatalog(effectiveStoreId);
+      if (catalog != null && catalog.isNotEmpty) {
+        final config = catalog.cast<StoreMilestoneConfig?>().firstWhere(
+              (m) => m?.key == milestone,
+              orElse: () => null,
+            );
+        if (config == null) {
+          return (
+            success: false,
+            message: 'Milestone "$milestone" is not configured for store "$effectiveStoreId".',
+            updatedBooking: null,
+            milestoneRecord: null,
+            timeline: null,
+          );
+        }
+
+        // Validate action if provided against configured action
+        if (action != null && action.isNotEmpty && config.action.isNotEmpty && action != config.action) {
+          return (
+            success: false,
+            message: 'Action "$action" is not valid for milestone "$milestone" in store "$effectiveStoreId". Allowed action: "${config.action}".',
+            updatedBooking: null,
+            milestoneRecord: null,
+            timeline: null,
+          );
+        }
+
+        // Validate status if provided against configured status
+        if (status != null && status.isNotEmpty && config.status.isNotEmpty && status != config.status) {
+          return (
+            success: false,
+            message: 'Status "$status" is not valid for milestone "$milestone" in store "$effectiveStoreId". Allowed status: "${config.status}".',
+            updatedBooking: null,
+            milestoneRecord: null,
+            timeline: null,
+          );
+        }
+
+        // Preserve backend-defined action and status from store configuration
+        action ??= config.action;
+        status ??= config.status;
+      }
+
       final requestPayload = <String, dynamic>{
         'storeId': effectiveStoreId,
         'milestoneKey': milestone,
@@ -1535,6 +1579,14 @@ class GroomerHomeRepository {
           return (
             success: false,
             message: 'Appointment is already marked as Ready for Checkout.',
+            updatedBooking: null,
+          );
+        }
+
+        if (!booking.isCheckedIn) {
+          return (
+            success: false,
+            message: 'Check-in must be completed before marking appointment ready for checkout.',
             updatedBooking: null,
           );
         }

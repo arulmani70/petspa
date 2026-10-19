@@ -15,6 +15,9 @@ class StoreMilestoneConfig {
   final bool requiresCheckoutPayload;
   final String? title;
   final String? description;
+  final List<int> serviceIds;
+  final List<String> services;
+  final String? category;
 
   const StoreMilestoneConfig({
     required this.key,
@@ -29,6 +32,9 @@ class StoreMilestoneConfig {
     this.requiresCheckoutPayload = false,
     this.title,
     this.description,
+    this.serviceIds = const [],
+    this.services = const [],
+    this.category,
   });
 
   /// In-store actions that should appear in the groomer's milestone dropdown.
@@ -66,18 +72,36 @@ class StoreMilestoneConfig {
   /// Whether this is the Check-in milestone (mandatory start of in-store workflow).
   bool get isCheckIn =>
       key == 'check_in_completed' ||
-      action.toLowerCase() == 'checkincompleted' ||
+      key == 'checkincompleted' ||
       requiresCheckInPayload;
 
   /// Whether this is the Service Completed / Ready for Checkout milestone.
   bool get isReadyForCheckout =>
       key == 'ready_for_checkout' ||
       key == 'readyforcheckout' ||
-      status == 'ReadyForCheckout' ||
-      action == 'ServiceCompleted';
+      status == 'ReadyForCheckout';
 
   /// Whether this milestone can be skipped if permitted by backend.
   bool get isSkippable => !isCheckIn && !isReadyForCheckout;
+
+  /// Whether this milestone is designated for specific services rather than being common to all appointments.
+  bool get isServiceSpecific {
+    if (isCheckIn || isReadyForCheckout) return false;
+    if (serviceIds.isNotEmpty || services.isNotEmpty) return true;
+    final k = key.toLowerCase();
+    final a = action.toLowerCase();
+    final st = status.toLowerCase();
+    return k.contains('nail') ||
+        k.contains('teeth') ||
+        k.contains('bath') ||
+        k.contains('groom') ||
+        k.contains('medicated') ||
+        k.contains('ear') ||
+        a.contains('nail') ||
+        a.contains('teeth') ||
+        st.contains('bath') ||
+        st.contains('groom');
+  }
 
   /// Formatted display title for UI representation.
   String get displayTitle {
@@ -186,6 +210,29 @@ class StoreMilestoneConfig {
     final requiresCheckoutPayload = parseBool(json['requiresCheckoutPayload']);
     final title = json['title']?.toString() ?? json['name']?.toString() ?? json['label']?.toString();
     final description = json['description']?.toString();
+    final category = json['category']?.toString() ?? json['group']?.toString();
+
+    List<int> parseServiceIds(dynamic val) {
+      if (val == null) return const [];
+      if (val is List) {
+        return val.map((e) => int.tryParse(e.toString())).whereType<int>().toList();
+      }
+      if (val is int) return [val];
+      final p = int.tryParse(val.toString());
+      return p != null ? [p] : const [];
+    }
+
+    List<String> parseServices(dynamic val) {
+      if (val == null) return const [];
+      if (val is List) {
+        return val.map((e) => e.toString().trim()).where((s) => s.isNotEmpty).toList();
+      }
+      final s = val.toString().trim();
+      return s.isNotEmpty ? [s] : const [];
+    }
+
+    final sIds = parseServiceIds(json['serviceIds'] ?? json['serviceId']);
+    final sList = parseServices(json['services'] ?? json['serviceName'] ?? json['serviceNames']);
 
     return StoreMilestoneConfig(
       key: key,
@@ -200,6 +247,9 @@ class StoreMilestoneConfig {
       requiresCheckoutPayload: requiresCheckoutPayload,
       title: title,
       description: description,
+      serviceIds: sIds,
+      services: sList,
+      category: category,
     );
   }
 
@@ -217,6 +267,9 @@ class StoreMilestoneConfig {
       'requiresCheckoutPayload': requiresCheckoutPayload,
       if (title != null) 'title': title,
       if (description != null) 'description': description,
+      if (serviceIds.isNotEmpty) 'serviceIds': serviceIds,
+      if (services.isNotEmpty) 'services': services,
+      if (category != null) 'category': category,
     };
   }
 }

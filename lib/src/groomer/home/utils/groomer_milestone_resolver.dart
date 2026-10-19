@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_booking.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/home/models/store_milestone_config.dart';
 
 /// Configuration metadata for service milestones.
 class MilestoneConfig {
@@ -72,13 +74,24 @@ class MilestoneConfig {
         .split(' ')
         .map((s) => s.isNotEmpty ? '${s[0].toUpperCase()}${s.substring(1)}' : '')
         .join(' ');
+    final kLower = key.toLowerCase();
+    IconData icon = Icons.pets_rounded;
+    if (kLower.contains('nail')) {
+      icon = Icons.content_cut_outlined;
+    } else if (kLower.contains('teeth') || kLower.contains('dental')) {
+      icon = Icons.health_and_safety_outlined;
+    } else if (kLower.contains('medicated')) {
+      icon = Icons.medical_services_outlined;
+    } else if (kLower.contains('ear')) {
+      icon = Icons.hearing_outlined;
+    }
     return MilestoneConfig(
       key: key,
       title: formatted,
       shortLabel: formatted.split(' ').first,
       subtitle: 'Record $formatted milestone',
       actionLabel: 'Confirm $formatted',
-      icon: Icons.pets_rounded,
+      icon: icon,
     );
   }
 }
@@ -98,8 +111,10 @@ class GroomerMilestoneResolver {
 
   // Grooming-Only Service IDs:
   // Breed Grooming: 1 (Small Dog Grooming), 4 (Medium Dog Grooming), 7 (Large Dog Grooming)
-  // Walk-in: 12 (Hair Trimming), 13 (Breed Styling), 14 (Nail Trimming), 15 (Ear Cleaning), 16 (Teeth Brushing)
-  static const Set<int> groomingOnlyServiceIds = {1, 4, 7, 12, 13, 14, 15, 16};
+  // Walk-in: 12 (Hair Trimming), 13 (Breed Styling)
+  // Note: 14 (Nail Trimming), 15 (Ear Cleaning), 16 (Teeth Brushing) are standalone hygiene services,
+  // NOT full haircut grooming. They are handled specifically below.
+  static const Set<int> groomingOnlyServiceIds = {1, 4, 7, 12, 13};
 
   // Both Bath & Grooming Service IDs:
   // Breed Grooming & Bathing: 3 (Small), 6 (Medium), 9 (Large)
@@ -133,9 +148,12 @@ class GroomerMilestoneResolver {
     String? packageName,
     List<int> addOnIds = const [],
     List<String> addOns = const [],
+    List<String> bookedServices = const [],
   }) {
     bool needBath = false;
     bool needGrooming = false;
+    bool needNail = false;
+    bool needTeeth = false;
     bool recognizedAny = false;
 
     // 1. Check Package
@@ -151,7 +169,15 @@ class GroomerMilestoneResolver {
 
     // 2. Check Service ID (Primary Service)
     if (serviceId != null && serviceId > 0) {
-      if (bathOnlyServiceIds.contains(serviceId)) {
+      if (serviceId == 14) {
+        needNail = true;
+        recognizedAny = true;
+      } else if (serviceId == 16) {
+        needTeeth = true;
+        recognizedAny = true;
+      } else if (serviceId == 15) {
+        recognizedAny = true;
+      } else if (bathOnlyServiceIds.contains(serviceId)) {
         needBath = true;
         recognizedAny = true;
       } else if (groomingOnlyServiceIds.contains(serviceId)) {
@@ -164,50 +190,10 @@ class GroomerMilestoneResolver {
       }
     }
 
-    // 3. Check Add-On IDs
-    for (final addOnId in addOnIds) {
-      if (bathAddOnIds.contains(addOnId)) {
-        needBath = true;
-        recognizedAny = true;
-      }
-      if (groomingAddOnIds.contains(addOnId)) {
-        needGrooming = true;
-        recognizedAny = true;
-      }
-    }
-
-    // 4. Secondary fallback: Check Add-On Names if IDs not provided
-    if (addOnIds.isEmpty && addOns.isNotEmpty) {
-      for (final addOn in addOns) {
-        final lower = addOn.trim().toLowerCase();
-        if (lower.contains('bath') ||
-            lower.contains('facial') ||
-            lower.contains('flea') ||
-            lower.contains('medicated') ||
-            lower.contains('de-odorize') ||
-            lower.contains('deodorize')) {
-          needBath = true;
-          recognizedAny = true;
-        }
-        if (lower.contains('nail') ||
-            lower.contains('grind') ||
-            lower.contains('teeth') ||
-            lower.contains('furminator') ||
-            lower.contains('brush') ||
-            lower.contains('dematt') ||
-            lower.contains('scissoring') ||
-            lower.contains('trim') ||
-            lower.contains('style') ||
-            lower.contains('dental') ||
-            lower.contains('handle')) {
-          needGrooming = true;
-          recognizedAny = true;
-        }
-      }
-    }
-
-    // 5. Secondary fallback: Check Service Name only if serviceId was missing/unrecognized
-    if (!recognizedAny && serviceName != null && serviceName.trim().isNotEmpty) {
+    // 3. Check Service Name (Primary Service) when serviceId was missing, zero, or didn't resolve bath/grooming
+    if (serviceName != null &&
+        serviceName.trim().isNotEmpty &&
+        serviceName.trim().toLowerCase() != 'service') {
       final sLower = serviceName.trim().toLowerCase();
       if (sLower.contains('grooming & bathing') ||
           sLower.contains('grooming and bathing') ||
@@ -223,26 +209,119 @@ class GroomerMilestoneResolver {
         needBath = true;
         needGrooming = true;
         recognizedAny = true;
-      } else if (sLower.contains('bath')) {
+      } else {
+        if (sLower.contains('bath') || sLower.contains('wash')) {
+          needBath = true;
+          recognizedAny = true;
+        }
+        if (sLower.contains('nail') || sLower.contains('paw')) {
+          needNail = true;
+          recognizedAny = true;
+        }
+        if (sLower.contains('teeth') || sLower.contains('dental')) {
+          needTeeth = true;
+          recognizedAny = true;
+        }
+        if (sLower.contains('groom') ||
+            (sLower.contains('trim') && !sLower.contains('nail')) ||
+            sLower.contains('styl') ||
+            sLower.contains('hair') ||
+            (sLower.contains('cut') && !sLower.contains('nail'))) {
+          needGrooming = true;
+          recognizedAny = true;
+        }
+      }
+    }
+
+    // 4. Check Add-On IDs
+    for (final addOnId in addOnIds) {
+      if (bathAddOnIds.contains(addOnId)) {
         needBath = true;
         recognizedAny = true;
-      } else if (sLower.contains('groom') ||
-          sLower.contains('trim') ||
-          sLower.contains('styl') ||
-          sLower.contains('nail') ||
-          sLower.contains('ear') ||
-          sLower.contains('teeth')) {
+      }
+      if (groomingAddOnIds.contains(addOnId)) {
+        needGrooming = true;
+        recognizedAny = true;
+      }
+      if (addOnId == 1) {
+        needNail = true;
+        recognizedAny = true;
+      }
+      if (addOnId == 2 || addOnId == 6) {
+        needTeeth = true;
+        recognizedAny = true;
+      }
+    }
+
+    // 5. Check Add-On Names (if IDs not provided or secondary detection)
+    if (addOns.isNotEmpty) {
+      for (final addOn in addOns) {
+        final lower = addOn.trim().toLowerCase();
+        if (lower.contains('bath') ||
+            lower.contains('facial') ||
+            lower.contains('flea') ||
+            lower.contains('medicated') ||
+            lower.contains('de-odorize') ||
+            lower.contains('deodorize')) {
+          needBath = true;
+          recognizedAny = true;
+        }
+        if (lower.contains('nail') || lower.contains('paw') || lower.contains('grind')) {
+          needNail = true;
+          recognizedAny = true;
+        }
+        if (lower.contains('teeth') || lower.contains('dental')) {
+          needTeeth = true;
+          recognizedAny = true;
+        }
+        if (lower.contains('nail') ||
+            lower.contains('grind') ||
+            lower.contains('teeth') ||
+            lower.contains('dental') ||
+            lower.contains('furminator') ||
+            lower.contains('brush') ||
+            lower.contains('dematt') ||
+            lower.contains('scissoring') ||
+            (lower.contains('trim') && !lower.contains('nail')) ||
+            lower.contains('style') ||
+            lower.contains('handle')) {
+          needGrooming = true;
+          recognizedAny = true;
+        }
+      }
+    }
+
+    // 6. Check bookedServices list (when multiple distinct services are booked)
+    for (final svc in bookedServices) {
+      final lower = svc.trim().toLowerCase();
+      if (lower.contains('bath') || lower.contains('wash') || lower.contains('spa')) {
+        needBath = true;
+        recognizedAny = true;
+      }
+      if (lower.contains('nail') || lower.contains('paw')) {
+        needNail = true;
+        recognizedAny = true;
+      }
+      if (lower.contains('teeth') || lower.contains('dental')) {
+        needTeeth = true;
+        recognizedAny = true;
+      }
+      if (lower.contains('groom') ||
+          (lower.contains('trim') && !lower.contains('nail')) ||
+          lower.contains('styl') ||
+          lower.contains('hair') ||
+          (lower.contains('cut') && !lower.contains('nail'))) {
         needGrooming = true;
         recognizedAny = true;
       }
     }
 
-    // 6. Graceful fallback for missing or completely invalid service data
-    if (!recognizedAny && !needBath && !needGrooming) {
+    // 7. Graceful fallback for missing or completely invalid service data
+    if (!recognizedAny && !needBath && !needGrooming && !needNail && !needTeeth) {
       return const [bathMilestone, groomingMilestone];
     }
 
-    // 7. Combine without duplicates and preserve proper milestone sequence
+    // 8. Combine without duplicates and preserve proper milestone sequence
     final milestones = <String>[];
     if (needBath) {
       milestones.add(bathMilestone);
@@ -250,11 +329,154 @@ class GroomerMilestoneResolver {
     if (needGrooming) {
       milestones.add(groomingMilestone);
     }
+    if (needNail && !milestones.contains('nail_cut_completed') && !needGrooming) {
+      milestones.add('nail_cut_completed');
+    }
+    if (needTeeth && !milestones.contains('teeth_cleaning_completed') && !needGrooming) {
+      milestones.add('teeth_cleaning_completed');
+    }
 
     if (milestones.isEmpty) {
       return const [bathMilestone, groomingMilestone];
     }
 
     return List.unmodifiable(milestones);
+  }
+
+  /// Evaluates whether a [StoreMilestoneConfig] is applicable for a specific [GroomerBooking].
+  ///
+  /// Combines:
+  /// A. Store Configuration (allowed actions, statuses, orders, keys for that storeId).
+  /// B. Booking Services (only services selected by the customer for this appointment).
+  ///
+  /// Guarantees:
+  /// - Common in-store milestones (Check-in, Ready for Checkout) are always included.
+  /// - Service-specific milestones are included ONLY if the customer booked that service.
+  /// - Multiple booked services sharing an action/milestone are deduplicated.
+  /// - Unrelated service actions are strictly excluded.
+  static bool isConfigApplicableForBooking({
+    required StoreMilestoneConfig config,
+    required GroomerBooking booking,
+  }) {
+    // 1. Non-in-store actions are filtered out by isInStoreAction
+    if (!config.isInStoreAction) return false;
+
+    // 2. Common milestones are always applicable to all appointments
+    if (config.isCheckIn || config.isReadyForCheckout) return true;
+
+    // 3. Explicit Service IDs check if defined on the milestone configuration
+    if (config.serviceIds.isNotEmpty) {
+      final matchesServiceId = booking.serviceId != null && config.serviceIds.contains(booking.serviceId);
+      final matchesPackageId = booking.packageId != null && config.serviceIds.contains(booking.packageId);
+      final matchesAddOn = booking.addOnIds.any((id) => config.serviceIds.contains(id));
+      if (matchesServiceId || matchesPackageId || matchesAddOn) return true;
+      return false;
+    }
+
+    // 4. Explicit Service Names check if defined on the milestone configuration
+    if (config.services.isNotEmpty) {
+      final allNames = booking.allBookedServiceNames.map((s) => s.toLowerCase()).toList();
+      final matches = config.services.any((svc) {
+        final sLower = svc.trim().toLowerCase();
+        return allNames.any((booked) => booked.contains(sLower) || sLower.contains(booked));
+      });
+      if (matches) return true;
+      return false;
+    }
+
+    // 5. Semantic Service Stage / Action / Key Classification:
+    final keyLower = config.key.toLowerCase();
+    final actionLower = config.action.toLowerCase();
+    final statusLower = config.status.toLowerCase();
+    final titleLower = (config.title ?? '').toLowerCase();
+
+    // Grooming milestones (e.g. grooming_in_progress, grooming_completed, GroomingCompleted)
+    if (keyLower.contains('groom') ||
+        statusLower.contains('groom') ||
+        actionLower.contains('groom')) {
+      return booking.requiresGrooming;
+    }
+
+    // Bath milestones (e.g. bath_completed, BathCompleted, Bath)
+    if (keyLower.contains('bath') ||
+        statusLower.contains('bath') ||
+        actionLower.contains('bath')) {
+      return booking.requiresBath;
+    }
+
+    // Nail service milestones (e.g. nail_cut_in_progress, nail_cut_completed, NailCut)
+    if (keyLower.contains('nail') ||
+        statusLower.contains('nail') ||
+        actionLower.contains('nail') ||
+        titleLower.contains('nail')) {
+      return booking.hasNailService;
+    }
+
+    // Teeth / Dental service milestones (e.g. teeth_cleaning_in_progress, teeth_cleaning_completed, TeethCleaning)
+    if (keyLower.contains('teeth') ||
+        keyLower.contains('dental') ||
+        statusLower.contains('teeth') ||
+        actionLower.contains('teeth') ||
+        actionLower.contains('dental') ||
+        titleLower.contains('teeth')) {
+      return booking.hasTeethService;
+    }
+
+    // Medicated Shampoo / Treatment milestones
+    if (keyLower.contains('medicated') ||
+        statusLower.contains('medicated') ||
+        actionLower.contains('medicated') ||
+        titleLower.contains('medicated')) {
+      return booking.hasMedicatedService;
+    }
+
+    // Ear Cleaning milestones
+    if (keyLower.contains('ear') ||
+        statusLower.contains('ear') ||
+        actionLower.contains('ear') ||
+        titleLower.contains('ear')) {
+      return booking.hasEarService;
+    }
+
+    // De-Shedding milestones
+    if (keyLower.contains('de-shed') ||
+        keyLower.contains('deshed') ||
+        statusLower.contains('deshed') ||
+        actionLower.contains('deshed') ||
+        titleLower.contains('deshed')) {
+      return booking.hasDeSheddingService;
+    }
+
+    // 6. Generic custom in-store steps configured for the store (e.g. custom_step_9)
+    return true;
+  }
+
+  /// Filters and deduplicates store milestone configurations for a specific booking.
+  ///
+  /// Combines the store's allowed milestone configurations with the customer's booked services,
+  /// preserving store-defined order and eliminating duplicate milestones.
+  static List<StoreMilestoneConfig> filterMilestonesForBooking({
+    required List<StoreMilestoneConfig> storeCatalog,
+    required GroomerBooking booking,
+  }) {
+    if (storeCatalog.isEmpty) {
+      return const [];
+    }
+
+    final filtered = <StoreMilestoneConfig>[];
+    final seenKeys = <String>{};
+
+    for (final config in storeCatalog) {
+      if (!config.isInStoreAction) continue;
+      if (seenKeys.contains(config.key)) continue;
+
+      if (isConfigApplicableForBooking(config: config, booking: booking)) {
+        filtered.add(config);
+        seenKeys.add(config.key);
+      }
+    }
+
+    filtered.sort((a, b) => a.order.compareTo(b.order));
+    return List.unmodifiable(filtered);
   }
 }

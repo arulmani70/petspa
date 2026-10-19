@@ -837,13 +837,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
             petData?['id'] ??
             petData?['petId'] ??
             petData?['pet_id'];
-        final petPhoto = petData?[Constants.database.COLUMN_PHOTO_URL]?.toString() ??
-            petData?['profilePictureUrl']?.toString() ??
-            petData?['profilePicture']?.toString() ??
-            petData?['photo_url']?.toString() ??
-            petData?['avatar']?.toString() ??
-            petData?['image']?.toString() ??
-            petData?['photo']?.toString();
+        final petPhoto = PetImageHelper.extractPetPhoto(petData);
 
         _draft.lastBooking = {
           'booking_id': bookingId,
@@ -949,11 +943,8 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
         ? _petAge(petBirth)
         : (rawAge != null && rawAge.isNotEmpty && rawAge != 'N/A' ? rawAge : 'All Ages');
 
-    final petPhoto = petData?[db.COLUMN_PHOTO_URL]?.toString() ??
-        petData?['photo_url']?.toString() ??
-        petData?['imageUrl']?.toString() ??
-        _draft.service?['imageUrl']?.toString() ??
-        _draft.service?['photo_url']?.toString();
+    final petPhoto = PetImageHelper.extractPetPhoto(petData) ??
+        PetImageHelper.extractPetPhoto(_draft.pet);
 
     final serviceName = _draft.service?[db.COLUMN_SERVICE_NAME]?.toString() ?? _draft.service?['service_name']?.toString() ?? _draft.service?['name']?.toString() ?? 'Full Grooming';
     final serviceDesc = _draft.service?[db.COLUMN_DESCRIPTION]?.toString() ?? _draft.service?['description']?.toString() ?? 'Bath, trim, nails, and ears — the complete pampering session.';
@@ -1412,34 +1403,16 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
   }
 
   Widget _petImage(String? photo) {
-    if (photo != null && photo.isNotEmpty) {
-      if (photo.startsWith('http')) {
-        return Image.network(
-          photo,
-          width: double.infinity,
-          height: double.infinity,
-          fit: BoxFit.cover,
-          errorBuilder: (c, e, s) => const Center(child: Icon(Icons.pets, color: Colors.black, size: 32)),
-        );
-      } else if (photo.startsWith('/')) {
-        return Image.network(
-          '${Constants.app.BASE_URL}$photo',
-          width: double.infinity,
-          height: double.infinity,
-          fit: BoxFit.cover,
-          errorBuilder: (c, e, s) => const Center(child: Icon(Icons.pets, color: Colors.black, size: 32)),
-        );
-      } else {
-        return Image.asset(
-          photo,
-          width: double.infinity,
-          height: double.infinity,
-          fit: BoxFit.cover,
-          errorBuilder: (c, e, s) => const Center(child: Icon(Icons.pets, color: Colors.black, size: 32)),
-        );
-      }
-    }
-    return const Center(child: Icon(Icons.pets, color: Colors.black, size: 32));
+    return PetImageHelper.buildImage(
+      photoUrl: photo,
+      petName: _draft.pet?[Constants.database.COLUMN_PET_NAME]?.toString() ??
+          _draft.pet?['petName']?.toString() ??
+          _draft.pet?['name']?.toString(),
+      width: double.infinity,
+      height: double.infinity,
+      fit: BoxFit.cover,
+      customFallback: const Center(child: Icon(Icons.pets, color: Colors.black, size: 32)),
+    );
   }
 
   Widget _serviceImage(Map<String, dynamic>? service) {
