@@ -1111,12 +1111,21 @@ class GroomerHomeRepository {
     try {
       log.d('GroomerHomeRepository::checkInBooking::Checking in booking #$bookingId');
 
-      if (booking != null && !booking.isCheckedIn && !booking.canCheckIn()) {
-        final reason = booking.isBeforeScheduledDate()
-            ? 'Check-in is only allowed on the scheduled booking date (${booking.formattedBookingDate}).'
-            : (booking.isAfterScheduledDate()
-                ? 'Check-in is closed because the scheduled booking date (${booking.formattedBookingDate}) has passed.'
-                : 'Check-in is only allowed on the scheduled booking date.');
+      GroomerBooking? effectiveBooking = booking;
+      effectiveBooking ??= _localCreatedBookings.where((b) => b.bookingId == bookingId).firstOrNull;
+      if (effectiveBooking == null) {
+        try {
+          final upcoming = await getUpcomingBookings();
+          effectiveBooking = upcoming.where((b) => b.bookingId == bookingId).firstOrNull;
+        } catch (_) {}
+      }
+
+      if (effectiveBooking != null && !effectiveBooking.isCheckedIn && !effectiveBooking.canCheckIn()) {
+        final reason = effectiveBooking.isBeforeScheduledDate()
+            ? 'Check-in is only allowed on the scheduled booking date (${effectiveBooking.formattedBookingDate}).'
+            : (effectiveBooking.isAfterScheduledDate()
+                ? 'Check-in is closed because the scheduled booking date (${effectiveBooking.formattedBookingDate}) has passed.'
+                : 'Check-in is only allowed on the scheduled booking date (${effectiveBooking.formattedBookingDate}).');
         log.w('GroomerHomeRepository::checkInBooking::Blocked check-in - $reason');
         return (
           success: false,
@@ -1151,11 +1160,30 @@ class GroomerHomeRepository {
       }
 
       final isSuccess = response != null && response['success'] == true;
-      final msg = response?['message']?.toString() ??
+      String msg = response?['message']?.toString() ??
           (isSuccess ? 'Dog checked in successfully. Appointment is now in service.' : 'Failed to check in appointment.');
 
+      if (!isSuccess) {
+        final lowerMsg = msg.toLowerCase();
+        final isRouteNotFound = lowerMsg.contains('route not found') ||
+            lowerMsg.contains('not found') ||
+            response?['statusCode'] == 404;
+
+        if (isRouteNotFound) {
+          if (effectiveBooking != null) {
+            msg = effectiveBooking.isBeforeScheduledDate()
+                ? 'Check-in is only allowed on the scheduled booking date (${effectiveBooking.formattedBookingDate}).'
+                : (effectiveBooking.isAfterScheduledDate()
+                    ? 'Check-in is closed because the scheduled booking date (${effectiveBooking.formattedBookingDate}) has passed.'
+                    : 'Check-in is only allowed on the scheduled booking date (${effectiveBooking.formattedBookingDate}).');
+          } else {
+            msg = 'Check-in is only allowed on the scheduled booking date.';
+          }
+        }
+      }
+
       GroomerCheckInRecord? checkInRecord;
-      GroomerBooking? updatedBooking = booking;
+      GroomerBooking? updatedBooking = booking ?? effectiveBooking;
 
       if (isSuccess) {
         final data = response['data'] is Map ? Map<String, dynamic>.from(response['data'] as Map) : null;
@@ -1203,9 +1231,23 @@ class GroomerHomeRepository {
       );
     } catch (e) {
       log.e('GroomerHomeRepository::checkInBooking::Error: $e');
+      final errLower = e.toString().toLowerCase();
+      String failMsg = 'Error during check-in: $e';
+      if (errLower.contains('route not found') || errLower.contains('404')) {
+        final b = booking ?? _localCreatedBookings.where((item) => item.bookingId == bookingId).firstOrNull;
+        if (b != null) {
+          failMsg = b.isBeforeScheduledDate()
+              ? 'Check-in is only allowed on the scheduled booking date (${b.formattedBookingDate}).'
+              : (b.isAfterScheduledDate()
+                  ? 'Check-in is closed because the scheduled booking date (${b.formattedBookingDate}) has passed.'
+                  : 'Check-in is only allowed on the scheduled booking date (${b.formattedBookingDate}).');
+        } else {
+          failMsg = 'Check-in is only allowed on the scheduled booking date.';
+        }
+      }
       return (
         success: false,
-        message: 'Error during check-in: $e',
+        message: failMsg,
         updatedBooking: null,
         checkInRecord: null,
       );
@@ -1431,7 +1473,7 @@ class GroomerHomeRepository {
       final serverMsg = response?['message']?.toString() ??
           (response?['errors'] is List ? (response!['errors'] as List).join(', ') : null) ??
           (response?['error'] is Map ? (response!['error'] as Map)['message']?.toString() : null);
-      final msg = (serverMsg != null && serverMsg.trim().isNotEmpty)
+      String msg = (serverMsg != null && serverMsg.trim().isNotEmpty)
           ? serverMsg.trim()
           : (isSuccess
               ? (milestone == 'bath_completed'
@@ -1440,6 +1482,25 @@ class GroomerHomeRepository {
                       ? 'Grooming milestone marked as completed.'
                       : 'Milestone updated successfully.'))
               : 'Failed to update milestone.');
+
+      if (!isSuccess && (milestone == 'check_in_completed' || milestone == 'check_in')) {
+        final lowerMsg = msg.toLowerCase();
+        final isRouteNotFound = lowerMsg.contains('route not found') ||
+            lowerMsg.contains('not found') ||
+            response?['statusCode'] == 404;
+
+        if (isRouteNotFound) {
+          if (booking != null) {
+            msg = booking.isBeforeScheduledDate()
+                ? 'Check-in is only allowed on the scheduled booking date (${booking.formattedBookingDate}).'
+                : (booking.isAfterScheduledDate()
+                    ? 'Check-in is closed because the scheduled booking date (${booking.formattedBookingDate}) has passed.'
+                    : 'Check-in is only allowed on the scheduled booking date (${booking.formattedBookingDate}).');
+          } else {
+            msg = 'Check-in is only allowed on the scheduled booking date.';
+          }
+        }
+      }
 
       GroomerMilestoneRecord? milestoneRecord;
       BookingMilestoneTimeline? timeline;

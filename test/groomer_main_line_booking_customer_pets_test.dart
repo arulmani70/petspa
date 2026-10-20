@@ -164,6 +164,7 @@ void main() {
             body: MainLineBookingDialog(
               loggedInGroomer: mockGroomerUser,
               bloc: bloc,
+              initialCustomer: customerWithPets,
               onBookingCreated: () {},
             ),
           ),
@@ -203,6 +204,7 @@ void main() {
             body: MainLineBookingDialog(
               loggedInGroomer: mockGroomerUser,
               bloc: bloc,
+              initialCustomer: customerWithoutPets,
               onBookingCreated: () {},
             ),
           ),

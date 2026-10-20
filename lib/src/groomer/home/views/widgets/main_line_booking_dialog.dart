@@ -20,12 +20,18 @@ class MainLineBookingDialog extends StatefulWidget {
   final GroomerUser? loggedInGroomer;
   final GroomerHomeBloc? bloc;
   final VoidCallback onBookingCreated;
+  final CustomerSummary? initialCustomer;
+  final ServiceItem? initialService;
+  final ServiceItem? initialPackage;
 
   const MainLineBookingDialog({
     super.key,
     required this.loggedInGroomer,
     this.bloc,
     required this.onBookingCreated,
+    this.initialCustomer,
+    this.initialService,
+    this.initialPackage,
   });
 
   /// Opens the Main Line Call Booking panel as a smooth slide-up bottom sheet.
@@ -34,6 +40,9 @@ class MainLineBookingDialog extends StatefulWidget {
     required GroomerUser? loggedInGroomer,
     required VoidCallback onBookingCreated,
     GroomerHomeBloc? bloc,
+    CustomerSummary? initialCustomer,
+    ServiceItem? initialService,
+    ServiceItem? initialPackage,
   }) {
     return showModalBottomSheet<T>(
       context: context,
@@ -45,6 +54,9 @@ class MainLineBookingDialog extends StatefulWidget {
         loggedInGroomer: loggedInGroomer,
         bloc: bloc,
         onBookingCreated: onBookingCreated,
+        initialCustomer: initialCustomer,
+        initialService: initialService,
+        initialPackage: initialPackage,
       ),
     );
   }
@@ -56,6 +68,7 @@ class MainLineBookingDialog extends StatefulWidget {
 class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
   final Logger _log = Logger();
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _serviceDropdownScrollController = ScrollController();
   Timer? _searchDebounce;
 
   late final GroomerHomeBloc _bloc;
@@ -88,21 +101,22 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
       _ownsBloc = true;
     }
 
-    // Initialize selections if bloc state is already populated
-    if (_bloc.state.searchedCustomers.isNotEmpty) {
-      _selectedCustomer = _bloc.state.searchedCustomers.first;
+    // Do not pre-select customer by default, unless explicitly passed
+    if (widget.initialCustomer != null) {
+      _selectedCustomer = widget.initialCustomer;
       if (_selectedCustomer!.pets.isNotEmpty) {
         _selectedPet = _selectedCustomer!.pets.first;
       }
     }
-    if (_selectedPet == null && _bloc.state.customerPets.isNotEmpty) {
+    if (_selectedPet == null && _selectedCustomer != null && _bloc.state.customerPets.isNotEmpty) {
       _selectedPet = _bloc.state.customerPets.first;
     }
-    if (_bloc.state.bookingServices.isNotEmpty) {
-      _selectedService = _bloc.state.bookingServices.first;
+    // Do not pre-select service or package by default, unless explicitly passed
+    if (widget.initialService != null) {
+      _selectedService = widget.initialService;
       _isPackageMode = false;
-    } else if (_bloc.state.bookingPackages.isNotEmpty) {
-      _selectedPackage = _bloc.state.bookingPackages.first;
+    } else if (widget.initialPackage != null) {
+      _selectedPackage = widget.initialPackage;
       _isPackageMode = true;
     }
     if (_bloc.state.availableTimeSlots.isNotEmpty) {
@@ -129,6 +143,7 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
   void dispose() {
     _searchDebounce?.cancel();
     _searchController.dispose();
+    _serviceDropdownScrollController.dispose();
     if (_ownsBloc) {
       _bloc.close();
     }
@@ -136,6 +151,7 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
   }
 
   void _onSearchChanged(String query) {
+    setState(() {});
     _searchDebounce?.cancel();
     _searchDebounce = Timer(const Duration(milliseconds: 350), () {
       if (!_bloc.isClosed) {
@@ -437,32 +453,32 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
     return BlocConsumer<GroomerHomeBloc, GroomerHomeState>(
       bloc: _bloc,
       listener: (context, state) {
-        // Auto-select first customer when real backend customers arrive
-        if (_selectedCustomer == null && state.searchedCustomers.isNotEmpty) {
-          _onCustomerSelected(state.searchedCustomers.first);
+        // Auto-select searched customer when user searches
+        final isSearching = _searchController.text.trim().isNotEmpty;
+        if (isSearching && state.searchedCustomers.isNotEmpty) {
+          if (_selectedCustomer == null ||
+              !state.searchedCustomers.any((c) => c.id == _selectedCustomer!.id)) {
+            _onCustomerSelected(state.searchedCustomers.first);
+          }
         } else if (_selectedCustomer != null &&
             !state.searchedCustomers.any((c) => c.id == _selectedCustomer!.id)) {
-          if (state.searchedCustomers.isNotEmpty) {
-            _onCustomerSelected(state.searchedCustomers.first);
-          } else {
-            setState(() {
-              _selectedCustomer = null;
-              _selectedPet = null;
-            });
-          }
+          setState(() {
+            _selectedCustomer = null;
+            _selectedPet = null;
+          });
         }
 
         // Auto-select first pet when real backend pets arrive or from selected customer
         final currentPets = state.customerPets.isNotEmpty
             ? state.customerPets
             : (_selectedCustomer?.pets ?? const <CustomerPetSummary>[]);
-        if (currentPets.isNotEmpty) {
+        if (currentPets.isNotEmpty && _selectedCustomer != null) {
           if (_selectedPet == null || !currentPets.any((p) => p.id == _selectedPet!.id)) {
             setState(() {
               _selectedPet = currentPets.first;
             });
           }
-        } else if (!state.isLoadingCustomerPets) {
+        } else if (!state.isLoadingCustomerPets || _selectedCustomer == null) {
           if (_selectedPet != null) {
             setState(() {
               _selectedPet = null;
@@ -482,22 +498,7 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
           _triggerAvailabilityCheck();
         }
 
-        // Auto-select first service/package when real backend services arrive
-        if (_selectedService == null && _selectedPackage == null) {
-          if (state.bookingServices.isNotEmpty) {
-            setState(() {
-              _selectedService = state.bookingServices.first;
-              _isPackageMode = false;
-            });
-            _triggerAvailabilityCheck();
-          } else if (state.bookingPackages.isNotEmpty) {
-            setState(() {
-              _selectedPackage = state.bookingPackages.first;
-              _isPackageMode = true;
-            });
-            _triggerAvailabilityCheck();
-          }
-        }
+        // Do not auto-select service/package by default when backend services arrive
 
         // Update time slot selection when availability slots update
         if (state.availableTimeSlots.isNotEmpty) {
@@ -572,9 +573,11 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
       },
       builder: (context, state) {
         final customers = state.searchedCustomers;
-        final pets = state.customerPets.isNotEmpty
-            ? state.customerPets
-            : (_selectedCustomer?.pets ?? const <CustomerPetSummary>[]);
+        final pets = _selectedCustomer != null
+            ? (state.customerPets.isNotEmpty
+                ? state.customerPets
+                : (_selectedCustomer?.pets ?? const <CustomerPetSummary>[]))
+            : const <CustomerPetSummary>[];
         final groomers = state.salonGroomers;
         final services = state.bookingServices;
         final packages = state.bookingPackages;
@@ -582,7 +585,9 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
         final groomerIdInt = _selectedGroomerId == 'any' ? null : int.tryParse(_selectedGroomerId);
         final slots = BookingDateUtils.deduplicateSlots(state.availableTimeSlots, specificGroomerId: groomerIdInt);
 
-        final baseItem = _isPackageMode ? _selectedPackage : _selectedService;
+        final baseItem = _isPackageMode
+            ? (_selectedPackage ?? _selectedService)
+            : (_selectedService ?? _selectedPackage);
         final double basePrice = baseItem?.price ?? 0.0;
         final int baseDuration = baseItem?.durationMinutes ?? 0;
 
@@ -768,6 +773,15 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                         TextField(
                           controller: _searchController,
                           onChanged: _onSearchChanged,
+                          onSubmitted: (query) {
+                            _searchDebounce?.cancel();
+                            if (!_bloc.isClosed) {
+                              _bloc.add(GroomerHomeSearchCustomersEvent(
+                                query: query.trim().isNotEmpty ? query.trim() : null,
+                              ));
+                            }
+                          },
+                          textInputAction: TextInputAction.search,
                           style: AppFonts.poppins(size: 13),
                           decoration: InputDecoration(
                             hintText: 'Search by name, phone, or email...',
@@ -777,7 +791,12 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                 ? IconButton(
                                     icon: const Icon(Icons.clear, size: 16, color: Color(0xFF6B7280)),
                                     onPressed: () {
+                                      _searchDebounce?.cancel();
                                       _searchController.clear();
+                                      setState(() {
+                                        _selectedCustomer = null;
+                                        _selectedPet = null;
+                                      });
                                       _bloc.add(const GroomerHomeSearchCustomersEvent());
                                     },
                                   )
@@ -810,10 +829,14 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                             child: DropdownButtonHideUnderline(
                               child: DropdownButton<CustomerSummary>(
                                 isExpanded: true,
+                                hint: Text(
+                                  'Select calling customer',
+                                  style: AppFonts.poppins(size: 13, color: const Color(0xFF9CA3AF)),
+                                ),
                                 value: (_selectedCustomer != null &&
                                         customers.any((c) => c.id == _selectedCustomer!.id))
                                     ? customers.firstWhere((c) => c.id == _selectedCustomer!.id)
-                                    : customers.first,
+                                    : null,
                                 items: customers.map((c) {
                                   final phoneStr =
                                       c.phone != null && c.phone!.isNotEmpty ? ' (${c.phone})' : '';
@@ -1408,7 +1431,12 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                         if (services.isNotEmpty || packages.isNotEmpty) ...[
                           Builder(
                             builder: (context) {
-                              final selectedItem = _isPackageMode ? _selectedPackage : _selectedService;
+                              final selectedItem = _isPackageMode
+                                  ? (_selectedPackage ?? _selectedService)
+                                  : (_selectedService ?? _selectedPackage);
+                              final isPackage = selectedItem != null
+                                  ? selectedItem == _selectedPackage
+                                  : _isPackageMode;
                               final selectedTitle = selectedItem?.name ??
                                   (_isPackageMode ? 'Select a package' : 'Select a service');
                               final selectedDur = selectedItem != null && selectedItem.durationMinutes > 0
@@ -1448,10 +1476,10 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                         child: Row(
                                           children: [
                                             Icon(
-                                              _isPackageMode ? Icons.card_giftcard_rounded : Icons.spa_outlined,
+                                              isPackage ? Icons.card_giftcard_rounded : Icons.spa_outlined,
                                               size: 18,
                                               color: selectedItem != null
-                                                  ? (_isPackageMode ? const Color(0xFF7C3AED) : const Color(0xFF111827))
+                                                  ? (isPackage ? const Color(0xFF7C3AED) : const Color(0xFF111827))
                                                   : const Color(0xFF9CA3AF),
                                             ),
                                             const SizedBox(width: 10),
@@ -1480,7 +1508,7 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                                   style: AppFonts.poppins(
                                                     size: 12,
                                                     weight: FontWeight.w700,
-                                                    color: _isPackageMode ? const Color(0xFF7C3AED) : const Color(0xFF111827),
+                                                    color: isPackage ? const Color(0xFF7C3AED) : const Color(0xFF111827),
                                                   ),
                                                 ),
                                               ),
@@ -1520,15 +1548,6 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                                     onTap: () {
                                                       setState(() {
                                                         _isPackageMode = false;
-                                                        if (_selectedService == null && services.isNotEmpty) {
-                                                          _selectedService = services.first;
-                                                          _selectedPackage = null;
-                                                          _triggerAvailabilityCheck();
-                                                        } else if (_selectedPackage != null) {
-                                                          _selectedService = services.isNotEmpty ? services.first : null;
-                                                          _selectedPackage = null;
-                                                          _triggerAvailabilityCheck();
-                                                        }
                                                       });
                                                     },
                                                     borderRadius: BorderRadius.circular(8),
@@ -1559,15 +1578,6 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                                     onTap: () {
                                                       setState(() {
                                                         _isPackageMode = true;
-                                                        if (_selectedPackage == null && packages.isNotEmpty) {
-                                                          _selectedPackage = packages.first;
-                                                          _selectedService = null;
-                                                          _triggerAvailabilityCheck();
-                                                        } else if (_selectedService != null) {
-                                                          _selectedPackage = packages.isNotEmpty ? packages.first : null;
-                                                          _selectedService = null;
-                                                          _triggerAvailabilityCheck();
-                                                        }
                                                       });
                                                     },
                                                     borderRadius: BorderRadius.circular(8),
@@ -1603,11 +1613,13 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                       ConstrainedBox(
                                         constraints: const BoxConstraints(maxHeight: 220),
                                         child: RawScrollbar(
+                                          controller: _serviceDropdownScrollController,
                                           thumbVisibility: true,
                                           thumbColor: const Color(0xFFD1D5DB),
                                           radius: const Radius.circular(4),
                                           thickness: 4,
                                           child: ListView.separated(
+                                            controller: _serviceDropdownScrollController,
                                             shrinkWrap: true,
                                             padding: const EdgeInsets.symmetric(vertical: 4),
                                             itemCount: _isPackageMode ? packages.length : services.length,

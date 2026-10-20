@@ -786,7 +786,13 @@ class GroomerBooking {
     return GroomerBooking(
       bookingId: parsedId,
       status: parsedStatus,
-      bookingDate: json['bookingDate']?.toString() ?? json['date']?.toString() ?? '',
+      bookingDate: json['bookingDate']?.toString() ??
+          json['booking_date']?.toString() ??
+          json['BookingDate']?.toString() ??
+          json['date']?.toString() ??
+          json['appointmentDate']?.toString() ??
+          json['appointment_date']?.toString() ??
+          '',
       startTime: json['startTime']?.toString() ?? '09:00 AM',
       endTime: json['endTime']?.toString() ?? '10:00 AM',
       petId: pId,

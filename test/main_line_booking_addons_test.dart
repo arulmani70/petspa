@@ -277,6 +277,8 @@ void main() {
             body: MainLineBookingDialog(
               loggedInGroomer: mockGroomerUser,
               bloc: bloc,
+              initialCustomer: mockCustomer,
+              initialService: mockServices.first,
               onBookingCreated: () {},
             ),
           ),
@@ -313,6 +315,7 @@ void main() {
             body: MainLineBookingDialog(
               loggedInGroomer: mockGroomerUser,
               bloc: emptyBloc,
+              initialService: mockServices.first,
               onBookingCreated: () {},
             ),
           ),

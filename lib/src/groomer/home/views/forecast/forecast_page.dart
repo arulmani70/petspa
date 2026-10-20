@@ -121,6 +121,32 @@ class _ForecastPageState extends State<ForecastPage> {
       _allBookings = uniqueMap.values.toList();
       _salonGroomers = List.from(widget.initialSalonGroomers ?? []);
       _isLoading = false;
+      if (_salonGroomers.isEmpty && _allBookings.isNotEmpty) {
+        final Map<int, SalonGroomer> extracted = {};
+        for (final b in _allBookings) {
+          final canonicalId = BookingDateUtils.resolveCanonicalGroomerId(
+            b.groomerId,
+            groomerCode: b.groomerCode,
+            groomerName: b.groomerName ?? b.effectiveGroomerName,
+          ) ?? b.groomerId ?? 0;
+          if (canonicalId > 0 && !extracted.containsKey(canonicalId)) {
+            final name = b.groomerName ?? b.effectiveGroomerName;
+            final code = b.groomerCode ?? 'G00$canonicalId';
+            final parts = name.split(' ');
+            extracted[canonicalId] = SalonGroomer(
+              id: canonicalId,
+              groomerCode: code,
+              firstName: parts.first,
+              lastName: parts.length > 1 ? parts.sublist(1).join(' ') : '',
+              name: name,
+            );
+          }
+        }
+        if (extracted.isNotEmpty) {
+          _salonGroomers = extracted.values.toList();
+        }
+      }
+      _updateCachedGroomerCounts();
     } else {
       _loadData();
     }
@@ -150,6 +176,7 @@ class _ForecastPageState extends State<ForecastPage> {
         if (mounted) {
           setState(() {
             _salonGroomers = groomers;
+            _updateCachedGroomerCounts();
           });
         }
       }
@@ -215,9 +242,9 @@ class _ForecastPageState extends State<ForecastPage> {
       bool anyTruncated = false;
 
       Future<List<GroomerBooking>> fetchForDate(String dateStr) async {
-        final List<int> groomersToFetch = isAllSelected
+        final List<int> groomersToFetch = _salonGroomers.isNotEmpty
             ? _salonGroomers.map((g) => g.id).where((id) => id > 0).toSet().toList()
-            : selectedIds;
+            : (selectedIds.isNotEmpty ? selectedIds : <int>[]);
 
         if (groomersToFetch.isEmpty) return [];
 
@@ -345,9 +372,7 @@ class _ForecastPageState extends State<ForecastPage> {
           return ta.compareTo(tb);
         });
 
-        for (final g in _salonGroomers) {
-          _cachedGroomerCounts[g.id] = _allBookings.where((b) => b.groomerId == g.id).length;
-        }
+        _updateCachedGroomerCounts();
       });
     } catch (e) {
       if (!mounted) return;
@@ -688,23 +713,67 @@ class _ForecastPageState extends State<ForecastPage> {
     return list;
   }
 
+  bool _bookingMatchesGroomer(GroomerBooking b, SalonGroomer g) {
+    if (b.groomerId != null && b.groomerId! > 0 && b.groomerId == g.id) {
+      return true;
+    }
+    final resolvedBookingId = BookingDateUtils.resolveCanonicalGroomerId(
+      b.groomerId,
+      groomerCode: b.groomerCode,
+      groomerName: b.groomerName ?? b.effectiveGroomerName,
+    );
+    final resolvedGroomerId = BookingDateUtils.resolveCanonicalGroomerId(
+      g.id,
+      groomerCode: g.groomerCode,
+      groomerName: g.name,
+    ) ?? g.id;
+    if (resolvedBookingId != null && resolvedBookingId == resolvedGroomerId) {
+      return true;
+    }
+    if (b.groomerCode != null && b.groomerCode!.trim().isNotEmpty && g.groomerCode.trim().isNotEmpty) {
+      if (b.groomerCode!.trim().toLowerCase() == g.groomerCode.trim().toLowerCase()) {
+        return true;
+      }
+    }
+    final targetName = g.name.trim().toLowerCase();
+    if (targetName.isNotEmpty) {
+      if (b.groomerName != null && b.groomerName!.trim().toLowerCase() == targetName) {
+        return true;
+      }
+      final eff = b.effectiveGroomerName.trim().toLowerCase();
+      if (eff == targetName || eff.contains(targetName)) {
+        return true;
+      }
+      final fName = g.firstName.trim().toLowerCase();
+      if (fName.isNotEmpty && (eff == fName || eff.startsWith('$fName ') || eff.contains(fName))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _updateCachedGroomerCounts() {
+    for (final g in _salonGroomers) {
+      _cachedGroomerCounts[g.id] = _bookingsForDateSelection.where((b) => _bookingMatchesGroomer(b, g)).length;
+    }
+  }
+
   int get _allGroomersTotalCount {
     if (_cachedGroomerCounts.isNotEmpty) {
-      return _cachedGroomerCounts.values.fold(0, (sum, count) => sum + count);
+      final sum = _cachedGroomerCounts.values.fold(0, (sum, count) => sum + count);
+      if (sum > 0) return sum;
     }
     return _bookingsForDateSelection.length;
   }
 
   int _countForGroomer(SalonGroomer groomer) {
     if (_cachedGroomerCounts.containsKey(groomer.id)) {
-      return _cachedGroomerCounts[groomer.id]!;
+      final cached = _cachedGroomerCounts[groomer.id]!;
+      if (cached > 0) return cached;
+      final computed = _bookingsForDateSelection.where((b) => _bookingMatchesGroomer(b, groomer)).length;
+      return computed > 0 ? computed : cached;
     }
-    return _bookingsForDateSelection.where((b) {
-      if (b.groomerId == groomer.id) return true;
-      if (b.groomerCode != null && b.groomerCode!.toLowerCase() == groomer.groomerCode.toLowerCase()) return true;
-      if (b.groomerName != null && b.groomerName!.toLowerCase() == groomer.name.toLowerCase()) return true;
-      return false;
-    }).length;
+    return _bookingsForDateSelection.where((b) => _bookingMatchesGroomer(b, groomer)).length;
   }
 
   bool _isOwnBooking(GroomerBooking booking) {

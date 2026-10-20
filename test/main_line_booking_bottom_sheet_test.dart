@@ -197,6 +197,8 @@ void main() {
                     context,
                     loggedInGroomer: mockUser,
                     bloc: bloc,
+                    initialCustomer: mockCustomer,
+                    initialService: mockService,
                     onBookingCreated: () {},
                   );
                 },
@@ -238,6 +240,8 @@ void main() {
                     context,
                     loggedInGroomer: mockUser,
                     bloc: bloc,
+                    initialCustomer: mockCustomer,
+                    initialService: mockService,
                     onBookingCreated: () {},
                   );
                 },
@@ -276,6 +280,8 @@ void main() {
                     context,
                     loggedInGroomer: mockUser,
                     bloc: bloc,
+                    initialCustomer: mockCustomer,
+                    initialService: mockService,
                     onBookingCreated: () {},
                   );
                 },
@@ -312,6 +318,8 @@ void main() {
                     context,
                     loggedInGroomer: mockUser,
                     bloc: bloc,
+                    initialCustomer: mockCustomer,
+                    initialService: mockService,
                     onBookingCreated: () {},
                   );
                 },
@@ -349,6 +357,8 @@ void main() {
                     context,
                     loggedInGroomer: mockUser,
                     bloc: bloc,
+                    initialCustomer: mockCustomer,
+                    initialService: mockService,
                     onBookingCreated: () {},
                   );
                 },
@@ -384,6 +394,8 @@ void main() {
                     context,
                     loggedInGroomer: mockUser,
                     bloc: bloc,
+                    initialCustomer: mockCustomer,
+                    initialService: mockService,
                     onBookingCreated: () {
                       bookingCreatedCalled = true;
                     },

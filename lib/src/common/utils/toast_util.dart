@@ -13,6 +13,9 @@ class ToastUtil {
     _lastType = null;
   }
 
+  @visibleForTesting
+  static String? get lastMessageForTesting => _lastMessage;
+
   static void showSuccessToast(BuildContext context, String message) {
     _showToast(
       context: context,

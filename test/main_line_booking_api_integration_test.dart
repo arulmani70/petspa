@@ -563,6 +563,8 @@ void main() {
             body: MainLineBookingDialog(
               loggedInGroomer: loggedInMarisa,
               bloc: bloc,
+              initialCustomer: mockCustomers.first,
+              initialService: mockServices.first,
               onBookingCreated: () {},
             ),
           ),

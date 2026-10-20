@@ -118,9 +118,14 @@ class _GroomerCheckInDialogState extends State<GroomerCheckInDialog> {
     if (!_canSubmit || _isSubmitting) return;
 
     if (!widget.booking.isCheckedIn && !widget.booking.canCheckIn()) {
+      final reason = widget.booking.isBeforeScheduledDate()
+          ? 'Check-in is only allowed on the scheduled booking date (${widget.booking.formattedBookingDate}).'
+          : (widget.booking.isAfterScheduledDate()
+              ? 'Check-in is closed because the scheduled booking date (${widget.booking.formattedBookingDate}) has passed.'
+              : 'Check-in is only allowed on the scheduled booking date (${widget.booking.formattedBookingDate}).');
       ToastUtil.showErrorToast(
         context,
-        'Check-in is only allowed on the scheduled booking date.',
+        reason,
       );
       return;
     }
@@ -158,11 +163,25 @@ class _GroomerCheckInDialogState extends State<GroomerCheckInDialog> {
         widget.onCheckInSuccess?.call(updated);
         Navigator.of(context).pop(updated);
       } else {
-        ToastUtil.showErrorToast(context, res.message);
+        String errMsg = res.message;
+        if (errMsg.toLowerCase().contains('route not found') || errMsg.toLowerCase().contains('404')) {
+          errMsg = widget.booking.isBeforeScheduledDate()
+              ? 'Check-in is only allowed on the scheduled booking date (${widget.booking.formattedBookingDate}).'
+              : (widget.booking.isAfterScheduledDate()
+                  ? 'Check-in is closed because the scheduled booking date (${widget.booking.formattedBookingDate}) has passed.'
+                  : 'Check-in is only allowed on the scheduled booking date (${widget.booking.formattedBookingDate}).');
+        }
+        ToastUtil.showErrorToast(context, errMsg);
       }
     } catch (e) {
       if (mounted) {
-        ToastUtil.showErrorToast(context, 'Check-in failed: $e');
+        final errStr = e.toString();
+        final msg = (errStr.toLowerCase().contains('route not found') || errStr.toLowerCase().contains('404'))
+            ? (widget.booking.isBeforeScheduledDate()
+                ? 'Check-in is only allowed on the scheduled booking date (${widget.booking.formattedBookingDate}).'
+                : 'Check-in is only allowed on the scheduled booking date (${widget.booking.formattedBookingDate}).')
+            : 'Check-in failed: $e';
+        ToastUtil.showErrorToast(context, msg);
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);

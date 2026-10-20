@@ -1,9 +1,15 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/utils/booking_date_utils.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
+import 'package:shear_heaven_pet_spa/src/common/utils/toast_util.dart';
+import 'package:toastification/toastification.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_booking.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_check_in_record.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/salon_groomer.dart';
@@ -488,4 +494,213 @@ void main() {
       expect(find.textContaining('Checked In'), findsWidgets);
     });
   });
+
+  group('Groomer Check-In Error Message Handling (Defect Fix - Route Not Found -> Clear Message)', () {
+    late HttpClientAdapter originalAdapter;
+
+    setUp(() {
+      originalAdapter = ServicesLocator.apiRepository.dio.httpClientAdapter;
+    });
+
+    tearDown(() {
+      ServicesLocator.apiRepository.dio.httpClientAdapter = originalAdapter;
+      BookingDateUtils.customNow = null;
+    });
+
+    test('GroomerBooking.fromJson parses booking_date and appointmentDate appropriately', () {
+      final jsonSnake = {
+        'id': 701,
+        'booking_date': '2026-10-21',
+        'status': 'confirmed',
+        'startTime': '10:00 AM',
+        'endTime': '11:00 AM',
+        'petName': 'Mochi',
+        'customerName': 'Tina',
+        'serviceName': 'Bath',
+      };
+      final b1 = GroomerBooking.fromJson(jsonSnake);
+      expect(b1.bookingDate, equals('2026-10-21'));
+      expect(b1.formattedBookingDate, equals('21 Oct 2026'));
+
+      final jsonAppt = {
+        'id': 702,
+        'appointmentDate': '2026-10-22',
+        'status': 'confirmed',
+        'startTime': '10:00 AM',
+        'endTime': '11:00 AM',
+        'petName': 'Mochi',
+        'customerName': 'Tina',
+        'serviceName': 'Bath',
+      };
+      final b2 = GroomerBooking.fromJson(jsonAppt);
+      expect(b2.bookingDate, equals('2026-10-22'));
+      expect(b2.formattedBookingDate, equals('22 Oct 2026'));
+    });
+
+    test('checkInBooking maps Route Not Found 404 response to user-friendly scheduled booking date message for next-day appointment', () async {
+      BookingDateUtils.customNow = DateTime(2026, 10, 20, 10, 0);
+
+      final tomorrowBooking = const GroomerBooking(
+        bookingId: 955,
+        status: 'confirmed',
+        bookingDate: '2026-10-21',
+        startTime: '10:00 AM',
+        endTime: '11:00 AM',
+        petName: 'Barnaby',
+        customerName: 'George',
+        serviceName: 'Full Grooming',
+      );
+
+      // Simulate backend returning 404 "Route Not Found"
+      ServicesLocator.apiRepository.dio.httpClientAdapter = MockAdapter((options) async {
+        return MockAdapter.json({
+          'success': false,
+          'message': 'Route Not Found: POST ${options.path}',
+        }, 404);
+      });
+
+      final res = await ServicesLocator.groomerHomeRepository.checkInBooking(
+        bookingId: tomorrowBooking.bookingId,
+        vaccinationVerified: true,
+        healthVerified: true,
+        customerRequestAcknowledged: true,
+        booking: tomorrowBooking,
+      );
+
+      expect(res.success, isFalse);
+      expect(res.message, isNot(contains('Route Not Found')));
+      expect(res.message, contains('Check-in is only allowed on the scheduled booking date (21 Oct 2026)'));
+    });
+
+    test('checkInBooking maps Route Not Found 404 response to clear error even if booking argument is null', () async {
+      BookingDateUtils.customNow = DateTime(2026, 10, 20, 10, 0);
+
+      // Simulate backend returning 404 "Route Not Found"
+      ServicesLocator.apiRepository.dio.httpClientAdapter = MockAdapter((options) async {
+        return MockAdapter.json({
+          'success': false,
+          'message': 'Route Not Found',
+        }, 404);
+      });
+
+      final res = await ServicesLocator.groomerHomeRepository.checkInBooking(
+        bookingId: 9999,
+        vaccinationVerified: true,
+        healthVerified: true,
+        customerRequestAcknowledged: true,
+        booking: null,
+      );
+
+      expect(res.success, isFalse);
+      expect(res.message, isNot(contains('Route Not Found')));
+      expect(res.message, contains('Check-in is only allowed on the scheduled booking date'));
+    });
+
+    test('updateServiceMilestone check_in_completed maps Route Not Found 404 to clear date error message', () async {
+      BookingDateUtils.customNow = DateTime(2026, 10, 20, 10, 0);
+
+      final tomorrowBooking = const GroomerBooking(
+        bookingId: 956,
+        status: 'confirmed',
+        bookingDate: '2026-10-21',
+        startTime: '10:00 AM',
+        endTime: '11:00 AM',
+        petName: 'Barnaby',
+        customerName: 'George',
+        serviceName: 'Full Grooming',
+      );
+
+      ServicesLocator.apiRepository.dio.httpClientAdapter = MockAdapter((options) async {
+        return MockAdapter.json({
+          'success': false,
+          'message': 'Route not found: POST ${options.path}',
+        }, 404);
+      });
+
+      final res = await ServicesLocator.groomerHomeRepository.updateServiceMilestone(
+        bookingId: tomorrowBooking.bookingId,
+        milestone: 'check_in_completed',
+        booking: tomorrowBooking,
+      );
+
+      expect(res.success, isFalse);
+      expect(res.message, isNot(contains('Route not found')));
+      expect(res.message, contains('Check-in is only allowed on the scheduled booking date (21 Oct 2026)'));
+    });
+
+    testWidgets('GroomerCheckInDialog replaces Route Not Found with clear booking date error on failed submission', (tester) async {
+      ToastUtil.resetForTesting();
+      BookingDateUtils.customNow = DateTime(2026, 10, 20, 10, 0);
+
+      final booking = const GroomerBooking(
+        bookingId: 957,
+        status: 'confirmed',
+        bookingDate: '2026-10-20',
+        startTime: '10:00 AM',
+        endTime: '11:00 AM',
+        petName: 'Bella',
+        customerName: 'Laura',
+        serviceName: 'Full Grooming',
+      );
+
+      // Simulate backend returning 404 Route Not Found
+      ServicesLocator.apiRepository.dio.httpClientAdapter = MockAdapter((options) async {
+        return MockAdapter.json({
+          'success': false,
+          'message': 'Route Not Found',
+        }, 404);
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => ToastificationWrapper(child: child!),
+          home: Scaffold(
+            body: GroomerCheckInDialog(booking: booking),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Check the two intake checkboxes (vaccination and health verification)
+      final checkBoxes = find.byType(Checkbox);
+      expect(checkBoxes, findsAtLeastNWidgets(2));
+      await tester.tap(checkBoxes.at(0));
+      await tester.pumpAndSettle();
+      await tester.tap(checkBoxes.at(1));
+      await tester.pumpAndSettle();
+
+      final confirmBtnFinder = find.widgetWithText(ElevatedButton, 'Confirm Check-in');
+      await tester.tap(confirmBtnFinder);
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+
+      // Toast must display clear error message, NOT "Route Not Found"
+      expect(ToastUtil.lastMessageForTesting, isNotNull);
+      expect(ToastUtil.lastMessageForTesting, isNot(contains('Route Not Found')));
+      expect(ToastUtil.lastMessageForTesting, contains('Check-in is only allowed on the scheduled booking date'));
+    });
+  });
+}
+
+class MockAdapter implements HttpClientAdapter {
+  final Future<ResponseBody> Function(RequestOptions options) handler;
+  MockAdapter(this.handler);
+
+  @override
+  Future<ResponseBody> fetch(RequestOptions options, Stream<Uint8List>? requestStream, Future<void>? cancelFuture) {
+    return handler(options);
+  }
+
+  @override
+  void close({bool force = false}) {}
+
+  static ResponseBody json(dynamic data, int statusCode) {
+    return ResponseBody.fromString(
+      jsonEncode(data),
+      statusCode,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
 }
