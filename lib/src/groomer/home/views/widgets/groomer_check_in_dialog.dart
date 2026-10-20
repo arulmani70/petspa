@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'package:intl/intl.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
@@ -31,6 +32,25 @@ class GroomerCheckInDialog extends StatefulWidget {
     required GroomerBooking booking,
     ValueChanged<GroomerBooking>? onCheckInSuccess,
   }) {
+    if (!booking.isCheckedIn && !booking.canCheckIn()) {
+      if (booking.isBeforeScheduledDate()) {
+        ToastUtil.showErrorToast(
+          context,
+          'Check-in is only allowed on the scheduled booking date (${booking.formattedBookingDate}).',
+        );
+      } else if (booking.isAfterScheduledDate()) {
+        ToastUtil.showErrorToast(
+          context,
+          'Check-in is closed because the scheduled booking date (${booking.formattedBookingDate}) has passed.',
+        );
+      } else {
+        ToastUtil.showErrorToast(
+          context,
+          'Check-in is only allowed on the scheduled booking date.',
+        );
+      }
+      return Future.value(null);
+    }
     return showModalBottomSheet<GroomerBooking>(
       context: context,
       isScrollControlled: true,
@@ -80,6 +100,11 @@ class _GroomerCheckInDialogState extends State<GroomerCheckInDialog> {
 
   bool get _canSubmit {
     if (_isSubmitting) return false;
+    // Check-in allowed only on the scheduled booking date if not already checked in
+
+    if (!widget.booking.isCheckedIn && !widget.booking.canCheckIn()) {
+      return false;
+    }
     // Both vaccination and health verification are strictly required for intake
     if (!_vaccinationVerified || !_healthVerified) return false;
     // Customer request must be acknowledged if customer left instructions
@@ -91,6 +116,14 @@ class _GroomerCheckInDialogState extends State<GroomerCheckInDialog> {
 
   Future<void> _submitCheckIn() async {
     if (!_canSubmit || _isSubmitting) return;
+
+    if (!widget.booking.isCheckedIn && !widget.booking.canCheckIn()) {
+      ToastUtil.showErrorToast(
+        context,
+        'Check-in is only allowed on the scheduled booking date.',
+      );
+      return;
+    }
 
     setState(() => _isSubmitting = true);
 
@@ -226,6 +259,38 @@ class _GroomerCheckInDialogState extends State<GroomerCheckInDialog> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // ── Check-in Date Restriction Notice (if not on scheduled date) ──
+                  if (!booking.isCheckedIn && !booking.canCheckIn()) ...[
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 14),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFFECACA)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFFDC2626)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              booking.isBeforeScheduledDate()
+                                  ? 'Check-in will open on the scheduled booking date: ${booking.formattedBookingDate}.'
+                                  : 'Check-in is closed because the scheduled booking date (${booking.formattedBookingDate}) has passed.',
+                              style: AppFonts.poppins(
+                                size: 12,
+                                weight: FontWeight.w500,
+                                color: const Color(0xFF991B1B),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
                   // ── Existing Server Check-in Timestamp (if present) ──
                   if (booking.checkInTimestamp != null &&
                       booking.checkInTimestamp!.isNotEmpty) ...[

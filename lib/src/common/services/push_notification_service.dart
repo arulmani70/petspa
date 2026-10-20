@@ -250,12 +250,12 @@ class PushNotificationService {
         }
         if (options != null) {
           await Firebase.initializeApp(options: options).timeout(
-            const Duration(milliseconds: 1500),
+            const Duration(seconds: 15),
             onTimeout: () => throw Exception('Firebase init timeout'),
           );
         } else {
           await Firebase.initializeApp().timeout(
-            const Duration(milliseconds: 1500),
+            const Duration(seconds: 15),
             onTimeout: () => throw Exception('Firebase init timeout'),
           );
         }

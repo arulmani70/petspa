@@ -683,6 +683,25 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
   }
 
   Future<void> _handleCheckIn(GroomerBooking booking) async {
+    if (!booking.isCheckedIn && !booking.canCheckIn()) {
+      if (booking.isBeforeScheduledDate()) {
+        ToastUtil.showErrorToast(
+          context,
+          'Check-in is only allowed on the scheduled booking date (${booking.formattedBookingDate}).',
+        );
+      } else if (booking.isAfterScheduledDate()) {
+        ToastUtil.showErrorToast(
+          context,
+          'Check-in is closed because the scheduled booking date (${booking.formattedBookingDate}) has passed.',
+        );
+      } else {
+        ToastUtil.showErrorToast(
+          context,
+          'Check-in is only allowed on the scheduled booking date.',
+        );
+      }
+      return;
+    }
     if (!_isOwnBooking(booking)) {
       ToastUtil.showErrorToast(context, 'You cannot check in another groomer\'s appointment.');
       return;
@@ -2380,6 +2399,8 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF111827), // Brand Deep Slate
                             foregroundColor: Colors.white,
+                            disabledBackgroundColor: const Color(0xFFE5E7EB),
+                            disabledForegroundColor: const Color(0xFF9CA3AF),
                             elevation: 0,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(20),
@@ -2388,14 +2409,15 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                             minimumSize: const Size(0, 30),
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
-                          onPressed: () => _handleCheckIn(booking),
-                          icon: const Icon(Icons.assignment_turned_in_outlined, size: 15, color: Colors.white),
+                          onPressed: !booking.canCheckIn()
+                              ? null
+                              : () => _handleCheckIn(booking),
+                          icon: const Icon(Icons.assignment_turned_in_outlined, size: 15),
                           label: Text(
                             'Check In',
                             style: AppFonts.poppins(
                               size: 12,
                               weight: FontWeight.w600,
-                              color: Colors.white,
                             ),
                           ),
                         )

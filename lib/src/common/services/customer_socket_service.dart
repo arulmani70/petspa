@@ -5,6 +5,7 @@ import 'package:logger/logger.dart';
 import 'package:shear_heaven_pet_spa/src/account/models/app_notification.dart';
 import 'package:shear_heaven_pet_spa/src/chat/models/chat_message_model.dart';
 import 'package:shear_heaven_pet_spa/src/common/common.dart';
+import 'package:shear_heaven_pet_spa/src/common/services/polling_websocket_connector.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/push_notification_service.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/session_service.dart';
@@ -200,15 +201,7 @@ class CustomerSocketService {
     // Clean up any lingering socket before creating a new one
     _cleanSocket();
 
-    String url = serverUrl ?? Constants.app.BASE_URL;
-    final parsedUri = Uri.tryParse(url);
-    if (parsedUri != null && !parsedUri.hasPort) {
-      if (parsedUri.scheme == 'https') {
-        url = '${parsedUri.scheme}://${parsedUri.host}:443${parsedUri.path}';
-      } else if (parsedUri.scheme == 'http') {
-        url = '${parsedUri.scheme}://${parsedUri.host}:80${parsedUri.path}';
-      }
-    }
+    final String url = serverUrl ?? Constants.app.BASE_URL;
     final maskedToken = _maskToken(authToken);
     _log.i('Customer Chat Socket connecting to $url (token: $maskedToken)');
 
@@ -221,7 +214,7 @@ class CustomerSocketService {
           : 'Bearer $authToken';
 
       final options = io.OptionBuilder()
-          .setTransports(['websocket', 'polling'])
+          .setTransports(['websocket'])
           .disableAutoConnect()
           .enableReconnection()
           .setReconnectionAttempts(15)
@@ -237,6 +230,7 @@ class CustomerSocketService {
             'Authorization': bearerToken,
             'authorization': bearerToken,
             'token': rawToken,
+            'User-Agent': 'Mozilla/5.0 (Mobile; ShearHeaven)',
           })
           .setQuery({
             'token': rawToken,
@@ -244,6 +238,8 @@ class CustomerSocketService {
             'authorization': bearerToken,
           })
           .build();
+
+      options['webSocketConnector'] = resilientWebSocketConnector;
 
       _socket = io.io(url, options);
 

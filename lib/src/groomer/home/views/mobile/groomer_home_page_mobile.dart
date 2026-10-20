@@ -614,6 +614,25 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
   }
 
   Future<void> _handleCheckInBooking(GroomerBooking booking) async {
+    if (!booking.isCheckedIn && !booking.canCheckIn()) {
+      if (booking.isBeforeScheduledDate()) {
+        ToastUtil.showErrorToast(
+          context,
+          'Check-in is only allowed on the scheduled booking date (${booking.formattedBookingDate}).',
+        );
+      } else if (booking.isAfterScheduledDate()) {
+        ToastUtil.showErrorToast(
+          context,
+          'Check-in is closed because the scheduled booking date (${booking.formattedBookingDate}) has passed.',
+        );
+      } else {
+        ToastUtil.showErrorToast(
+          context,
+          'Check-in is only allowed on the scheduled booking date.',
+        );
+      }
+      return;
+    }
     if (_processingBookingIds.contains(booking.bookingId)) return;
     setState(() => _processingBookingIds.add(booking.bookingId));
     try {
@@ -6129,6 +6148,8 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                             0xFF111827,
                           ), // Brand Deep Slate
                           foregroundColor: Colors.white,
+                          disabledBackgroundColor: const Color(0xFFE5E7EB),
+                          disabledForegroundColor: const Color(0xFF9CA3AF),
                           elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20),
@@ -6140,20 +6161,19 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                           minimumSize: const Size(0, 36),
                         ),
                         onPressed:
-                            _processingBookingIds.contains(booking.bookingId)
+                            _processingBookingIds.contains(booking.bookingId) ||
+                                    !booking.canCheckIn()
                             ? null
                             : () => _handleCheckInBooking(booking),
                         icon: const Icon(
                           Icons.assignment_turned_in_outlined,
                           size: 16,
-                          color: Colors.white,
                         ),
                         label: Text(
                           'Check In',
                           style: AppFonts.poppins(
                             size: 12,
                             weight: FontWeight.w600,
-                            color: Colors.white,
                           ),
                         ),
                       )

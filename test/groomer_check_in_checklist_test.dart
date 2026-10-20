@@ -7,6 +7,7 @@ import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_booking.dar
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_check_in_record.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/salon_groomer.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/views/all_groomers/all_groomers_schedule_page.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/utils/booking_date_utils.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/views/widgets/groomer_check_in_dialog.dart';
 
 void main() {
@@ -153,7 +154,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        const MaterialApp(
+        MaterialApp(
           home: Scaffold(
             body: GroomerCheckInDialog(booking: testBooking),
           ),
@@ -187,10 +188,12 @@ void main() {
     });
 
     testWidgets('Confirm Check-in button requires both Vaccination and Health verifications', (tester) async {
-      const testBooking = GroomerBooking(
+
+      final todayStr = BookingDateUtils.formatDate(DateTime.now());
+      final testBooking = GroomerBooking(
         bookingId: 502,
         status: 'confirmed',
-        bookingDate: '2026-10-16',
+        bookingDate: todayStr,
         startTime: '01:00 PM',
         endTime: '02:00 PM',
         petName: 'Charlie',
@@ -200,7 +203,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        const MaterialApp(
+        MaterialApp(
           home: Scaffold(
             body: GroomerCheckInDialog(booking: testBooking),
           ),
@@ -250,7 +253,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        const MaterialApp(
+        MaterialApp(
           home: Scaffold(
             body: GroomerCheckInDialog(booking: testBooking),
           ),
@@ -277,8 +280,8 @@ void main() {
         'role': 'Groomer',
       });
 
-      final now = DateTime.now();
-      final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+      final todayStr = BookingDateUtils.formatDate(DateTime.now());
 
       final salonGroomers = <SalonGroomer>[
         const SalonGroomer(
@@ -342,8 +345,8 @@ void main() {
         'role': 'Groomer',
       });
 
-      final now = DateTime.now();
-      final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+      final todayStr = BookingDateUtils.formatDate(DateTime.now());
 
       final salonGroomers = <SalonGroomer>[
         const SalonGroomer(

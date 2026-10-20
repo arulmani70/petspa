@@ -1111,6 +1111,21 @@ class GroomerHomeRepository {
     try {
       log.d('GroomerHomeRepository::checkInBooking::Checking in booking #$bookingId');
 
+      if (booking != null && !booking.isCheckedIn && !booking.canCheckIn()) {
+        final reason = booking.isBeforeScheduledDate()
+            ? 'Check-in is only allowed on the scheduled booking date (${booking.formattedBookingDate}).'
+            : (booking.isAfterScheduledDate()
+                ? 'Check-in is closed because the scheduled booking date (${booking.formattedBookingDate}) has passed.'
+                : 'Check-in is only allowed on the scheduled booking date.');
+        log.w('GroomerHomeRepository::checkInBooking::Blocked check-in - $reason');
+        return (
+          success: false,
+          message: reason,
+          updatedBooking: null,
+          checkInRecord: null,
+        );
+      }
+
       final payload = <String, dynamic>{
         'vaccinationVerified': vaccinationVerified,
         'healthVerified': healthVerified,
@@ -1273,6 +1288,20 @@ class GroomerHomeRepository {
             );
           }
         } else if (milestone == 'check_in_completed') {
+          if (!booking.canCheckIn()) {
+            final reason = booking.isBeforeScheduledDate()
+                ? 'Check-in is only allowed on the scheduled booking date (${booking.formattedBookingDate}).'
+                : (booking.isAfterScheduledDate()
+                    ? 'Check-in is closed because the scheduled booking date (${booking.formattedBookingDate}) has passed.'
+                    : 'Check-in is only allowed on the scheduled booking date.');
+            return (
+              success: false,
+              message: reason,
+              updatedBooking: null,
+              milestoneRecord: null,
+              timeline: null,
+            );
+          }
           if (booking.isCheckedIn) {
             return (
               success: false,

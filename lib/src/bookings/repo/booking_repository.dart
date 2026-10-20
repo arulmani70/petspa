@@ -765,7 +765,9 @@ class BookingRepository {
           final bookingCustId = booking['customerId'] ??
               booking['customer_id'] ??
               booking['userId'] ??
-              booking['user_id'];
+              booking['user_id'] ??
+              (booking['customer'] is Map ? booking['customer']['id'] : null) ??
+              (booking['user'] is Map ? booking['user']['id'] : null);
           if (bookingCustId != null) {
             final bIdStr = bookingCustId.toString();
             if (bIdStr != currentUid && bIdStr != '0') {
@@ -888,7 +890,9 @@ class BookingRepository {
         final custId = booking?['customerId'] ??
             booking?['customer_id'] ??
             booking?['userId'] ??
-            booking?['user_id'];
+            booking?['user_id'] ??
+            (booking?['customer'] is Map ? booking!['customer']['id'] : null) ??
+            (booking?['user'] is Map ? booking!['user']['id'] : null);
         final resolvedCustId = custId is int
             ? custId
             : int.tryParse(custId?.toString() ?? '');

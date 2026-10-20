@@ -21,6 +21,10 @@ class BookingDateUtils {
   /// Optional flag to disable 14-day date range restriction in UI/widget unit tests.
   static bool disableDateRangeValidationForTesting = false;
 
+  /// Optional store timezone offset for store-localized calendar comparisons.
+  /// When not null, [getStoreNow] adjusts UTC time by this offset instead of device local time.
+  static Duration? storeTimeZoneOffset;
+
   /// Returns normalized today (00:00:00.000).
   static DateTime get minAllowedDate {
     if (disableDateRangeValidationForTesting) return DateTime(2000, 1, 1);
@@ -89,6 +93,134 @@ class BookingDateUtils {
   static bool isToday(dynamic date, [DateTime? referenceDate]) {
     final ref = referenceDate ?? customNow ?? DateTime.now();
     return isSameCalendarDay(date, ref);
+  }
+
+  /// Extracts timezone offset from an ISO 8601 string if present (e.g. "+05:30", "-05:00", "Z").
+  static Duration? extractTimeZoneOffset(dynamic raw) {
+    if (raw == null) return null;
+    final str = raw.toString().trim();
+    if (str.isEmpty) return null;
+
+    if (str.endsWith('Z') || str.endsWith('z')) {
+      return Duration.zero;
+    }
+
+    // Pure date strings like "2026-10-20" or "10/20/2026" do NOT have a timezone offset
+    if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(str) ||
+        RegExp(r'^\d{1,2}/\d{1,2}/\d{4}$').hasMatch(str)) {
+      return null;
+    }
+
+    final match = RegExp(r'(?:(?:T|\s)\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?|^)\s*([+-])(\d{2}):?(\d{2})?$').firstMatch(str);
+    if (match != null) {
+      final sign = match.group(1) == '-' ? -1 : 1;
+      final hours = int.tryParse(match.group(2) ?? '0') ?? 0;
+      final minutes = int.tryParse(match.group(3) ?? '0') ?? 0;
+      if (hours <= 14 && minutes < 60) {
+        return Duration(minutes: sign * (hours * 60 + minutes));
+      }
+    }
+
+    return null;
+  }
+
+  /// Returns the current DateTime in the store / appointment's local timezone.
+  ///
+  /// Precedence:
+  /// 1. [referenceDate] (explicit override, e.g. for testing)
+  /// 2. [customNow] (global testing hook)
+  /// 3. [timeZoneOffset] (explicit timezone offset parameter)
+  /// 4. Timezone offset extracted from [bookingDate] (e.g. from an ISO 8601 string)
+  /// 5. [storeTimeZoneOffset] (configured store timezone offset)
+  /// 6. Device's [DateTime.now()]
+  static DateTime getStoreNow({
+    DateTime? referenceDate,
+    Duration? timeZoneOffset,
+    dynamic bookingDate,
+  }) {
+    if (referenceDate != null) return referenceDate;
+    if (customNow != null) return customNow!;
+
+    final offset = timeZoneOffset ??
+        extractTimeZoneOffset(bookingDate) ??
+        storeTimeZoneOffset;
+
+    if (offset != null) {
+      return DateTime.now().toUtc().add(offset);
+    }
+
+    return DateTime.now();
+  }
+
+  /// Checks whether [bookingDate] is on its scheduled calendar day in the store/appointment timezone.
+  static bool isBookingDateToday(
+    dynamic bookingDate, {
+    DateTime? referenceDate,
+    Duration? timeZoneOffset,
+  }) {
+    if (bookingDate == null) return false;
+    final ref = getStoreNow(
+      referenceDate: referenceDate,
+      timeZoneOffset: timeZoneOffset,
+      bookingDate: bookingDate,
+    );
+    return isSameCalendarDay(bookingDate, ref);
+  }
+
+  /// Checks whether current store time is strictly before the appointment [bookingDate].
+  static bool isBeforeBookingDate(
+    dynamic bookingDate, {
+    DateTime? referenceDate,
+    Duration? timeZoneOffset,
+  }) {
+    if (bookingDate == null) return false;
+    final parsedBooking = parseCalendarDate(bookingDate);
+    if (parsedBooking == null) return false;
+
+    final ref = getStoreNow(
+      referenceDate: referenceDate,
+      timeZoneOffset: timeZoneOffset,
+      bookingDate: bookingDate,
+    );
+    final refDay = DateTime(ref.year, ref.month, ref.day);
+    final bookingDay = DateTime(parsedBooking.year, parsedBooking.month, parsedBooking.day);
+
+    return refDay.isBefore(bookingDay);
+  }
+
+  /// Checks whether current store time is strictly after the appointment [bookingDate].
+  static bool isAfterBookingDate(
+    dynamic bookingDate, {
+    DateTime? referenceDate,
+    Duration? timeZoneOffset,
+  }) {
+    if (bookingDate == null) return false;
+    final parsedBooking = parseCalendarDate(bookingDate);
+    if (parsedBooking == null) return false;
+
+    final ref = getStoreNow(
+      referenceDate: referenceDate,
+      timeZoneOffset: timeZoneOffset,
+      bookingDate: bookingDate,
+    );
+    final refDay = DateTime(ref.year, ref.month, ref.day);
+    final bookingDay = DateTime(parsedBooking.year, parsedBooking.month, parsedBooking.day);
+
+    return refDay.isAfter(bookingDay);
+  }
+
+  /// Evaluates whether check-in is allowed based strictly on appointment booking date.
+  /// Allowed ONLY on the booking date in the store/appointment timezone.
+  static bool isCheckInDateAllowed(
+    dynamic bookingDate, {
+    DateTime? referenceDate,
+    Duration? timeZoneOffset,
+  }) {
+    return isBookingDateToday(
+      bookingDate,
+      referenceDate: referenceDate,
+      timeZoneOffset: timeZoneOffset,
+    );
   }
 
   /// Formats a booking date for UI display:

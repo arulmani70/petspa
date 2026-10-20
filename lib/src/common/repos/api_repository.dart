@@ -13,6 +13,7 @@ class ApiRepository {
 
   Completer<bool>? _customerRefreshCompleter;
   Completer<bool>? _groomerRefreshCompleter;
+  bool _suppressCustomerAuthFailureRedirect = false;
 
   @visibleForTesting
   Dio get dio => _dio;
@@ -70,7 +71,7 @@ class ApiRepository {
     return false;
   }
 
-  Future<bool> _refreshCustomerTokenWithMutex() async {
+  Future<bool> _refreshCustomerTokenWithMutex({bool allowAuthFailureRedirect = true}) async {
     if (_customerRefreshCompleter != null) {
       log.d('[AUTH] Customer refresh already in progress - waiting');
       final result = await _customerRefreshCompleter!.future;
@@ -95,7 +96,11 @@ class ApiRepository {
         log.d('[AUTH] New Customer access token stored');
       } else {
         log.d('[AUTH] Customer refresh failed');
-        await _handleCustomerAuthFailure();
+        if (allowAuthFailureRedirect && !_suppressCustomerAuthFailureRedirect) {
+          await _handleCustomerAuthFailure();
+        } else {
+          log.w('[AUTH] Auth failure redirect suppressed for non-fatal endpoint');
+        }
       }
       return success;
     } catch (e) {
@@ -104,7 +109,7 @@ class ApiRepository {
       if (!completer.isCompleted) {
         completer.complete(false);
       }
-      if (!isNetworkErr) {
+      if (!isNetworkErr && allowAuthFailureRedirect && !_suppressCustomerAuthFailureRedirect) {
         await _handleCustomerAuthFailure();
       }
       return false;
@@ -121,6 +126,23 @@ class ApiRepository {
         return false;
       }
 
+      final session = ServicesLocator.sessionService;
+      final cId = (session.clientId != null && session.clientId!.isNotEmpty)
+          ? session.clientId!
+          : 'SHEAR-001';
+      final rId = (session.regionId != null && session.regionId!.isNotEmpty)
+          ? session.regionId!
+          : 'DWG-001';
+      final sId = (session.storeId != null && session.storeId!.isNotEmpty)
+          ? session.storeId!
+          : 'SHEAR-001';
+
+      final refreshHeaders = {
+        'ClientId': cId,
+        'RegionId': rId,
+        'StoreId': sId,
+      };
+
       log.d('[AUTH] POST /api/auth/refresh-token called');
       Response response;
       try {
@@ -129,6 +151,7 @@ class ApiRepository {
           data: {'refreshToken': refreshToken},
           options: Options(
             extra: {'is_retry': true},
+            headers: refreshHeaders,
           ),
         );
       } catch (e) {
@@ -141,6 +164,7 @@ class ApiRepository {
           data: {'refresh_token': refreshToken, 'refreshToken': refreshToken},
           options: Options(
             extra: {'is_retry': true},
+            headers: refreshHeaders,
           ),
         );
       }
@@ -212,6 +236,10 @@ class ApiRepository {
   }
 
   Future<void> _handleCustomerAuthFailure() async {
+    if (_suppressCustomerAuthFailureRedirect) {
+      log.w('[AUTH] _handleCustomerAuthFailure suppressed for non-fatal checkout/tip flow');
+      return;
+    }
     try {
       log.d('[AUTH] Clearing Customer session');
       final session = ServicesLocator.sessionService;
@@ -382,6 +410,14 @@ class ApiRepository {
     return false;
   }
 
+  bool _isCheckoutTipEndpoint(String path) {
+    final lower = path.toLowerCase();
+    return lower.contains('/confirm-tip') ||
+        lower.contains('/tip') ||
+        lower.contains('/checkout-summary') ||
+        lower.contains('/receipt');
+  }
+
   Future<void> initialize() async {
     _dio = Dio(
       BaseOptions(
@@ -402,22 +438,22 @@ class ApiRepository {
         onRequest: (options, handler) async {
           final session = ServicesLocator.sessionService;
 
-          final cId = session.clientId;
-          final rId = session.regionId;
-          final sId = session.storeId;
+          final cId = (session.clientId != null && session.clientId!.isNotEmpty)
+              ? session.clientId!
+              : 'SHEAR-001';
+          final rId = (session.regionId != null && session.regionId!.isNotEmpty)
+              ? session.regionId!
+              : 'DWG-001';
+          final sId = (session.storeId != null && session.storeId!.isNotEmpty)
+              ? session.storeId!
+              : 'SHEAR-001';
 
-          if (cId != null && cId.isNotEmpty) {
-            options.headers['ClientId'] = cId;
-            options.headers['x-client-id'] = cId;
-          }
-          if (rId != null && rId.isNotEmpty) {
-            options.headers['RegionId'] = rId;
-            options.headers['x-region-id'] = rId;
-          }
-          if (sId != null && sId.isNotEmpty) {
-            options.headers['StoreId'] = sId;
-            options.headers['x-store-id'] = sId;
-          }
+          options.headers['ClientId'] = cId;
+          options.headers['x-client-id'] = cId;
+          options.headers['RegionId'] = rId;
+          options.headers['x-region-id'] = rId;
+          options.headers['StoreId'] = sId;
+          options.headers['x-store-id'] = sId;
 
           if (_isExcludedAuthPath(options.path)) {
             return handler.next(options);
@@ -513,29 +549,44 @@ class ApiRepository {
             } else {
               log.d('[AUTH] Customer API returned 401: ${response.requestOptions.path}');
               log.d('[AUTH] Customer access token expired/invalid');
-              final refreshed = await _refreshCustomerTokenWithMutex();
+              final isCheckoutTip = _isCheckoutTipEndpoint(response.requestOptions.path);
+              if (isCheckoutTip) {
+                _suppressCustomerAuthFailureRedirect = true;
+              }
+              try {
+                final refreshed = await _refreshCustomerTokenWithMutex(
+                  allowAuthFailureRedirect: !isCheckoutTip,
+                );
 
-              if (refreshed) {
-                try {
-                  log.d('[AUTH] Retrying original Customer request');
-                  final retryOptions = response.requestOptions;
-                  retryOptions.extra['is_retry'] = true;
-                  final freshToken = await session.getAccessToken();
+                if (refreshed) {
+                  try {
+                    log.d('[AUTH] Retrying original Customer request');
+                    final retryOptions = response.requestOptions;
+                    retryOptions.extra['is_retry'] = true;
+                    final freshToken = await session.getAccessToken();
 
-                  if (freshToken != null && freshToken.isNotEmpty) {
-                    retryOptions.headers['Authorization'] = 'Bearer $freshToken';
+                    if (freshToken != null && freshToken.isNotEmpty) {
+                      retryOptions.headers['Authorization'] = 'Bearer $freshToken';
+                    }
+
+                    final retryResponse = await _dio.fetch(retryOptions);
+                    if (retryResponse.statusCode != null &&
+                        retryResponse.statusCode! >= 200 &&
+                        retryResponse.statusCode! < 300) {
+                      log.d('[AUTH] Original Customer request succeeded after retry');
+                    }
+                    return handler.resolve(retryResponse);
+                  } catch (e) {
+                    log.e('[AUTH] Error retrying Customer request after refresh: $e');
+                    return handler.next(response);
                   }
-
-                  final retryResponse = await _dio.fetch(retryOptions);
-                  if (retryResponse.statusCode != null &&
-                      retryResponse.statusCode! >= 200 &&
-                      retryResponse.statusCode! < 300) {
-                    log.d('[AUTH] Original Customer request succeeded after retry');
-                  }
-                  return handler.resolve(retryResponse);
-                } catch (e) {
-                  log.e('[AUTH] Error retrying Customer request after refresh: $e');
+                } else if (isCheckoutTip) {
+                  log.w('[AUTH] Refresh failed for checkout tip endpoint (${response.requestOptions.path}). Preserving customer session and returning response without logout.');
                   return handler.next(response);
+                }
+              } finally {
+                if (isCheckoutTip) {
+                  _suppressCustomerAuthFailureRedirect = false;
                 }
               }
             }
@@ -552,6 +603,7 @@ class ApiRepository {
             final session = ServicesLocator.sessionService;
             final isGroomer = _isGroomerPath(err.requestOptions.path);
             final isCustomer = !isGroomer && session.isLoggedIn;
+            final isCheckoutTip = _isCheckoutTipEndpoint(err.requestOptions.path);
 
             if (!isGroomer && !isCustomer) {
               return handler.next(err);
@@ -565,27 +617,41 @@ class ApiRepository {
               return handler.next(err);
             }
 
-            final refreshed = isGroomer
-                ? await _refreshGroomerTokenWithMutex()
-                : await _refreshCustomerTokenWithMutex();
+            if (isCheckoutTip) {
+              _suppressCustomerAuthFailureRedirect = true;
+            }
+            try {
+              final refreshed = isGroomer
+                  ? await _refreshGroomerTokenWithMutex()
+                  : await _refreshCustomerTokenWithMutex(
+                      allowAuthFailureRedirect: !isCheckoutTip,
+                    );
 
-            if (refreshed) {
-              try {
-                final retryOptions = err.requestOptions;
-                retryOptions.extra['is_retry'] = true;
-                final freshToken = isGroomer
-                    ? await session.getGroomerAccessToken()
-                    : await session.getAccessToken();
+              if (refreshed) {
+                try {
+                  final retryOptions = err.requestOptions;
+                  retryOptions.extra['is_retry'] = true;
+                  final freshToken = isGroomer
+                      ? await session.getGroomerAccessToken()
+                      : await session.getAccessToken();
 
-                if (freshToken != null && freshToken.isNotEmpty) {
-                  retryOptions.headers['Authorization'] = 'Bearer $freshToken';
+                  if (freshToken != null && freshToken.isNotEmpty) {
+                    retryOptions.headers['Authorization'] = 'Bearer $freshToken';
+                  }
+
+                  final retryResponse = await _dio.fetch(retryOptions);
+                  return handler.resolve(retryResponse);
+                } catch (e) {
+                  log.e('ApiRepository::Error retrying request after refresh (onError): $e');
+                  return handler.next(err);
                 }
-
-                final retryResponse = await _dio.fetch(retryOptions);
-                return handler.resolve(retryResponse);
-              } catch (e) {
-                log.e('ApiRepository::Error retrying request after refresh (onError): $e');
+              } else if (isCheckoutTip) {
+                log.w('[AUTH] Customer refresh failed for checkout tip endpoint in onError (${err.requestOptions.path}). Preserving customer session without logout.');
                 return handler.next(err);
+              }
+            } finally {
+              if (isCheckoutTip) {
+                _suppressCustomerAuthFailureRedirect = false;
               }
             }
           }

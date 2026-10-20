@@ -129,6 +129,55 @@ class GroomerBooking {
       (checkInRecord != null && checkInRecord!.isFullyVerified);
   bool get isConfirmedReadyForCheckIn =>
       status.toLowerCase() == 'confirmed' && !isCheckedIn;
+  /// Whether the appointment is scheduled for today in the store/appointment calendar.
+  bool isScheduledForToday({DateTime? referenceDate, Duration? timeZoneOffset}) {
+    if (bookingDate.isEmpty) return false;
+    return BookingDateUtils.isBookingDateToday(
+      bookingDate,
+      referenceDate: referenceDate,
+      timeZoneOffset: timeZoneOffset,
+    );
+  }
+
+  /// Whether current store time is strictly before the appointment's scheduled booking date.
+  bool isBeforeScheduledDate({DateTime? referenceDate, Duration? timeZoneOffset}) {
+    if (bookingDate.isEmpty) return false;
+    return BookingDateUtils.isBeforeBookingDate(
+      bookingDate,
+      referenceDate: referenceDate,
+      timeZoneOffset: timeZoneOffset,
+    );
+  }
+
+  /// Whether current store time is strictly after the appointment's scheduled booking date.
+  bool isAfterScheduledDate({DateTime? referenceDate, Duration? timeZoneOffset}) {
+    if (bookingDate.isEmpty) return false;
+    return BookingDateUtils.isAfterBookingDate(
+      bookingDate,
+      referenceDate: referenceDate,
+      timeZoneOffset: timeZoneOffset,
+    );
+  }
+
+  /// Whether check-in is permitted for this booking.
+  /// Rule: Check-in is allowed ONLY on the scheduled booking date,
+  /// subject to existing status validation rules.
+  bool canCheckIn({DateTime? referenceDate, Duration? timeZoneOffset}) {
+    // 1. Must be on the scheduled booking date in the store/appointment timezone
+    if (!isScheduledForToday(referenceDate: referenceDate, timeZoneOffset: timeZoneOffset)) {
+      return false;
+    }
+
+    // 2. Already checked in, completed, or cancelled bookings cannot be checked in
+    if (isCheckedIn || isCompleted) return false;
+    final sLower = status.toLowerCase();
+    if (sLower == 'cancelled' || sLower == 'rejected' || sLower == 'pending') {
+      return false;
+    }
+
+    return true;
+  }
+
   bool get hasCheckInRecord => checkInRecord != null;
   bool get hasPetMedicalNotes =>
       petMedicalNotes != null && petMedicalNotes!.trim().isNotEmpty;
