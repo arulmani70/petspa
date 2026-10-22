@@ -513,7 +513,25 @@ class GroomerRepository {
 
       if (response != null && response['data'] is List) {
         final list = response['data'] as List;
-        return list.map((item) => GroomerBooking.fromJson(item as Map<String, dynamic>)).toList();
+        final rawBookings = list.map((item) => GroomerBooking.fromJson(item as Map<String, dynamic>)).toList();
+        if (ServicesLocator.isBookingCancellationManagerRegistered) {
+          final List<GroomerBooking> active = [];
+          for (final b in rawBookings) {
+            if (ServicesLocator.bookingCancellationManager.isScheduledStartTimeReached(
+              b.bookingDate,
+              b.startTime,
+            )) {
+              await ServicesLocator.bookingCancellationManager.autoCancelBooking(
+                bookingId: b.bookingId,
+                bookingData: b.toJson(),
+              );
+              continue;
+            }
+            active.add(b);
+          }
+          return active;
+        }
+        return rawBookings;
       }
       return [];
     } catch (e) {

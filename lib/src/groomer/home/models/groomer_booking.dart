@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/utils/booking_date_utils.dart';
 import 'package:shear_heaven_pet_spa/src/common/common.dart';
@@ -6,6 +7,144 @@ import 'package:shear_heaven_pet_spa/src/common/services/session_service.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_check_in_record.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_milestone_record.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/utils/groomer_milestone_resolver.dart';
+
+/// Represents an individual task/milestone in the service progress workflow.
+/// Corresponds to the Service Progress API contract:
+/// PUT /api/common/groomer/bookings/:id/service-progress
+/// POST /api/common/groomer/bookings/:id/service-progress/skip
+@immutable
+class ServiceProgressItem {
+  final String taskKey;
+  final String? taskName;
+  final int percent;
+  final String status;
+  final bool skipAllowed;
+  final int durationMinutes;
+  final String? notes;
+  final String? reason;
+  final String? updatedAt;
+
+  const ServiceProgressItem({
+    required this.taskKey,
+    this.taskName,
+    this.percent = 0,
+    this.status = 'pending',
+    this.skipAllowed = true,
+    this.durationMinutes = 0,
+    this.notes,
+    this.reason,
+    this.updatedAt,
+  });
+
+  bool get isCompleted => percent >= 100 || status.toLowerCase() == 'completed';
+  bool get isSkipped => status.toLowerCase() == 'skipped';
+  bool get isInProgress =>
+      !isCompleted &&
+      !isSkipped &&
+      (percent > 0 || status.toLowerCase() == 'in_progress');
+  bool get isPending => !isCompleted && !isSkipped && !isInProgress;
+
+  factory ServiceProgressItem.fromJson(Map<String, dynamic> json) {
+    int parseInt(dynamic val, {int defaultValue = 0}) {
+      if (val == null) return defaultValue;
+      if (val is int) return val;
+      return int.tryParse(val.toString()) ?? defaultValue;
+    }
+
+    bool parseBool(dynamic val, {bool defaultValue = true}) {
+      if (val == null) return defaultValue;
+      if (val is bool) return val;
+      final str = val.toString().trim().toLowerCase();
+      if (str == 'false' || str == '0' || str == 'no') return false;
+      return str == 'true' || str == '1' || str == 'yes';
+    }
+
+    final p = parseInt(json['percent'] ?? json['percentage'] ?? json['progress']);
+    String st = (json['status'] ?? '').toString().trim().toLowerCase();
+    if (st.isEmpty) {
+      if (p >= 100) {
+        st = 'completed';
+      } else if (p > 0) {
+        st = 'in_progress';
+      } else {
+        st = 'pending';
+      }
+    }
+
+    return ServiceProgressItem(
+      taskKey: (json['taskKey'] ?? json['key'] ?? json['milestoneKey'] ?? '').toString(),
+      taskName: json['taskName']?.toString() ?? json['name']?.toString() ?? json['title']?.toString(),
+      percent: p,
+      status: st,
+      skipAllowed: parseBool(json['skipAllowed'] ?? json['canSkip'], defaultValue: true),
+      durationMinutes: parseInt(json['durationMinutes'] ?? json['duration']),
+      notes: json['notes']?.toString(),
+      reason: json['reason']?.toString(),
+      updatedAt: json['updatedAt']?.toString() ?? json['timestamp']?.toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'taskKey': taskKey,
+        if (taskName != null) 'taskName': taskName,
+        'percent': percent,
+        'status': status,
+        'skipAllowed': skipAllowed,
+        'durationMinutes': durationMinutes,
+        if (notes != null) 'notes': notes,
+        if (reason != null) 'reason': reason,
+        if (updatedAt != null) 'updatedAt': updatedAt,
+      };
+
+  ServiceProgressItem copyWith({
+    String? taskKey,
+    String? taskName,
+    int? percent,
+    String? status,
+    bool? skipAllowed,
+    int? durationMinutes,
+    String? notes,
+    String? reason,
+    String? updatedAt,
+  }) {
+    return ServiceProgressItem(
+      taskKey: taskKey ?? this.taskKey,
+      taskName: taskName ?? this.taskName,
+      percent: percent ?? this.percent,
+      status: status ?? this.status,
+      skipAllowed: skipAllowed ?? this.skipAllowed,
+      durationMinutes: durationMinutes ?? this.durationMinutes,
+      notes: notes ?? this.notes,
+      reason: reason ?? this.reason,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ServiceProgressItem &&
+          runtimeType == other.runtimeType &&
+          taskKey == other.taskKey &&
+          percent == other.percent &&
+          status == other.status &&
+          skipAllowed == other.skipAllowed &&
+          durationMinutes == other.durationMinutes &&
+          notes == other.notes &&
+          reason == other.reason;
+
+  @override
+  int get hashCode => Object.hash(
+        taskKey,
+        percent,
+        status,
+        skipAllowed,
+        durationMinutes,
+        notes,
+        reason,
+      );
+}
+
 
 class GroomerBooking {
   final int bookingId;
@@ -45,6 +184,7 @@ class GroomerBooking {
   final GroomerMilestoneRecord? milestoneRecord;
   final String? serviceStage;
   final List<String> bookedServices;
+  final List<ServiceProgressItem> serviceProgress;
 
   const GroomerBooking({
     required this.bookingId,
@@ -84,6 +224,7 @@ class GroomerBooking {
     this.milestoneRecord,
     this.serviceStage,
     this.bookedServices = const [],
+    this.serviceProgress = const [],
   });
 
   double? get totalCollected {
@@ -157,6 +298,21 @@ class GroomerBooking {
       referenceDate: referenceDate,
       timeZoneOffset: timeZoneOffset,
     );
+  }
+
+  /// Whether this unaccepted/pending appointment has reached or passed its scheduled start time.
+  bool get isExpiredPending {
+    final sLower = status.toLowerCase();
+    if (sLower != 'pending' && sLower != 'unaccepted' && sLower != 'awaiting_acceptance') {
+      return false;
+    }
+    if (ServicesLocator.isBookingCancellationManagerRegistered) {
+      return ServicesLocator.bookingCancellationManager.isScheduledStartTimeReached(
+        bookingDate,
+        startTime,
+      );
+    }
+    return false;
   }
 
   /// Whether check-in is permitted for this booking.
@@ -257,7 +413,63 @@ class GroomerBooking {
   bool get requiresBath => requiredMilestones.contains(GroomerMilestoneResolver.bathMilestone);
   bool get requiresGrooming => requiredMilestones.contains(GroomerMilestoneResolver.groomingMilestone);
 
+
+  /// Total consumed duration in minutes, preserving the duration of skipped milestones.
+  int get consumedDurationMinutes {
+    if (serviceProgress.isEmpty) {
+      return (isCompleted || isReadyForCheckout) ? totalDurationMinutes : 0;
+    }
+    return serviceProgress
+        .where((task) => task.isCompleted || task.isSkipped || task.isInProgress)
+        .fold<int>(0, (sum, task) => sum + task.durationMinutes);
+  }
+
+  /// Locates the [ServiceProgressItem] corresponding to a task/milestone key.
+  ServiceProgressItem? getServiceProgressForTask(String key) {
+    if (serviceProgress.isEmpty) return null;
+    final exact = serviceProgress.where((p) => p.taskKey.toLowerCase() == key.toLowerCase());
+    if (exact.isNotEmpty) return exact.first;
+
+    final norm = key.replaceAll('_completed', '').replaceAll('_', '').replaceAll('-', '').toLowerCase();
+    for (final p in serviceProgress) {
+      final pNorm = p.taskKey.replaceAll('_completed', '').replaceAll('_', '').replaceAll('-', '').toLowerCase();
+      if (pNorm == norm || pNorm.contains(norm) || norm.contains(pNorm)) {
+        return p;
+      }
+    }
+    return null;
+  }
+
+  /// Current progress percentage (0-100) for a specific task/milestone.
+  int getProgressPercentForTask(String key) {
+    final item = getServiceProgressForTask(key);
+    if (item != null) return item.percent;
+    if (isMilestoneDone(key)) return 100;
+    return 0;
+  }
+
+  /// Whether a specific milestone or task has been marked skipped.
+  bool isTaskSkipped(String key) {
+    final item = getServiceProgressForTask(key);
+    return item?.isSkipped ?? false;
+  }
+
+  /// Resolves the canonical backend taskKey for a given milestone.
+  String resolveTaskKey(String milestoneKey) {
+    final item = getServiceProgressForTask(milestoneKey);
+    if (item != null && item.taskKey.isNotEmpty) return item.taskKey;
+
+    if (milestoneKey == 'bath_completed' || milestoneKey == 'bath') {
+      return 'svc-1-bath';
+    }
+    if (milestoneKey == 'grooming_completed' || milestoneKey == 'grooming') {
+      return 'svc-2-grooming';
+    }
+    return milestoneKey;
+  }
+
   bool isMilestoneDone(String milestoneKey) {
+    if (isTaskSkipped(milestoneKey)) return true;
     if (milestoneRecord?.isMilestoneDone(milestoneKey) == true) return true;
     if (milestoneKey == 'check_in_completed') return isCheckedIn;
     if (milestoneKey == GroomerMilestoneResolver.bathMilestone) return isBathCompleted;
@@ -772,6 +984,20 @@ class GroomerBooking {
       }
     }
 
+
+    // Parse Service Progress List
+    final List<ServiceProgressItem> parsedServiceProgress = [];
+    final rawServiceProgress = json['serviceProgress'] ?? json['service_progress'];
+    if (rawServiceProgress is List) {
+      for (final sp in rawServiceProgress) {
+        if (sp is Map) {
+          parsedServiceProgress.add(
+            ServiceProgressItem.fromJson(Map<String, dynamic>.from(sp)),
+          );
+        }
+      }
+    }
+
     final pMedical = json['petMedicalNotes']?.toString() ??
         json['notesAllergies']?.toString() ??
         json['notes_allergies']?.toString() ??
@@ -793,8 +1019,16 @@ class GroomerBooking {
           json['appointmentDate']?.toString() ??
           json['appointment_date']?.toString() ??
           '',
-      startTime: json['startTime']?.toString() ?? '09:00 AM',
-      endTime: json['endTime']?.toString() ?? '10:00 AM',
+      startTime: json['startTime']?.toString() ??
+          json['start_time']?.toString() ??
+          json['time']?.toString() ??
+          json['slot']?.toString() ??
+          json['appointmentTime']?.toString() ??
+          json['appointment_time']?.toString() ??
+          '09:00 AM',
+      endTime: json['endTime']?.toString() ??
+          json['end_time']?.toString() ??
+          '10:00 AM',
       petId: pId,
       petName: pName,
       breed: pBreed,
@@ -827,6 +1061,7 @@ class GroomerBooking {
       milestoneRecord: parsedMilestoneRecord,
       serviceStage: (json['serviceStage'] ?? json['service_stage'])?.toString(),
       bookedServices: parsedBookedServices,
+      serviceProgress: parsedServiceProgress,
     );
   }
 
@@ -868,6 +1103,7 @@ class GroomerBooking {
     if (milestoneRecord != null) 'milestoneRecord': milestoneRecord!.toJson(),
     if (serviceStage != null) 'serviceStage': serviceStage,
     if (bookedServices.isNotEmpty) 'bookedServices': bookedServices,
+    if (serviceProgress.isNotEmpty) 'serviceProgress': serviceProgress.map((e) => e.toJson()).toList(),
   };
 
   GroomerBooking copyWith({
@@ -908,6 +1144,7 @@ class GroomerBooking {
     GroomerMilestoneRecord? milestoneRecord,
     String? serviceStage,
     List<String>? bookedServices,
+    List<ServiceProgressItem>? serviceProgress,
   }) {
     return GroomerBooking(
       bookingId: bookingId ?? this.bookingId,
@@ -947,6 +1184,7 @@ class GroomerBooking {
       milestoneRecord: milestoneRecord ?? this.milestoneRecord,
       serviceStage: serviceStage ?? this.serviceStage,
       bookedServices: bookedServices ?? this.bookedServices,
+      serviceProgress: serviceProgress ?? this.serviceProgress,
     );
   }
 }

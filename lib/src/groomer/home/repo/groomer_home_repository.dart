@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:logger/logger.dart';
 import 'package:shear_heaven_pet_spa/src/account/models/app_notification.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/utils/booking_date_utils.dart';
+import 'package:shear_heaven_pet_spa/src/common/common.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/push_notification_service.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/session_service.dart';
@@ -36,6 +37,16 @@ class GroomerHomeRepository {
   static final List<GroomerBooking> _localCreatedBookings = [];
 
   static List<GroomerBooking> get localCreatedBookings => List.unmodifiable(_localCreatedBookings);
+
+  void _updateLocalBookingStatus(int bookingId, String status) {
+    final idx = _localCreatedBookings.indexWhere((b) => b.bookingId == bookingId);
+    if (idx >= 0) {
+      _localCreatedBookings[idx] = _localCreatedBookings[idx].copyWith(
+        status: status,
+        cancellationReason: Constants.app.CANCELLATION_REASON_GROOMER_TIMEOUT,
+      );
+    }
+  }
 
   static void addLocalBooking(GroomerBooking booking) {
     _localCreatedBookings.removeWhere((b) => b.bookingId == booking.bookingId);
@@ -348,6 +359,29 @@ class GroomerHomeRepository {
         serverList = list.map((item) => GroomerBooking.fromJson(item as Map<String, dynamic>)).toList();
       }
 
+      // Filter out and auto-cancel any unaccepted pending bookings that have expired past scheduled start time
+      if (ServicesLocator.isBookingCancellationManagerRegistered) {
+        final List<GroomerBooking> validServerList = [];
+        for (final b in serverList) {
+          final st = b.status.toLowerCase();
+          if (st == 'pending' || st == 'unaccepted' || st == 'awaiting_acceptance') {
+            if (ServicesLocator.bookingCancellationManager.isScheduledStartTimeReached(
+              b.bookingDate,
+              b.startTime,
+            )) {
+              await ServicesLocator.bookingCancellationManager.autoCancelBooking(
+                bookingId: b.bookingId,
+                bookingData: b.toJson(),
+              );
+              _updateLocalBookingStatus(b.bookingId, 'CANCELLED');
+              continue;
+            }
+          }
+          validServerList.add(b);
+        }
+        serverList = validServerList;
+      }
+
       if (_localCreatedBookings.isEmpty) {
         return serverList;
       }
@@ -395,10 +429,11 @@ class GroomerHomeRepository {
                 booking.startTime,
               )) {
             // Automatically cancel overdue unaccepted booking whose scheduled start time has arrived/passed
-            ServicesLocator.bookingCancellationManager.autoCancelBooking(
+            await ServicesLocator.bookingCancellationManager.autoCancelBooking(
               bookingId: booking.bookingId,
               bookingData: booking.toJson(),
             );
+            _updateLocalBookingStatus(booking.bookingId, 'CANCELLED');
             continue;
           }
           activePending.add(booking);
@@ -939,7 +974,29 @@ class GroomerHomeRepository {
         }
       }
 
-      final list = uniqueAppointments.values.toList();
+      final List<GroomerBooking> list = [];
+      for (final b in uniqueAppointments.values) {
+        final st = b.status.toLowerCase();
+        if (st == 'pending' || st == 'unaccepted' || st == 'awaiting_acceptance') {
+          if (ServicesLocator.isBookingCancellationManagerRegistered &&
+              ServicesLocator.bookingCancellationManager.isScheduledStartTimeReached(
+                b.bookingDate,
+                b.startTime,
+              )) {
+            await ServicesLocator.bookingCancellationManager.autoCancelBooking(
+              bookingId: b.bookingId,
+              bookingData: b.toJson(),
+            );
+            _updateLocalBookingStatus(b.bookingId, 'CANCELLED');
+            list.add(b.copyWith(
+              status: 'cancelled',
+              cancellationReason: Constants.app.CANCELLATION_REASON_GROOMER_TIMEOUT,
+            ));
+            continue;
+          }
+        }
+        list.add(b);
+      }
       list.sort((a, b) {
         final da = BookingDateUtils.parseCalendarDate(a.bookingDate) ?? DateTime(1970);
         final db = BookingDateUtils.parseCalendarDate(b.bookingDate) ?? DateTime(1970);
@@ -971,15 +1028,19 @@ class GroomerHomeRepository {
       if (ServicesLocator.isBookingCancellationManagerRegistered) {
         GroomerBooking? target = booking;
         if (target == null) {
-          final response = await ServicesLocator.apiRepository.get(
-            '/api/groomer-auth/bookings/pending',
-          );
-          if (response != null && response['data'] is List) {
-            final list = response['data'] as List;
-            final rawBookings = list
-                .map((item) => GroomerBooking.fromJson(item as Map<String, dynamic>))
-                .toList();
-            target = rawBookings.where((b) => b.bookingId == bookingId).firstOrNull;
+          try {
+            final pending = await getPendingBookings();
+            target = pending.where((b) => b.bookingId == bookingId).firstOrNull;
+          } catch (_) {}
+          if (target == null) {
+            final response = await _getGroomerBookingEndpoint('pending');
+            if (response != null && response['data'] is List) {
+              final list = response['data'] as List;
+              final rawBookings = list
+                  .map((item) => GroomerBooking.fromJson(item as Map<String, dynamic>))
+                  .toList();
+              target = rawBookings.where((b) => b.bookingId == bookingId).firstOrNull;
+            }
           }
         }
 
@@ -992,6 +1053,7 @@ class GroomerHomeRepository {
               bookingId: bookingId,
               bookingData: target.toJson(),
             );
+            _updateLocalBookingStatus(bookingId, 'CANCELLED');
             return (
               success: false,
               message: 'This booking has expired because the scheduled appointment start time has passed without groomer acceptance.',
@@ -1668,6 +1730,321 @@ class GroomerHomeRepository {
       message: res.message,
       updatedBooking: res.updatedBooking,
     );
+  }
+
+  /// PUT /api/common/bookings/:id/service-progress
+  /// Incremental service progress update (e.g. Bath 30%, 50%, 100%).
+  Future<({
+    bool success,
+    String message,
+    GroomerBooking? updatedBooking,
+    List<ServiceProgressItem>? serviceProgress,
+  })> updateServiceProgress(
+    int bookingId, {
+    required String taskKey,
+    required int percent,
+    String? notes,
+    String? storeId,
+    GroomerBooking? booking,
+  }) async {
+    try {
+      final session = ServicesLocator.sessionService;
+      final effectiveStoreId = storeId ??
+          booking?.storeId ??
+          session.storeId ??
+          'SHEAR-001';
+
+      log.d('GroomerHomeRepository::updateServiceProgress::bookingId=$bookingId, taskKey=$taskKey, percent=$percent, storeId=$effectiveStoreId');
+
+      final requestPayload = <String, dynamic>{
+        'storeId': effectiveStoreId,
+        'taskKey': taskKey,
+        'percent': percent,
+        if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+      };
+
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.putData(
+          '/api/common/bookings/$bookingId/service-progress',
+          requestPayload,
+        );
+      } catch (_) {
+        response = null;
+      }
+
+      if (response == null || (response['statusCode'] != null && response['statusCode'] >= 400)) {
+        try {
+          response = await ServicesLocator.apiRepository.putData(
+            '/api/common/groomer/bookings/$bookingId/service-progress',
+            requestPayload,
+          );
+        } catch (_) {
+          // ignore fallback error
+        }
+      }
+
+      final isSuccess = response != null &&
+          (response['success'] == true ||
+              (response['statusCode'] != null && response['statusCode'] >= 200 && response['statusCode'] < 300) ||
+              (response['data'] != null && response['success'] != false));
+
+      final serverMsg = response?['message']?.toString() ??
+          (response?['errors'] is List ? (response!['errors'] as List).join(', ') : null) ??
+          (response?['error'] is Map ? (response!['error'] as Map)['message']?.toString() : null);
+
+      final humanTaskName = _formatTaskName(taskKey);
+
+      String msg = (serverMsg != null && serverMsg.trim().isNotEmpty)
+          ? serverMsg.trim()
+          : (isSuccess
+              ? (percent >= 100
+                  ? '$humanTaskName completed successfully.'
+                  : '$humanTaskName progress updated to $percent%.')
+              : 'Failed to update service progress.');
+
+      GroomerBooking? updatedBooking = booking;
+      List<ServiceProgressItem>? parsedProgress;
+
+      if (isSuccess) {
+        final data = response['data'] is Map ? Map<String, dynamic>.from(response['data'] as Map) : null;
+        final rawSp = data?['serviceProgress'] ?? response['serviceProgress'];
+        if (rawSp is List) {
+          parsedProgress = rawSp
+              .whereType<Map>()
+              .map((m) => ServiceProgressItem.fromJson(Map<String, dynamic>.from(m)))
+              .toList();
+        } else {
+          // Synthesize/merge updated progress row if not returned in full array
+          final currentList = booking?.serviceProgress != null
+              ? List<ServiceProgressItem>.from(booking!.serviceProgress)
+              : <ServiceProgressItem>[];
+          final existingIdx = currentList.indexWhere((p) => p.taskKey.toLowerCase() == taskKey.toLowerCase());
+          final updatedItem = ServiceProgressItem(
+            taskKey: taskKey,
+            taskName: humanTaskName,
+            percent: percent,
+            status: percent >= 100 ? 'completed' : 'in_progress',
+            skipAllowed: true,
+            notes: notes?.trim(),
+            updatedAt: DateTime.now().toIso8601String(),
+          );
+          if (existingIdx >= 0) {
+            currentList[existingIdx] = updatedItem;
+          } else {
+            currentList.add(updatedItem);
+          }
+          parsedProgress = currentList;
+        }
+
+        if (updatedBooking != null) {
+          GroomerMilestoneRecord updatedRecord = updatedBooking.milestoneRecord ?? const GroomerMilestoneRecord();
+          if (percent >= 100) {
+            final nowUtc = DateTime.now().toUtc().toIso8601String();
+            if (taskKey.contains('bath') || taskKey == 'bath_completed') {
+              updatedRecord = updatedRecord.copyWith(
+                bathCompleted: true,
+                bathCompletedAt: nowUtc,
+                bathNotes: notes?.trim() ?? updatedRecord.bathNotes,
+              );
+            } else if (taskKey.contains('groom') || taskKey == 'grooming_completed') {
+              updatedRecord = updatedRecord.copyWith(
+                groomingCompleted: true,
+                groomingCompletedAt: nowUtc,
+                groomingNotes: notes?.trim() ?? updatedRecord.groomingNotes,
+              );
+            }
+          }
+
+          updatedBooking = updatedBooking.copyWith(
+            serviceProgress: parsedProgress,
+            milestoneRecord: updatedRecord,
+          );
+        }
+
+        // Trigger customer notification for every successful progress update
+        final isCompleted = percent >= 100;
+        final notifTitle = isCompleted ? '$humanTaskName Completed' : '$humanTaskName Progress Updated';
+        final notifBody = isCompleted
+            ? '$humanTaskName milestone completed for your pet.'
+            : '$humanTaskName progress updated to $percent%.';
+
+        await _dispatchBookingStatusNotification(
+          bookingId: bookingId,
+          customerTitle: notifTitle,
+          customerMessage: notifBody,
+          groomerTitle: isCompleted ? '$humanTaskName Completed' : '$humanTaskName Progress Updated',
+          groomerMessage: '$humanTaskName progress updated to $percent% for booking #$bookingId.',
+          type: isCompleted ? 'booking_milestone_completed' : 'booking_progress',
+          status: isCompleted ? 'completed' : 'in_progress',
+          booking: updatedBooking ?? booking,
+          responseData: data,
+        );
+      }
+
+      return (
+        success: isSuccess,
+        message: msg,
+        updatedBooking: updatedBooking,
+        serviceProgress: parsedProgress,
+      );
+    } catch (e) {
+      log.e('GroomerHomeRepository::updateServiceProgress::Error: $e');
+      return (
+        success: false,
+        message: 'Error updating service progress: $e',
+        updatedBooking: null,
+        serviceProgress: null,
+      );
+    }
+  }
+
+  /// POST /api/common/bookings/:id/service-progress/skip
+  /// Skips an eligible service milestone task without waiting for duration to expire.
+  /// Preserves configured duration in consumed service time.
+  Future<({
+    bool success,
+    String message,
+    GroomerBooking? updatedBooking,
+    List<ServiceProgressItem>? serviceProgress,
+  })> skipServiceProgressTask(
+    int bookingId, {
+    required String taskKey,
+    String? reason,
+    String? storeId,
+    GroomerBooking? booking,
+  }) async {
+    try {
+      final session = ServicesLocator.sessionService;
+      final effectiveStoreId = storeId ??
+          booking?.storeId ??
+          session.storeId ??
+          'SHEAR-001';
+
+      log.d('GroomerHomeRepository::skipServiceProgressTask::bookingId=$bookingId, taskKey=$taskKey, reason=$reason, storeId=$effectiveStoreId');
+
+      final requestPayload = <String, dynamic>{
+        'storeId': effectiveStoreId,
+        'taskKey': taskKey,
+        if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+      };
+
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/common/bookings/$bookingId/service-progress/skip',
+          requestPayload,
+        );
+      } catch (_) {
+        response = null;
+      }
+
+      if (response == null || (response['statusCode'] != null && response['statusCode'] >= 400)) {
+        try {
+          response = await ServicesLocator.apiRepository.post(
+            '/api/common/groomer/bookings/$bookingId/service-progress/skip',
+            requestPayload,
+          );
+        } catch (_) {
+          // ignore fallback error
+        }
+      }
+
+      final isSuccess = response != null &&
+          (response['success'] == true ||
+              (response['statusCode'] != null && response['statusCode'] >= 200 && response['statusCode'] < 300) ||
+              (response['data'] != null && response['success'] != false));
+
+      final serverMsg = response?['message']?.toString() ??
+          (response?['errors'] is List ? (response!['errors'] as List).join(', ') : null) ??
+          (response?['error'] is Map ? (response!['error'] as Map)['message']?.toString() : null);
+
+      final humanTaskName = _formatTaskName(taskKey);
+
+      String msg = (serverMsg != null && serverMsg.trim().isNotEmpty)
+          ? serverMsg.trim()
+          : (isSuccess
+              ? '$humanTaskName milestone skipped.'
+              : 'Failed to skip service milestone.');
+
+      GroomerBooking? updatedBooking = booking;
+      List<ServiceProgressItem>? parsedProgress;
+
+      if (isSuccess) {
+        final data = response['data'] is Map ? Map<String, dynamic>.from(response['data'] as Map) : null;
+        final rawSp = data?['serviceProgress'] ?? response['serviceProgress'];
+        if (rawSp is List) {
+          parsedProgress = rawSp
+              .whereType<Map>()
+              .map((m) => ServiceProgressItem.fromJson(Map<String, dynamic>.from(m)))
+              .toList();
+        } else {
+          // Synthesize/merge skipped progress row preserving configured duration
+          final currentList = booking?.serviceProgress != null
+              ? List<ServiceProgressItem>.from(booking!.serviceProgress)
+              : <ServiceProgressItem>[];
+          final existingIdx = currentList.indexWhere((p) => p.taskKey.toLowerCase() == taskKey.toLowerCase());
+          final existingDuration = existingIdx >= 0 ? currentList[existingIdx].durationMinutes : 30;
+          final updatedItem = ServiceProgressItem(
+            taskKey: taskKey,
+            taskName: humanTaskName,
+            percent: 0,
+            status: 'skipped',
+            skipAllowed: true,
+            durationMinutes: existingDuration,
+            reason: reason?.trim(),
+            updatedAt: DateTime.now().toIso8601String(),
+          );
+          if (existingIdx >= 0) {
+            currentList[existingIdx] = updatedItem;
+          } else {
+            currentList.add(updatedItem);
+          }
+          parsedProgress = currentList;
+        }
+
+        if (updatedBooking != null) {
+          updatedBooking = updatedBooking.copyWith(
+            serviceProgress: parsedProgress,
+          );
+        }
+
+        // Trigger customer notification for milestone skip
+        await _dispatchBookingStatusNotification(
+          bookingId: bookingId,
+          customerTitle: '$humanTaskName Skipped',
+          customerMessage: '$humanTaskName milestone skipped.',
+          groomerTitle: '$humanTaskName Milestone Skipped',
+          groomerMessage: '$humanTaskName milestone was skipped for booking #$bookingId.',
+          type: 'booking_milestone_skipped',
+          status: 'skipped',
+          booking: updatedBooking ?? booking,
+          responseData: data,
+        );
+      }
+
+      return (
+        success: isSuccess,
+        message: msg,
+        updatedBooking: updatedBooking,
+        serviceProgress: parsedProgress,
+      );
+    } catch (e) {
+      log.e('GroomerHomeRepository::skipServiceProgressTask::Error: $e');
+      return (
+        success: false,
+        message: 'Error skipping service milestone: $e',
+        updatedBooking: null,
+        serviceProgress: null,
+      );
+    }
+  }
+
+  String _formatTaskName(String taskKey) {
+    var cleaned = taskKey.replaceAll(RegExp(r'^svc-[0-9]+-'), '');
+    cleaned = cleaned.replaceAll('_completed', '').replaceAll('_', ' ');
+    if (cleaned.isEmpty) return 'Service';
+    return '${cleaned[0].toUpperCase()}${cleaned.substring(1)}';
   }
 
   /// Step 8: POST /api/groomer-auth/bookings/:id/ready-for-checkout

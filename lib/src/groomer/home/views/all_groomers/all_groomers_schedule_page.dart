@@ -673,10 +673,10 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
       if (mounted) {
         if (res.success) {
           ToastUtil.showSuccessToast(context, 'Booking #${booking.bookingId} approved');
-          await _loadSchedule();
         } else {
           ToastUtil.showErrorToast(context, res.message);
         }
+        await _loadSchedule();
       }
     } finally {
       if (mounted) setState(() => _processingBookingIds.remove(booking.bookingId));
@@ -1918,10 +1918,17 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
         badgeText = 'Confirmed';
         break;
       case 'pending':
-        borderColor = const Color(0xFFF59E0B);
-        badgeBgColor = const Color(0xFFFEF3C7);
-        badgeTextColor = const Color(0xFFD97706);
-        badgeText = 'Pending';
+        if (booking.isExpiredPending) {
+          borderColor = const Color(0xFFF87171);
+          badgeBgColor = const Color(0xFFFEE2E2);
+          badgeTextColor = const Color(0xFFDC2626);
+          badgeText = 'Expired';
+        } else {
+          borderColor = const Color(0xFFF59E0B);
+          badgeBgColor = const Color(0xFFFEF3C7);
+          badgeTextColor = const Color(0xFFD97706);
+          badgeText = 'Pending';
+        }
         break;
       case 'cancellation_requested':
         borderColor = const Color(0xFF8B5CF6);
@@ -2407,7 +2414,7 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF111827)),
                   )
-                else if (canManage && isPending && booking.bookingId > 0)
+                else if (canManage && isPending && !booking.isExpiredPending && booking.bookingId > 0)
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [

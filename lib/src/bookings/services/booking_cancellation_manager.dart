@@ -4,6 +4,7 @@ import 'package:shear_heaven_pet_spa/src/account/models/app_notification.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/utils/booking_date_utils.dart';
 import 'package:shear_heaven_pet_spa/src/common/common.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/home/repo/groomer_home_repository.dart';
 
 /// Service responsible for managing automatic cancellation of unaccepted appointments
 /// at their scheduled appointment start time.
@@ -113,7 +114,7 @@ class BookingCancellationManager {
   bool isScheduledStartTimeReached(dynamic bookingDate, dynamic startTime, {DateTime? now}) {
     final scheduled = parseScheduledStartDateTime(bookingDate, startTime);
     if (scheduled == null) return false;
-    final current = now ?? DateTime.now();
+    final current = now ?? BookingDateUtils.customNow ?? DateTime.now();
     return current.isAfter(scheduled) || current.isAtSameMomentAs(scheduled);
   }
 
@@ -132,7 +133,7 @@ class BookingCancellationManager {
       return false;
     }
 
-    final current = now ?? DateTime.now();
+    final current = now ?? BookingDateUtils.customNow ?? DateTime.now();
     return current.isAfter(scheduled) || current.isAtSameMomentAs(scheduled);
   }
 
@@ -140,14 +141,26 @@ class BookingCancellationManager {
   /// reached or passed their scheduled appointment start time without groomer acceptance.
   Future<void> evaluatePendingBookings() async {
     try {
-      if (!ServicesLocator.sessionService.isLoggedIn) return;
-      final upcoming = await ServicesLocator.bookingRepository.getUpcomingBookingsApi();
-      for (final booking in upcoming) {
-        if (isEligibleForAutoCancellation(booking)) {
-          final id = int.tryParse(booking['id']?.toString() ?? booking['bookingId']?.toString() ?? '');
-          if (id != null && id > 0) {
-            await autoCancelBooking(bookingId: id, bookingData: booking);
+      final session = ServicesLocator.sessionService;
+      if (!session.isLoggedIn && !session.isGroomerLoggedIn) return;
+
+      // 1. Customer session
+      if (session.isLoggedIn) {
+        final upcoming = await ServicesLocator.bookingRepository.getUpcomingBookingsApi();
+        for (final booking in upcoming) {
+          if (isEligibleForAutoCancellation(booking)) {
+            final id = int.tryParse(booking['id']?.toString() ?? booking['bookingId']?.toString() ?? '');
+            if (id != null && id > 0) {
+              await autoCancelBooking(bookingId: id, bookingData: booking);
+            }
           }
+        }
+      }
+
+      // 2. Groomer session
+      if (session.isGroomerLoggedIn) {
+        if (ServicesLocator.isRegistered<GroomerHomeRepository>()) {
+          await ServicesLocator.groomerHomeRepository.getPendingBookings();
         }
       }
     } catch (e) {
@@ -187,10 +200,40 @@ class BookingCancellationManager {
       try {
         final session = ServicesLocator.sessionService;
         if (session.isGroomerLoggedIn && !session.isLoggedIn) {
-          await ServicesLocator.apiRepository.post(
-            '/api/groomer-auth/bookings/$bookingId/reject',
-            {'reason': cancellationReason},
-          );
+          Map<String, dynamic>? res;
+          try {
+            res = await ServicesLocator.apiRepository.post(
+              '/api/common/groomer/bookings/$bookingId/reject',
+              {'reason': cancellationReason},
+            );
+          } catch (_) {
+            res = null;
+          }
+          if (res == null || res['success'] != true) {
+            try {
+              res = await ServicesLocator.apiRepository.post(
+                '/api/groomer-auth/bookings/$bookingId/reject',
+                {'reason': cancellationReason},
+              );
+            } catch (_) {
+              res = null;
+            }
+          }
+          if (res == null || res['success'] != true) {
+            try {
+              res = await ServicesLocator.apiRepository.post(
+                '/api/common/bookings/$bookingId/cancel',
+                {'reason': cancellationReason},
+              );
+            } catch (_) {
+              res = null;
+            }
+          }
+          if (res == null || res['success'] != true) {
+            try {
+              await ServicesLocator.bookingRepository.cancelBookingApi(bookingId);
+            } catch (_) {}
+          }
         } else {
           await ServicesLocator.bookingRepository.cancelBookingApi(bookingId);
         }
@@ -249,6 +292,27 @@ class BookingCancellationManager {
       // Push to socket streams if connected
       if (ServicesLocator.isCustomerSocketServiceRegistered) {
         ServicesLocator.customerSocketService.handleDirectNotification(notification);
+      }
+      if (ServicesLocator.isGroomerSocketServiceRegistered) {
+        final groomerNotification = AppNotification(
+          id: bookingId,
+          title: 'Appointment Expired',
+          message: 'Booking #$bookingId for $petName ($formattedDate at $formattedTime) was automatically cancelled because it was not accepted before the scheduled appointment time.',
+          type: 'booking_auto_cancelled',
+          isRead: false,
+          createdAt: DateTime.now(),
+          metadata: {
+            'bookingId': bookingId,
+            'booking_id': bookingId,
+            'petName': petName,
+            'bookingDate': formattedDate,
+            'startTime': formattedTime,
+            'reason': cancellationReason,
+            'status': 'CANCELLED',
+            'autoCancelled': true,
+          },
+        );
+        ServicesLocator.groomerSocketService.handleDirectNotification(groomerNotification);
       }
 
       return true;

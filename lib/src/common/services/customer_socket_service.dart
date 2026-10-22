@@ -64,6 +64,8 @@ class CustomerSocketService {
     'new_notification',
     'customer_notification',
     'booking_notification',
+    'booking_progress',
+    'service_progress',
     'booking_created',
     'booking_requested',
     'booking_confirmed',
@@ -709,6 +711,18 @@ class CustomerSocketService {
           payload['title'] = 'Booking Cancelled';
         } else if (eventLower.contains('reject') || typeLower.contains('reject')) {
           payload['title'] = 'Booking Request Declined';
+        } else if (eventLower == 'booking_progress' || eventLower == 'service_progress' || typeLower.contains('progress')) {
+          final task = (payload['taskName'] ?? payload['taskKey'] ?? payload['task'] ?? 'Service').toString();
+          final formattedTask = task.replaceAll(RegExp(r'svc-[0-9]+-'), '').replaceAll('_completed', '').replaceAll('_', ' ');
+          final capitalizedTask = formattedTask.isNotEmpty ? '${formattedTask[0].toUpperCase()}${formattedTask.substring(1)}' : 'Service';
+          final percent = payload['percent'] ?? payload['percentage'];
+          if (statusLower == 'skipped') {
+            payload['title'] = '$capitalizedTask Milestone Skipped';
+          } else if (percent != null) {
+            payload['title'] = '$capitalizedTask Progress ($percent%)';
+          } else {
+            payload['title'] = 'Service Progress Updated';
+          }
         } else if (eventLower.contains('start') || eventLower.contains('progress') || statusLower == 'in_progress') {
           payload['title'] = 'Grooming Started';
         } else if (eventLower.contains('complet') || statusLower == 'completed') {
@@ -734,6 +748,18 @@ class CustomerSocketService {
           payload['message'] = bookingId != null
               ? 'Your booking #$bookingId has been cancelled.'
               : 'Your booking has been cancelled.';
+        } else if (eventLower == 'booking_progress' || eventLower == 'service_progress' || typeLower.contains('progress')) {
+          final task = (payload['taskName'] ?? payload['taskKey'] ?? payload['task'] ?? 'Service').toString();
+          final formattedTask = task.replaceAll(RegExp(r'svc-[0-9]+-'), '').replaceAll('_completed', '').replaceAll('_', ' ');
+          final capitalizedTask = formattedTask.isNotEmpty ? '${formattedTask[0].toUpperCase()}${formattedTask.substring(1)}' : 'Service';
+          final percent = payload['percent'] ?? payload['percentage'];
+          if (statusLower == 'skipped') {
+            payload['message'] = '$capitalizedTask milestone skipped.';
+          } else if (percent != null) {
+            payload['message'] = '$capitalizedTask progress updated to $percent%.';
+          } else {
+            payload['message'] = 'Progress updated for your appointment.';
+          }
         } else if (eventLower.contains('start') || eventLower.contains('progress') || statusLower == 'in_progress') {
           payload['message'] = bookingId != null
               ? 'Grooming session for booking #$bookingId is now in progress.'
@@ -753,6 +779,8 @@ class CustomerSocketService {
       if (!payload.containsKey('type') || payload['type'] == null) {
         if (eventLower.contains('confirm') || statusLower == 'confirmed') {
           payload['type'] = 'booking_confirmed';
+        } else if (eventLower == 'booking_progress' || eventLower == 'service_progress' || typeLower.contains('progress')) {
+          payload['type'] = 'booking_progress';
         } else if (eventLower.contains('booking') || eventLower.contains('appointment')) {
           payload['type'] = 'booking';
         } else if (eventLower.contains('offer') || eventLower.contains('promo')) {

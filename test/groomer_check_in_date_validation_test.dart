@@ -508,6 +508,7 @@ void main() {
     });
 
     test('GroomerBooking.fromJson parses booking_date and appointmentDate appropriately', () {
+      BookingDateUtils.customNow = DateTime(2026, 10, 20, 10, 0);
       final jsonSnake = {
         'id': 701,
         'booking_date': '2026-10-21',

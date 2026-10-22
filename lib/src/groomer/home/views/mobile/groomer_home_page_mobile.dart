@@ -103,6 +103,18 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
     // the exact moment scheduled start time is reached, without any manual refresh or API polling.
     _timeTickerTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (mounted) {
+        if (_pendingBookings.isNotEmpty &&
+            ServicesLocator.isBookingCancellationManagerRegistered) {
+          final hasOverdue = _pendingBookings.any((b) =>
+              ServicesLocator.bookingCancellationManager.isScheduledStartTimeReached(
+                b.bookingDate,
+                b.startTime,
+              ));
+          if (hasOverdue) {
+            _loadAllData();
+            return;
+          }
+        }
         setState(() {});
       }
     });
@@ -481,10 +493,10 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
       if (res.success) {
         _recordGroomerAction();
         ToastUtil.showSuccessToast(context, res.message);
-        _loadAllData();
       } else {
         ToastUtil.showErrorToast(context, res.message);
       }
+      _loadAllData();
     } finally {
       if (mounted) {
         setState(() => _processingBookingIds.remove(booking.bookingId));

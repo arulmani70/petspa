@@ -60,6 +60,7 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
   bool _isLoadingCatalog = false;
   List<StoreMilestoneConfig> _storeCatalog = const [];
   BookingMilestoneTimeline? _timeline;
+  int _selectedPercent = 50;
 
   @override
   void initState() {
@@ -85,6 +86,8 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
     }
 
     _notesController = TextEditingController(text: _getNoteForMilestone(_activeMilestoneKey) ?? '');
+    final initialPct = _booking.getProgressPercentForTask(_activeMilestoneKey);
+    _selectedPercent = initialPct > 0 ? initialPct : 50;
 
     // Fetch store-based milestone configuration and timeline asynchronously
     _loadStoreCatalogAndTimeline();
@@ -262,6 +265,8 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
     setState(() {
       _activeMilestoneKey = key;
       _notesController.text = _getNoteForMilestone(key) ?? '';
+      final pct = _booking.getProgressPercentForTask(key);
+      _selectedPercent = pct > 0 ? pct : 50;
     });
   }
 
@@ -295,6 +300,134 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
           _booking.isCheckedIn;
     }
     return true;
+  }
+
+
+  Future<void> _submitProgressUpdate(int percent) async {
+    if (_isSubmitting) return;
+
+    final activeConfig = _getConfigForMilestone(_activeMilestoneKey);
+    final taskKey = _booking.resolveTaskKey(_activeMilestoneKey);
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final res = await ServicesLocator.groomerHomeRepository.updateServiceProgress(
+        _booking.bookingId,
+        taskKey: taskKey,
+        percent: percent,
+        notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
+        storeId: _booking.storeId,
+        booking: _booking,
+      );
+
+      if (!mounted) return;
+
+      if (res.success) {
+        // Also sync 100% progress for the completed task
+        if (!activeConfig.isCheckIn && !activeConfig.isReadyForCheckout) {
+          final tKey = _booking.resolveTaskKey(_activeMilestoneKey);
+          ServicesLocator.groomerHomeRepository.updateServiceProgress(
+            _booking.bookingId,
+            taskKey: tKey,
+            percent: 100,
+            notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
+            storeId: _booking.storeId,
+            booking: _booking,
+          ).ignore();
+        }
+        ToastUtil.showSuccessToast(context, res.message);
+        final updated = res.updatedBooking ?? _booking;
+
+        setState(() {
+          _booking = updated;
+          _selectedPercent = percent;
+          if (percent >= 100) {
+            final next = updated.nextPendingMilestone;
+            if (next != null) {
+              _activeMilestoneKey = next;
+              _notesController.text = _getNoteForMilestone(next) ?? '';
+              final nextPct = updated.getProgressPercentForTask(next);
+              _selectedPercent = nextPct > 0 ? nextPct : 50;
+            }
+          }
+        });
+
+        widget.onMilestoneSuccess?.call(updated);
+      } else {
+        ToastUtil.showErrorToast(context, res.message);
+      }
+    } catch (e) {
+      if (mounted) {
+        ToastUtil.showErrorToast(context, 'Failed to update progress: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  Future<void> _submitSkipTask() async {
+    if (_isSubmitting) return;
+
+    final activeConfig = _getConfigForMilestone(_activeMilestoneKey);
+    if (!activeConfig.isSkippable || activeConfig.isCheckIn || activeConfig.isReadyForCheckout) {
+      ToastUtil.showInfoToast(context, 'This milestone cannot be skipped.');
+      return;
+    }
+
+    final taskKey = _booking.resolveTaskKey(_activeMilestoneKey);
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final res = await ServicesLocator.groomerHomeRepository.skipServiceProgressTask(
+        _booking.bookingId,
+        taskKey: taskKey,
+        reason: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : 'Skipped by groomer',
+        storeId: _booking.storeId,
+        booking: _booking,
+      );
+
+      if (!mounted) return;
+
+      if (res.success) {
+        // Also sync 100% progress for the completed task
+        if (!activeConfig.isCheckIn && !activeConfig.isReadyForCheckout) {
+          final tKey = _booking.resolveTaskKey(_activeMilestoneKey);
+          ServicesLocator.groomerHomeRepository.updateServiceProgress(
+            _booking.bookingId,
+            taskKey: tKey,
+            percent: 100,
+            notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
+            storeId: _booking.storeId,
+            booking: _booking,
+          ).ignore();
+        }
+        ToastUtil.showSuccessToast(context, res.message);
+        final updated = res.updatedBooking ?? _booking;
+
+        setState(() {
+          _booking = updated;
+          final next = updated.nextPendingMilestone;
+          if (next != null) {
+            _activeMilestoneKey = next;
+            _notesController.text = _getNoteForMilestone(next) ?? '';
+            final nextPct = updated.getProgressPercentForTask(next);
+            _selectedPercent = nextPct > 0 ? nextPct : 50;
+          }
+        });
+
+        widget.onMilestoneSuccess?.call(updated);
+      } else {
+        ToastUtil.showErrorToast(context, res.message);
+      }
+    } catch (e) {
+      if (mounted) {
+        ToastUtil.showErrorToast(context, 'Failed to skip milestone: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   Future<void> _submitMilestone() async {
@@ -339,6 +472,18 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
       if (!mounted) return;
 
       if (res.success) {
+        // Also sync 100% progress for the completed task
+        if (!activeConfig.isCheckIn && !activeConfig.isReadyForCheckout) {
+          final tKey = _booking.resolveTaskKey(_activeMilestoneKey);
+          ServicesLocator.groomerHomeRepository.updateServiceProgress(
+            _booking.bookingId,
+            taskKey: tKey,
+            percent: 100,
+            notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
+            storeId: _booking.storeId,
+            booking: _booking,
+          ).ignore();
+        }
         ToastUtil.showSuccessToast(context, res.message);
         final updated = res.updatedBooking ??
             _booking.copyWith(
@@ -574,6 +719,8 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
                     // Milestone Action Area
                     if (allRequiredDone)
                       _buildAllMilestonesCompletedBanner(booking)
+                    else if (booking.isTaskSkipped(_activeMilestoneKey))
+                      _buildSkippedMilestoneView(booking, activeConfig)
                     else if (!isActiveDone)
                       _buildActiveMilestoneInput(booking, activeConfig, milestoneConfig)
                     else
@@ -920,33 +1067,57 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
                       ),
                       const SizedBox(width: 6),
                       // Status Badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: isDone
-                              ? const Color(0xFFDCFCE7)
-                              : (!isPrereqMet
-                                  ? const Color(0xFFF3F4F6)
-                                  : (isSelected ? const Color(0xFF111827) : const Color(0xFFE5E7EB))),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          isDone
-                              ? '✓ Done'
-                              : (!isPrereqMet
-                                  ? 'Locked'
-                                  : (isSelected ? 'Active' : 'Pending')),
-                          style: AppFonts.poppins(
-                            size: 10.5,
-                            weight: FontWeight.w600,
-                            color: isDone
-                                ? const Color(0xFF15803D)
-                                : (!isPrereqMet
-                                    ? const Color(0xFF9CA3AF)
-                                    : (isSelected ? Colors.white : const Color(0xFF4B5563))),
+                      Builder(builder: (ctx) {
+                        final isSkipped = booking.isTaskSkipped(config.key);
+                        final taskPct = booking.getProgressPercentForTask(config.key);
+                        final isPartiallyDone = taskPct > 0 && !isDone && !isSkipped;
+
+                        final badgeBg = isDone
+                            ? const Color(0xFFDCFCE7)
+                            : (isSkipped
+                                ? const Color(0xFFFEF3C7)
+                                : (isPartiallyDone
+                                    ? const Color(0xFFEFF6FF)
+                                    : (!isPrereqMet
+                                        ? const Color(0xFFF3F4F6)
+                                        : (isSelected ? const Color(0xFF111827) : const Color(0xFFE5E7EB)))));
+
+                        final badgeText = isDone
+                            ? '✓ Done'
+                            : (isSkipped
+                                ? 'Skipped'
+                                : (isPartiallyDone
+                                    ? '$taskPct%'
+                                    : (!isPrereqMet
+                                        ? 'Locked'
+                                        : (isSelected ? 'Active' : 'Pending'))));
+
+                        final badgeColor = isDone
+                            ? const Color(0xFF15803D)
+                            : (isSkipped
+                                ? const Color(0xFFB45309)
+                                : (isPartiallyDone
+                                    ? const Color(0xFF2563EB)
+                                    : (!isPrereqMet
+                                        ? const Color(0xFF9CA3AF)
+                                        : (isSelected ? Colors.white : const Color(0xFF4B5563)))));
+
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: badgeBg,
+                            borderRadius: BorderRadius.circular(20),
                           ),
-                        ),
-                      ),
+                          child: Text(
+                            badgeText,
+                            style: AppFonts.poppins(
+                              size: 10.5,
+                              weight: FontWeight.w600,
+                              color: badgeColor,
+                            ),
+                          ),
+                        );
+                      }),
                     ],
                   ),
                   if (note != null && note.trim().isNotEmpty) ...[
@@ -1018,6 +1189,177 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
             ),
           ),
           const SizedBox(height: 12),
+        ],
+
+        // Incremental Service Progress Controls
+        if (!config.isCheckIn && !config.isReadyForCheckout) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Service Progress',
+                      style: AppFonts.poppins(
+                        size: 13,
+                        weight: FontWeight.w700,
+                        color: const Color(0xFF1F2937),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: _selectedPercent >= 100
+                            ? const Color(0xFFDCFCE7)
+                            : (_selectedPercent > 0
+                                ? const Color(0xFFEFF6FF)
+                                : const Color(0xFFF3F4F6)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '$_selectedPercent% Completed',
+                        style: AppFonts.poppins(
+                          size: 11,
+                          weight: FontWeight.w600,
+                          color: _selectedPercent >= 100
+                              ? const Color(0xFF15803D)
+                              : (_selectedPercent > 0
+                                  ? const Color(0xFF2563EB)
+                                  : const Color(0xFF6B7280)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: (_selectedPercent.clamp(0, 100)) / 100.0,
+                    minHeight: 8,
+                    backgroundColor: const Color(0xFFE5E7EB),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      _selectedPercent >= 100
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFF111827),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Select incremental progress update:',
+                  style: AppFonts.poppins(
+                    size: 11.5,
+                    color: const Color(0xFF6B7280),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [30, 50, 75, 100].map((pct) {
+                    final isChosen = _selectedPercent == pct;
+                    return Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 3),
+                        child: InkWell(
+                          onTap: (isPrereqMet && !_isSubmitting)
+                              ? () => setState(() => _selectedPercent = pct)
+                              : null,
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            decoration: BoxDecoration(
+                              color: isChosen ? const Color(0xFF111827) : Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isChosen ? const Color(0xFF111827) : const Color(0xFFD1D5DB),
+                              ),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              '$pct%',
+                              style: AppFonts.poppins(
+                                size: 12,
+                                weight: FontWeight.w600,
+                                color: isChosen ? Colors.white : const Color(0xFF374151),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                if (_selectedPercent > 0 && _selectedPercent < 100) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1F2937),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        elevation: 0,
+                      ),
+                      onPressed: (!isPrereqMet || _isSubmitting)
+                          ? null
+                          : () => _submitProgressUpdate(_selectedPercent),
+                      icon: const Icon(Icons.sync_rounded, size: 16, color: Colors.white),
+                      label: Text(
+                        'Update ${config.displayTitle} to $_selectedPercent%',
+                        style: AppFonts.poppins(
+                          size: 12.5,
+                          weight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+
+        // Skip Milestone Option (Only when permitted)
+        if (config.isSkippable && !config.isCheckIn && !config.isReadyForCheckout) ...[
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFB45309),
+                side: const BorderSide(color: Color(0xFFF59E0B)),
+                backgroundColor: const Color(0xFFFFFBEB),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              onPressed: (!isPrereqMet || _isSubmitting) ? null : _submitSkipTask,
+              icon: const Icon(Icons.skip_next_rounded, size: 18, color: Color(0xFFD97706)),
+              label: Text(
+                'Skip ${config.displayTitle}',
+                style: AppFonts.poppins(
+                  size: 12.5,
+                  weight: FontWeight.w600,
+                  color: const Color(0xFFB45309),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
         ],
 
         // Prior Bath Notes if active milestone is Grooming
@@ -1203,6 +1545,62 @@ class _GroomerMilestoneDialogState extends State<GroomerMilestoneDialog> {
             ),
           ),
         ],
+      ],
+    );
+  }
+
+
+  Widget _buildSkippedMilestoneView(GroomerBooking booking, StoreMilestoneConfig config) {
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFEF3C7),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFFCD34D)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.skip_next_rounded, size: 20, color: Color(0xFFD97706)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '${config.displayTitle} milestone was skipped.',
+                  style: AppFonts.poppins(
+                    size: 12,
+                    weight: FontWeight.w600,
+                    color: const Color(0xFFB45309),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF4B5563),
+              side: const BorderSide(color: Color(0xFFD1D5DB)),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () => Navigator.of(context).pop(_booking),
+            child: Text(
+              'Close',
+              style: AppFonts.poppins(
+                size: 13,
+                weight: FontWeight.w600,
+                color: const Color(0xFF4B5563),
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }

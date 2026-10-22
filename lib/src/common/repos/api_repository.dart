@@ -28,6 +28,7 @@ class ApiRepository {
     final session = ServicesLocator.sessionService;
     return path.contains('/api/groomer-auth') ||
         path.contains('/api/common/groomer') ||
+        path.contains('/service-progress') ||
         _notificationAuthIsGroomer == true ||
         (_notificationAuthIsGroomer != false &&
             session.isGroomerLoggedIn &&
