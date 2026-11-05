@@ -711,10 +711,15 @@ class _ServiceCard extends StatelessWidget {
             // Image
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: SizedBox(
-                width : 90,
+              child: Container(
+                width : item.isPackage ? 110 : 90,
                 height: 90,
-                child : _ServiceImage(item: item),
+                color : const Color(0xFFF3F4F6),
+                alignment: Alignment.center,
+                child : _ServiceImage(
+                  item: item,
+                  fit : item.isPackage ? BoxFit.contain : BoxFit.cover,
+                ),
               ),
             ),
 
@@ -889,7 +894,11 @@ class _Badge extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 class _ServiceImage extends StatelessWidget {
   final ServiceItem item;
-  const _ServiceImage({required this.item});
+  final BoxFit? fit;
+  const _ServiceImage({required this.item, this.fit});
+
+  BoxFit get _effectiveFit =>
+      fit ?? (item.isPackage ? BoxFit.contain : BoxFit.cover);
 
   Widget _iconPlaceholder() {
     final IconData icon;
@@ -914,6 +923,11 @@ class _ServiceImage extends StatelessWidget {
   Widget _placeholder() {
     final localAsset = serviceAssetFor(item.name.split(' — ').last.trim()) ??
         serviceAssetFor(item.name) ??
+        (item.isPackage
+            ? (item.name.toLowerCase().contains('scent') || item.id == 2
+                ? 'assets/images/home/package_banner_2.png'
+                : 'assets/images/home/package_banner_1.png')
+            : null) ??
         (item.name.toLowerCase().contains('breed')
             ? 'assets/images/common/svc_breed_style.png'
             : null);
@@ -922,7 +936,8 @@ class _ServiceImage extends StatelessWidget {
         asset: localAsset,
         width: double.infinity,
         height: double.infinity,
-        fit: BoxFit.cover,
+        fit: _effectiveFit,
+        alignment: Alignment.center,
         fallback: _iconPlaceholder(),
       );
     }
@@ -940,7 +955,8 @@ class _ServiceImage extends StatelessWidget {
         asset: fullUrl,
         width: double.infinity,
         height: double.infinity,
-        fit: BoxFit.cover,
+        fit: _effectiveFit,
+        alignment: Alignment.center,
         fallback: _placeholder(),
       );
     }
@@ -949,7 +965,11 @@ class _ServiceImage extends StatelessWidget {
       fullUrl,
       width        : double.infinity,
       height       : double.infinity,
-      fit          : BoxFit.cover,
+      fit          : _effectiveFit,
+      alignment    : Alignment.center,
+      headers      : const {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+      },
       errorBuilder : (ctx, err, st) => _placeholder(),
       loadingBuilder: (ctx, child, progress) {
         if (progress == null) return child;

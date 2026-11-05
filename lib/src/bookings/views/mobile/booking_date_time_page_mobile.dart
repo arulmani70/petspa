@@ -288,6 +288,7 @@ class _BookingDateTimePageMobileState
     final serviceId = ids['serviceId'] as int?;
     final packageId = ids['packageId'] as int?;
     final addOnIds  = _draft.extractAddOnIds();
+    final petId     = BookingDateUtils.parsePetIdFromPet(_draft.pet);
 
     // Resolve current groomer ID (0 = no preference)
     int groomerId = 0;
@@ -321,6 +322,7 @@ class _BookingDateTimePageMobileState
         packageId: packageId,
         addOnIds: addOnIds.isEmpty ? null : addOnIds,
         groomerId: groomerId > 0 ? groomerId : null,
+        petId: (petId != null && petId > 0) ? petId : null,
       );
 
       _log.d('BookingDateTimePageMobile::_loadAvailability::Step1 response='

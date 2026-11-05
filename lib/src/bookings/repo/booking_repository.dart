@@ -89,24 +89,17 @@ class BookingRepository {
     int? packageId,
     List<int>? addOnIds,
     int? groomerId,
+    int? petId,
   }) async {
     try {
       // Enforce 14-day booking window restriction
       BookingDateUtils.validateDateString(date);
 
-      log.d('BookingRepository::getAvailability::Fetching slot availability for $date');
+      log.d('BookingRepository::getAvailability::Fetching slot availability for $date serviceId=$serviceId packageId=$packageId petId=$petId');
       final session = ServicesLocator.sessionService;
       final clientId = session.clientId ?? 'SHEAR-001';
       final regionId = session.regionId ?? 'DWG-001';
       final storeId  = session.storeId  ?? 'SHEAR-001';
-
-      // Backend ALWAYS requires serviceId.
-      final effectiveServiceId = (serviceId != null && serviceId > 0)
-          ? serviceId
-          : (packageId != null && packageId > 0 ? packageId : null);
-      final effectivePackageId = (packageId != null && packageId > 0)
-          ? packageId
-          : null;
 
       final canonicalGroomId = BookingDateUtils.resolveCanonicalGroomerId(groomerId);
 
@@ -115,11 +108,11 @@ class BookingRepository {
         'RegionId' : regionId,
         'StoreId'  : storeId,
         'date'     : date,
-        if (effectiveServiceId != null) 'serviceId': effectiveServiceId, // ignore: use_null_aware_elements
-        if (effectivePackageId != null && effectivePackageId != effectiveServiceId)
-          'packageId': effectivePackageId, // ignore: use_null_aware_elements
+        if (serviceId != null && serviceId > 0) 'serviceId': serviceId,
+        if (packageId != null && packageId > 0) 'packageId': packageId,
         if (addOnIds != null && addOnIds.isNotEmpty) 'addOnIds': addOnIds,
         if (canonicalGroomId != null && canonicalGroomId > 0) 'groomerId': canonicalGroomId,
+        if (petId != null && petId > 0) 'petId': petId,
       };
 
       Map<String, dynamic>? response;

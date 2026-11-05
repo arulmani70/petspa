@@ -12,6 +12,7 @@ import 'package:shear_heaven_pet_spa/src/common/common.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/toast_util.dart';
+import 'package:shear_heaven_pet_spa/src/common/widgets/app_assets.dart';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/offers/bloc/offer_bloc.dart';
@@ -755,24 +756,19 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
 
       final session = ServicesLocator.sessionService;
 
-      final effectiveServiceId = (serviceId != null && serviceId > 0)
-          ? serviceId
-          : (packageId != null && packageId > 0 ? packageId : null);
-      final effectivePackageId = (packageId != null && packageId > 0)
-          ? packageId
-          : null;
+      final finalServiceId = (serviceId != null && serviceId > 0) ? serviceId : null;
+      final finalPackageId = (packageId != null && packageId > 0) ? packageId : null;
 
       // ---- Step 1: POST /api/availability — fresh pre-flight capacity validation ---
-      _log.d("BookingReviewPage::_confirmBooking::Refreshing slot availability before booking");
+      _log.d("BookingReviewPage::_confirmBooking::Refreshing slot availability before booking: serviceId=$finalServiceId, packageId=$finalPackageId");
 
       final validateResponse = await ServicesLocator.bookingRepository.getAvailability(
         date: bookingDate,
-        serviceId: effectiveServiceId,
-        packageId: (effectivePackageId != null && effectivePackageId != effectiveServiceId)
-            ? effectivePackageId
-            : null,
+        serviceId: finalServiceId,
+        packageId: finalPackageId,
         addOnIds: addOnIds.isEmpty ? null : addOnIds,
         groomerId: groomerId > 0 ? groomerId : null,
+        petId: petId > 0 ? petId : null,
       );
 
       if (!mounted) return;
@@ -877,7 +873,9 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
 
       // ---- Step 1c: Client-Side Customer Duplicate Booking Check -----------
       final finalStartTime = _draft.timeSlot ?? startTime;
-      final finalEndTime   = _draft.endTime   ?? correctedEndTime;
+      final finalEndTime   = correctedEndTime.isNotEmpty
+          ? correctedEndTime
+          : (_draft.endTime ?? endTime);
 
       try {
         if (session.isLoggedIn && groomerId > 0) {
@@ -924,9 +922,8 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
         'RegionId'   : session.regionId ?? 'DWG-001',
         'StoreId'    : session.storeId  ?? 'SHEAR-001',
         'petId'      : petId,
-        if (effectiveServiceId != null) 'serviceId': effectiveServiceId, // ignore: use_null_aware_elements
-        if (effectivePackageId != null && effectivePackageId != effectiveServiceId)
-          'packageId': effectivePackageId, // ignore: use_null_aware_elements
+        'serviceId'  : ?finalServiceId,
+        'packageId'  : ?finalPackageId,
         'addOnIds'   : addOnIds,
         'groomerId'  : groomerId,
         'bookingDate': bookingDate,
@@ -1554,6 +1551,9 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
         service?['imageUrl'] ??
         service?['photo_url'] ??
         service?['image'];
+    final isPkg = service?['isPackage'] == true;
+    final effectiveFit = isPkg ? BoxFit.contain : BoxFit.cover;
+
     if (photo != null && photo.toString().isNotEmpty) {
       final photoStr = photo.toString();
       if (photoStr.startsWith('http')) {
@@ -1561,7 +1561,10 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
           photoStr,
           width: double.infinity,
           height: double.infinity,
-          fit: BoxFit.cover,
+          fit: effectiveFit,
+          headers: const {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+          },
           errorBuilder: (c, e, s) => _defaultServiceIcon(),
         );
       } else if (photoStr.startsWith('/')) {
@@ -1569,7 +1572,10 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
           '${Constants.app.BASE_URL}$photoStr',
           width: double.infinity,
           height: double.infinity,
-          fit: BoxFit.cover,
+          fit: effectiveFit,
+          headers: const {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+          },
           errorBuilder: (c, e, s) => _defaultServiceIcon(),
         );
       } else {
@@ -1577,11 +1583,29 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
           photoStr,
           width: double.infinity,
           height: double.infinity,
-          fit: BoxFit.cover,
+          fit: effectiveFit,
           errorBuilder: (c, e, s) => _defaultServiceIcon(),
         );
       }
     }
+
+    final name = service?[Constants.database.COLUMN_SERVICE_NAME]?.toString() ??
+        service?['service_name']?.toString() ??
+        service?['name']?.toString() ??
+        service?['packageName']?.toString() ??
+        service?['package_name']?.toString();
+    final fallback = serviceAssetFor(name) ??
+        (isPkg ? 'assets/images/packages/package_banner.png' : null);
+    if (fallback != null) {
+      return Image.asset(
+        fallback,
+        width: double.infinity,
+        height: double.infinity,
+        fit: effectiveFit,
+        errorBuilder: (c, e, s) => _defaultServiceIcon(),
+      );
+    }
+
     return _defaultServiceIcon();
   }
 

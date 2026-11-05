@@ -42,6 +42,12 @@ const Map<String, String> _serviceAssets = {
   'deshedding': 'assets/images/common/svc_deshed.png',
   'bath & tidy package': 'assets/images/common/svc_bath_blowdry.png',
   'deluxe puppy spa': 'assets/images/common/svc_puppy.png',
+  'special package': 'assets/images/home/package_banner_1.png',
+  'heaven scent package': 'assets/images/home/package_banner_2.png',
+  'heaven scent': 'assets/images/home/package_banner_2.png',
+  'scent package': 'assets/images/home/package_banner_2.png',
+  'royal vip spa package': 'assets/images/common/svc_spa.png',
+  'royal vip spa': 'assets/images/common/svc_spa.png',
   'small breeds': 'assets/images/common/svc_breed_style.png',
   'medium breeds': 'assets/images/common/svc_breed_style.png',
   'large breeds': 'assets/images/common/svc_breed_style.png',
@@ -85,6 +91,10 @@ String? serviceAssetFor(String? serviceName) {
   if (clean.contains('shed')) return 'assets/images/common/svc_deshed.png';
   if (clean.contains('skin') || clean.contains('facial')) return 'assets/images/common/svc_skin_care.png';
   if (clean.contains('flea') || clean.contains('tick')) return 'assets/images/common/svc_flea_tick.png';
+  if (clean.contains('special')) return 'assets/images/home/package_banner_1.png';
+  if (clean.contains('scent') || clean.contains('heaven')) return 'assets/images/home/package_banner_2.png';
+  if (clean.contains('vip')) return 'assets/images/common/svc_spa.png';
+  if (clean.contains('package')) return 'assets/images/packages/package_banner.png';
 
   return null;
 }

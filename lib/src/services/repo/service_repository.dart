@@ -540,8 +540,6 @@ class ServiceRepository {
 
   // ── helpers ───────────────────────────────────────────────────────────────
 
-  static const String _kBaseUrl = 'https://devapi.shearheavenpetspa.com';
-
   static const List<String> _defaultPackageNames = [
     'Spa Package',
     'Bath & Tidy Package',
@@ -570,10 +568,12 @@ class ServiceRepository {
       return s;
     }
 
+    final baseUrl = Constants.app.BASE_URL;
+
     final uri = Uri.tryParse(s);
     if (uri == null) {
       final clean = s.startsWith('/') ? s : '/$s';
-      return '$_kBaseUrl$clean';
+      return '$baseUrl$clean';
     }
 
     // Keep external remote URLs that are neither localhost nor old hosts
@@ -582,13 +582,14 @@ class ServiceRepository {
         uri.host != 'localhost' &&
         uri.host != '127.0.0.1' &&
         uri.host != '10.0.2.2' &&
-        !uri.host.contains('genzcodershub.com')) {
+        !uri.host.contains('genzcodershub.com') &&
+        !uri.host.contains('devapi.shearheavenpetspa.com')) {
       return s;
     }
 
     final path = uri.path.startsWith('/') ? uri.path : '/${uri.path}';
     final query = uri.hasQuery ? '?${uri.query}' : '';
-    return '$_kBaseUrl$path$query';
+    return '$baseUrl$path$query';
   }
 
   static double _parseDouble(dynamic v) {
@@ -615,7 +616,30 @@ class ServiceRepository {
         m['image_url'] ??
         m['ImageURL'] ??
         m['image'] ??
-        m['photo_url'];
+        m['Image'] ??
+        m['img'] ??
+        m['Img'] ??
+        m['photo_url'] ??
+        m['photoUrl'] ??
+        m['PhotoUrl'] ??
+        m['photo'] ??
+        m['Photo'] ??
+        m['picture'] ??
+        m['Picture'] ??
+        m['pictureUrl'] ??
+        m['picture_url'] ??
+        m['banner'] ??
+        m['Banner'] ??
+        m['bannerUrl'] ??
+        m['banner_url'] ??
+        m['mediaUrl'] ??
+        m['media_url'] ??
+        m['thumbnail'] ??
+        m['thumbnailUrl'] ??
+        m['icon'] ??
+        m['iconUrl'] ??
+        m['imagePath'] ??
+        m['image_path'];
     return resolveImageUrl(v);
   }
 
@@ -814,6 +838,21 @@ class ServiceRepository {
             }
           }
 
+          final rawImg = _imageUrl(p);
+          String? pkgImg = (rawImg != null && rawImg.isNotEmpty) ? rawImg : null;
+          if (pkgImg == null || pkgImg.isEmpty) {
+            final clean = name.toLowerCase();
+            if (clean.contains('special') || currentPkgId == 1) {
+              pkgImg = 'https://pcmdev.shearheavenpetspa.com/assets/images/home/package_banner_1.png';
+            } else if (clean.contains('scent') || clean.contains('heaven') || currentPkgId == 2) {
+              pkgImg = 'https://pcmdev.shearheavenpetspa.com/assets/images/home/package_banner_2.png';
+            } else if (clean.contains('spa') || clean.contains('vip')) {
+              pkgImg = 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_spa.png';
+            } else {
+              pkgImg = 'https://pcmdev.shearheavenpetspa.com/assets/images/packages/package_banner.png';
+            }
+          }
+
           packages.add(ServiceItem(
             id: currentPkgId,
             code: code,
@@ -824,7 +863,7 @@ class ServiceRepository {
             price: price,
             priceDisplay: _priceDisplay(p['Price'] ?? p['price'], null),
             durationMinutes: dur > 0 ? dur : 60,
-            imageUrl: _imageUrl(p),
+            imageUrl: pkgImg,
             includes: includes,
           ));
         }
