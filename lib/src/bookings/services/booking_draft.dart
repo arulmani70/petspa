@@ -31,6 +31,54 @@ class BookingDraft extends ChangeNotifier {
   bool get isComplete =>
       pet != null && service != null && date != null && timeSlot != null && endTime != null;
 
+  /// Whether the currently selected item is a spa package rather than a standalone service.
+  bool get isPackageSelected {
+    final s = service;
+    if (s == null) return false;
+    if (s['isPackage'] == true) return true;
+    if (s['isPackage'] == false) return false;
+    final pkgId = s['packageId'] ?? s['PackageId'];
+    if (pkgId != null && pkgId.toString().isNotEmpty) return true;
+    final pkgName = s['package_name'] ?? s[Constants.database.COLUMN_PACKAGE_NAME];
+    if (pkgName != null && pkgName.toString().trim().isNotEmpty) return true;
+    return false;
+  }
+
+  /// Service subtotal (main service + add-ons, or if a package is selected, just add-ons).
+  double get serviceSubtotal {
+    if (apiServiceSubtotal != null) return apiServiceSubtotal!;
+    if (isPackageSelected) {
+      double addOnTotal = 0.0;
+      for (final a in addOns) {
+        final p = a['price'] ?? a[Constants.database.COLUMN_PRICE];
+        if (p is num) {
+          addOnTotal += p.toDouble();
+        } else if (p != null) {
+          addOnTotal += double.tryParse(p.toString().replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0.0;
+        }
+      }
+      return addOnTotal;
+    } else {
+      return totalPrice ?? estimatedTotal;
+    }
+  }
+
+  /// Package subtotal (package price if a package is selected, else 0.0).
+  double get packageSubtotal {
+    if (apiPackageSubtotal != null) return apiPackageSubtotal!;
+    if (isPackageSelected) {
+      final s = service;
+      final p = s?['price'] ?? s?[Constants.database.COLUMN_PRICE];
+      if (p is num) return p.toDouble();
+      if (p != null) {
+        final parsed = double.tryParse(p.toString().replaceAll(RegExp(r'[^0-9.]'), ''));
+        if (parsed != null) return parsed;
+      }
+      return totalPrice ?? estimatedTotal;
+    }
+    return 0.0;
+  }
+
   double get estimatedTotal {
     double total = 0;
     final servicePrice = service?['price'] ?? service?[Constants.database.COLUMN_PRICE];
@@ -139,8 +187,8 @@ class BookingDraft extends ChangeNotifier {
 
       if (packageId == null && serviceId == null) {
         final isPkg = serviceMap['isPackage'] == true ||
-            serviceMap.containsKey('package_name') ||
-            serviceMap[Constants.database.COLUMN_PACKAGE_NAME] != null;
+            (serviceMap['package_name'] != null && serviceMap['package_name'].toString().trim().isNotEmpty) ||
+            (serviceMap[Constants.database.COLUMN_PACKAGE_NAME] != null && serviceMap[Constants.database.COLUMN_PACKAGE_NAME].toString().trim().isNotEmpty);
 
         final rawId = serviceMap['id'] ?? serviceMap[Constants.database.COLUMN_ID];
         int? extractedId = int.tryParse(rawId?.toString() ?? '');
@@ -189,6 +237,12 @@ class BookingDraft extends ChangeNotifier {
 
   /// API-computed total price (set from /api/availability response).
   double? apiTotalPrice;
+
+  /// API-computed service subtotal (set from /api/availability response).
+  double? apiServiceSubtotal;
+
+  /// API-computed package subtotal (set from /api/availability response).
+  double? apiPackageSubtotal;
 
   // Legacy names kept for backward compat (lastBooking, confirmed page).
   int? get duration => apiDurationMinutes;
@@ -274,6 +328,8 @@ class BookingDraft extends ChangeNotifier {
     selectedSlot = null;
     apiDurationMinutes = null;
     apiTotalPrice = null;
+    apiServiceSubtotal = null;
+    apiPackageSubtotal = null;
     appliedOffer = null;
     notifyListeners();
   }

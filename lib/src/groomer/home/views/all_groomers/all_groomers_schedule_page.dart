@@ -13,6 +13,7 @@ import 'package:shear_heaven_pet_spa/src/groomer/home/views/widgets/groomer_mile
 import 'package:shear_heaven_pet_spa/src/groomer/home/views/widgets/groomer_final_checkout_dialog.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/models/booking_receipt.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/views/mobile/booking_receipt_page_mobile.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/home/views/widgets/appointment_details_sheet.dart';
 
 /// Dedicated screen for viewing salon-wide appointment schedules across all salon groomers.
 ///
@@ -1871,6 +1872,16 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
     );
   }
 
+  void _openAppointmentDetails(GroomerBooking booking) {
+    AppointmentDetailsSheet.show(
+      context,
+      booking: booking,
+      onReassigned: (updatedBooking) {
+        _loadSchedule();
+      },
+    );
+  }
+
   Widget _buildAppointmentCard(GroomerBooking booking) {
     Color borderColor;
     Color badgeBgColor;
@@ -1966,7 +1977,11 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
     final isProcessing = _processingBookingIds.contains(booking.bookingId);
     final canManage = _isOwnBooking(booking);
 
-    return Container(
+    return InkWell(
+      key: Key('all_schedule_booking_card_${booking.bookingId}'),
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => _openAppointmentDetails(booking),
+      child: Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -2469,31 +2484,46 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (!booking.isCheckedIn)
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF111827), // Brand Deep Slate
-                            foregroundColor: Colors.white,
-                            disabledBackgroundColor: const Color(0xFFE5E7EB),
-                            disabledForegroundColor: const Color(0xFF9CA3AF),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                            minimumSize: const Size(0, 30),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          onPressed: !booking.canCheckIn()
-                              ? null
-                              : () => _handleCheckIn(booking),
-                          icon: const Icon(Icons.assignment_turned_in_outlined, size: 15),
-                          label: Text(
-                            'Check In',
-                            style: AppFonts.poppins(
-                              size: 12,
-                              weight: FontWeight.w600,
-                            ),
-                          ),
+                        Builder(
+                          builder: (btnCtx) {
+                            final canCheckIn = booking.canCheckIn();
+                            final theme = Theme.of(btnCtx);
+                            return ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: theme.colorScheme.primary, // Brand Deep Slate / Theme primary
+                                foregroundColor: theme.colorScheme.onPrimary,
+                                disabledBackgroundColor: const Color(0xFFE5E7EB),
+                                disabledForegroundColor: const Color(0xFF9CA3AF),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                                minimumSize: const Size(0, 30),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              onPressed: canCheckIn
+                                  ? () => _handleCheckIn(booking)
+                                  : null,
+                              icon: Icon(
+                                Icons.assignment_turned_in_outlined,
+                                size: 15,
+                                color: canCheckIn
+                                    ? theme.colorScheme.onPrimary
+                                    : const Color(0xFF9CA3AF),
+                              ),
+                              label: Text(
+                                'Check In',
+                                style: AppFonts.parkinsans(
+                                  size: 12,
+                                  weight: FontWeight.w600,
+                                  color: canCheckIn
+                                      ? theme.colorScheme.onPrimary
+                                      : const Color(0xFF9CA3AF),
+                                ),
+                              ),
+                            );
+                          },
                         )
                       else ...[
                         OutlinedButton.icon(
@@ -2792,8 +2822,9 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildSkipButton(GroomerBooking booking) {
     final isProcessing = _processingBookingIds.contains(booking.bookingId);

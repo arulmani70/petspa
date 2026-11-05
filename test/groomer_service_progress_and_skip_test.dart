@@ -159,7 +159,7 @@ void main() {
 
       expect(res.success, isTrue);
       expect(_mockApi.putCallCount, equals(1));
-      expect(_mockApi.lastPutPath, equals('/api/common/bookings/101/service-progress'));
+      expect(_mockApi.lastPutPath, equals('/api/common/groomer/bookings/101/service-progress'));
       expect(_mockApi.lastPutData['taskKey'], equals('svc-1-bath'));
       expect(_mockApi.lastPutData['percent'], equals(30));
 
@@ -315,7 +315,7 @@ void main() {
 
       expect(res.success, isTrue);
       expect(_mockApi.postCallCount, equals(1));
-      expect(_mockApi.lastPostPath, equals('/api/common/bookings/104/service-progress/skip'));
+      expect(_mockApi.lastPostPath, equals('/api/common/groomer/bookings/104/service-progress/skip'));
       expect(_mockApi.lastPostData['taskKey'], equals('svc-1-bath'));
 
       final updated = res.updatedBooking;
@@ -514,15 +514,255 @@ void main() {
       await tester.tap(find.text('Open Dialog'));
       await tester.pumpAndSettle();
 
-      // Verify Service Progress section and percentage options are visible
-      expect(find.text('Service Progress'), findsOneWidget);
-      expect(find.text('30%'), findsOneWidget);
-      expect(find.text('50%'), findsOneWidget);
-      expect(find.text('75%'), findsOneWidget);
-      expect(find.text('100%'), findsOneWidget);
+      // Verify Service Progress section and percentage options are visible matching web portal (20%, 40%, 60%, 80%, Done)
+      expect(find.text('Update each booked service'), findsOneWidget);
+      expect(find.text('20%'), findsOneWidget);
+      expect(find.text('40%'), findsOneWidget);
+      expect(find.text('60%'), findsOneWidget);
+      expect(find.text('80%'), findsOneWidget);
+      expect(find.text('Done'), findsOneWidget);
 
       // Verify Skip button is present for eligible milestone
       expect(find.textContaining('Skip'), findsWidgets);
+    });
+
+    testWidgets('11. Tapping percentage button updates progress and calls API', (tester) async {
+      const booking = GroomerBooking(
+        bookingId: 111,
+        status: 'checked_in',
+        bookingDate: '2026-10-22',
+        startTime: '10:00 AM',
+        endTime: '11:00 AM',
+        petName: 'Leo',
+        customerName: 'Frank',
+        userId: 77,
+        serviceName: 'Full Groom',
+        serviceProgress: [
+          ServiceProgressItem(
+            taskKey: 'svc-1-bath',
+            label: 'Bath Service',
+            percent: 20,
+            status: 'in_progress',
+            durationMinutes: 30,
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () {
+                  GroomerMilestoneDialog.show(
+                    ctx,
+                    booking: booking,
+                  );
+                },
+                child: const Text('Open Dialog'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open Dialog'));
+      await tester.pumpAndSettle();
+
+      // Ensure button is visible in scroll view
+      final btnFinder = find.text('60%');
+      await tester.ensureVisible(btnFinder);
+      await tester.tap(btnFinder);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Verify API was called
+      expect(_mockApi.putCallCount, greaterThanOrEqualTo(1));
+      expect(_mockApi.lastPutData['taskKey'], equals('svc-1-bath'));
+      expect(_mockApi.lastPutData['percent'], equals(60));
+
+      // Drain toast timer
+      await tester.pump(const Duration(seconds: 5));
+    });
+
+    testWidgets('12. Tapping Skip this service button invokes skip API', (tester) async {
+      const booking = GroomerBooking(
+        bookingId: 112,
+        status: 'checked_in',
+        bookingDate: '2026-10-22',
+        startTime: '10:00 AM',
+        endTime: '11:00 AM',
+        petName: 'Leo',
+        customerName: 'Frank',
+        userId: 77,
+        serviceName: 'Full Groom',
+        serviceProgress: [
+          ServiceProgressItem(
+            taskKey: 'svc-1-bath',
+            label: 'Bath Service',
+            percent: 0,
+            status: 'pending',
+            durationMinutes: 30,
+            skipAllowed: true,
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () {
+                  GroomerMilestoneDialog.show(
+                    ctx,
+                    booking: booking,
+                  );
+                },
+                child: const Text('Open Dialog'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open Dialog'));
+      await tester.pumpAndSettle();
+
+      // Ensure button is visible in scroll view
+      final skipBtn = find.text('Skip this service');
+      await tester.ensureVisible(skipBtn);
+      await tester.tap(skipBtn);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Verify skip API was called
+      expect(_mockApi.postCallCount, greaterThanOrEqualTo(1));
+      expect(_mockApi.lastPostPath, equals('/api/common/groomer/bookings/112/service-progress/skip'));
+      expect(_mockApi.lastPostData['taskKey'], equals('svc-1-bath'));
+
+      // Drain toast timer
+      await tester.pump(const Duration(seconds: 5));
+    });
+
+    testWidgets('13. Completed & skipped box renders completed and skipped tasks', (tester) async {
+      const booking = GroomerBooking(
+        bookingId: 113,
+        status: 'checked_in',
+        bookingDate: '2026-10-22',
+        startTime: '10:00 AM',
+        endTime: '11:00 AM',
+        petName: 'Leo',
+        customerName: 'Frank',
+        userId: 77,
+        serviceName: 'Full Groom',
+        serviceProgress: [
+          ServiceProgressItem(
+            taskKey: 'svc-1-bath',
+            label: 'Bath Service',
+            percent: 100,
+            status: 'completed',
+            sortOrder: 1,
+          ),
+          ServiceProgressItem(
+            taskKey: 'svc-2-nails',
+            label: 'Nail Trim',
+            percent: 0,
+            status: 'skipped',
+            sortOrder: 2,
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () {
+                  GroomerMilestoneDialog.show(
+                    ctx,
+                    booking: booking,
+                  );
+                },
+                child: const Text('Open Dialog'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open Dialog'));
+      await tester.pumpAndSettle();
+
+      // Verify items are displayed in completed & skipped box
+      expect(find.text('Bath Service — completed'), findsOneWidget);
+      expect(find.text('Nail Trim — skipped'), findsOneWidget);
+    });
+
+    testWidgets('14. View-only banner displayed and controls hidden when line assigned to another groomer', (tester) async {
+      // Simulate logged in groomer #50
+      await ServicesLocator.sessionService.saveGroomerUser({
+        'id': 50,
+        'groomerId': 50,
+        'role': 'groomer',
+        'firstName': 'Alex',
+      });
+
+      const booking = GroomerBooking(
+        bookingId: 114,
+        status: 'checked_in',
+        bookingDate: '2026-10-22',
+        startTime: '10:00 AM',
+        endTime: '11:00 AM',
+        petName: 'Leo',
+        customerName: 'Frank',
+        userId: 77,
+        serviceName: 'Full Groom',
+        serviceProgress: [
+          ServiceProgressItem(
+            taskKey: 'svc-1-bath',
+            label: 'Bath Service',
+            percent: 40,
+            status: 'in_progress',
+            durationMinutes: 30,
+            assignedGroomerId: 99,
+            assignedGroomerName: 'Sarah Connor',
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () {
+                  GroomerMilestoneDialog.show(
+                    ctx,
+                    booking: booking,
+                  );
+                },
+                child: const Text('Open Dialog'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open Dialog'));
+      await tester.pumpAndSettle();
+
+      // Verify View only banner is present
+      expect(find.textContaining('View only — assigned to Sarah Connor'), findsOneWidget);
+
+      // Verify controls are hidden
+      expect(find.text('20%'), findsNothing);
+      expect(find.text('Done'), findsNothing);
+      expect(find.text('Skip this service'), findsNothing);
+
+      // Clean up session
+      await ServicesLocator.sessionService.clearGroomerSession();
     });
   });
 }

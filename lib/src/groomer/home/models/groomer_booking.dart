@@ -16,6 +16,7 @@ import 'package:shear_heaven_pet_spa/src/groomer/home/utils/groomer_milestone_re
 class ServiceProgressItem {
   final String taskKey;
   final String? taskName;
+  final String? label;
   final int percent;
   final String status;
   final bool skipAllowed;
@@ -23,10 +24,23 @@ class ServiceProgressItem {
   final String? notes;
   final String? reason;
   final String? updatedAt;
+  final int? assignedGroomerId;
+  final String? assignedGroomerName;
+  final String? assignedGroomerCode;
+  final int? primaryGroomerId;
+  final String? primaryGroomerName;
+  final double? lineServiceAmount;
+  final bool assignable;
+  final int? sortOrder;
+  final String? taskType;
+  final String? milestoneKey;
+  final String? packageGroupKey;
+  final String? packageGroupLabel;
 
   const ServiceProgressItem({
     required this.taskKey,
     this.taskName,
+    this.label,
     this.percent = 0,
     this.status = 'pending',
     this.skipAllowed = true,
@@ -34,6 +48,18 @@ class ServiceProgressItem {
     this.notes,
     this.reason,
     this.updatedAt,
+    this.assignedGroomerId,
+    this.assignedGroomerName,
+    this.assignedGroomerCode,
+    this.primaryGroomerId,
+    this.primaryGroomerName,
+    this.lineServiceAmount,
+    this.assignable = true,
+    this.sortOrder,
+    this.taskType,
+    this.milestoneKey,
+    this.packageGroupKey,
+    this.packageGroupLabel,
   });
 
   bool get isCompleted => percent >= 100 || status.toLowerCase() == 'completed';
@@ -44,11 +70,34 @@ class ServiceProgressItem {
       (percent > 0 || status.toLowerCase() == 'in_progress');
   bool get isPending => !isCompleted && !isSkipped && !isInProgress;
 
+  String get displayName {
+    if (taskName != null && taskName!.trim().isNotEmpty) return taskName!.trim();
+    if (label != null && label!.trim().isNotEmpty) return label!.trim();
+    var cleaned = taskKey.replaceAll(RegExp(r'^svc-[0-9]+-'), '');
+    cleaned = cleaned.replaceAll('_completed', '').replaceAll('_', ' ').replaceAll('-', ' ');
+    if (cleaned.isEmpty) return 'Service';
+    return '${cleaned[0].toUpperCase()}${cleaned.substring(1)}';
+  }
+
+  bool get isAssigned => assignedGroomerId != null && assignedGroomerId! > 0;
+
   factory ServiceProgressItem.fromJson(Map<String, dynamic> json) {
     int parseInt(dynamic val, {int defaultValue = 0}) {
       if (val == null) return defaultValue;
       if (val is int) return val;
       return int.tryParse(val.toString()) ?? defaultValue;
+    }
+
+    int? parseIntNullable(dynamic val) {
+      if (val == null) return null;
+      if (val is int) return val;
+      return int.tryParse(val.toString());
+    }
+
+    double? parseDoubleNullable(dynamic val) {
+      if (val == null) return null;
+      if (val is num) return val.toDouble();
+      return double.tryParse(val.toString());
     }
 
     bool parseBool(dynamic val, {bool defaultValue = true}) {
@@ -71,22 +120,41 @@ class ServiceProgressItem {
       }
     }
 
+    final rawLabel = json['label']?.toString() ??
+        json['taskName']?.toString() ??
+        json['name']?.toString() ??
+        json['title']?.toString();
+
     return ServiceProgressItem(
       taskKey: (json['taskKey'] ?? json['key'] ?? json['milestoneKey'] ?? '').toString(),
-      taskName: json['taskName']?.toString() ?? json['name']?.toString() ?? json['title']?.toString(),
+      taskName: rawLabel,
+      label: rawLabel,
       percent: p,
       status: st,
       skipAllowed: parseBool(json['skipAllowed'] ?? json['canSkip'], defaultValue: true),
       durationMinutes: parseInt(json['durationMinutes'] ?? json['duration']),
       notes: json['notes']?.toString(),
-      reason: json['reason']?.toString(),
+      reason: json['reason']?.toString() ?? json['skipReason']?.toString(),
       updatedAt: json['updatedAt']?.toString() ?? json['timestamp']?.toString(),
+      assignedGroomerId: parseIntNullable(json['assignedGroomerId'] ?? json['groomerId']),
+      assignedGroomerName: json['assignedGroomerName']?.toString() ?? json['groomerName']?.toString(),
+      assignedGroomerCode: json['assignedGroomerCode']?.toString() ?? json['groomerCode']?.toString(),
+      primaryGroomerId: parseIntNullable(json['primaryGroomerId']),
+      primaryGroomerName: json['primaryGroomerName']?.toString(),
+      lineServiceAmount: parseDoubleNullable(json['lineServiceAmount'] ?? json['amount'] ?? json['price']),
+      assignable: parseBool(json['assignable'], defaultValue: true),
+      sortOrder: parseIntNullable(json['sortOrder']),
+      taskType: json['taskType']?.toString(),
+      milestoneKey: json['milestoneKey']?.toString(),
+      packageGroupKey: json['packageGroupKey']?.toString(),
+      packageGroupLabel: json['packageGroupLabel']?.toString(),
     );
   }
 
   Map<String, dynamic> toJson() => {
         'taskKey': taskKey,
         if (taskName != null) 'taskName': taskName,
+        if (label != null) 'label': label,
         'percent': percent,
         'status': status,
         'skipAllowed': skipAllowed,
@@ -94,11 +162,24 @@ class ServiceProgressItem {
         if (notes != null) 'notes': notes,
         if (reason != null) 'reason': reason,
         if (updatedAt != null) 'updatedAt': updatedAt,
+        if (assignedGroomerId != null) 'assignedGroomerId': assignedGroomerId,
+        if (assignedGroomerName != null) 'assignedGroomerName': assignedGroomerName,
+        if (assignedGroomerCode != null) 'assignedGroomerCode': assignedGroomerCode,
+        if (primaryGroomerId != null) 'primaryGroomerId': primaryGroomerId,
+        if (primaryGroomerName != null) 'primaryGroomerName': primaryGroomerName,
+        if (lineServiceAmount != null) 'lineServiceAmount': lineServiceAmount,
+        'assignable': assignable,
+        if (sortOrder != null) 'sortOrder': sortOrder,
+        if (taskType != null) 'taskType': taskType,
+        if (milestoneKey != null) 'milestoneKey': milestoneKey,
+        if (packageGroupKey != null) 'packageGroupKey': packageGroupKey,
+        if (packageGroupLabel != null) 'packageGroupLabel': packageGroupLabel,
       };
 
   ServiceProgressItem copyWith({
     String? taskKey,
     String? taskName,
+    String? label,
     int? percent,
     String? status,
     bool? skipAllowed,
@@ -106,10 +187,23 @@ class ServiceProgressItem {
     String? notes,
     String? reason,
     String? updatedAt,
+    int? assignedGroomerId,
+    String? assignedGroomerName,
+    String? assignedGroomerCode,
+    int? primaryGroomerId,
+    String? primaryGroomerName,
+    double? lineServiceAmount,
+    bool? assignable,
+    int? sortOrder,
+    String? taskType,
+    String? milestoneKey,
+    String? packageGroupKey,
+    String? packageGroupLabel,
   }) {
     return ServiceProgressItem(
       taskKey: taskKey ?? this.taskKey,
       taskName: taskName ?? this.taskName,
+      label: label ?? this.label,
       percent: percent ?? this.percent,
       status: status ?? this.status,
       skipAllowed: skipAllowed ?? this.skipAllowed,
@@ -117,6 +211,18 @@ class ServiceProgressItem {
       notes: notes ?? this.notes,
       reason: reason ?? this.reason,
       updatedAt: updatedAt ?? this.updatedAt,
+      assignedGroomerId: assignedGroomerId ?? this.assignedGroomerId,
+      assignedGroomerName: assignedGroomerName ?? this.assignedGroomerName,
+      assignedGroomerCode: assignedGroomerCode ?? this.assignedGroomerCode,
+      primaryGroomerId: primaryGroomerId ?? this.primaryGroomerId,
+      primaryGroomerName: primaryGroomerName ?? this.primaryGroomerName,
+      lineServiceAmount: lineServiceAmount ?? this.lineServiceAmount,
+      assignable: assignable ?? this.assignable,
+      sortOrder: sortOrder ?? this.sortOrder,
+      taskType: taskType ?? this.taskType,
+      milestoneKey: milestoneKey ?? this.milestoneKey,
+      packageGroupKey: packageGroupKey ?? this.packageGroupKey,
+      packageGroupLabel: packageGroupLabel ?? this.packageGroupLabel,
     );
   }
 
@@ -131,7 +237,11 @@ class ServiceProgressItem {
           skipAllowed == other.skipAllowed &&
           durationMinutes == other.durationMinutes &&
           notes == other.notes &&
-          reason == other.reason;
+          reason == other.reason &&
+          assignedGroomerId == other.assignedGroomerId &&
+          assignedGroomerName == other.assignedGroomerName &&
+          lineServiceAmount == other.lineServiceAmount &&
+          assignable == other.assignable;
 
   @override
   int get hashCode => Object.hash(
@@ -142,6 +252,10 @@ class ServiceProgressItem {
         durationMinutes,
         notes,
         reason,
+        assignedGroomerId,
+        assignedGroomerName,
+        lineServiceAmount,
+        assignable,
       );
 }
 
@@ -185,6 +299,11 @@ class GroomerBooking {
   final String? serviceStage;
   final List<String> bookedServices;
   final List<ServiceProgressItem> serviceProgress;
+  final bool isPreferredGroomer;
+  final List<Map<String, dynamic>> reassignmentHistory;
+  final String? primaryGroomerName;
+  final int? primaryGroomerId;
+  final List<Map<String, dynamic>> serviceAssignmentActivity;
 
   const GroomerBooking({
     required this.bookingId,
@@ -225,7 +344,28 @@ class GroomerBooking {
     this.serviceStage,
     this.bookedServices = const [],
     this.serviceProgress = const [],
+    this.isPreferredGroomer = false,
+    this.reassignmentHistory = const [],
+    this.primaryGroomerName,
+    this.primaryGroomerId,
+    this.serviceAssignmentActivity = const [],
   });
+
+  String get effectivePrimaryGroomerName {
+    if (primaryGroomerName != null && primaryGroomerName!.trim().isNotEmpty) {
+      return primaryGroomerName!.trim();
+    }
+    return effectiveGroomerName;
+  }
+
+  int? get effectivePrimaryGroomerId => primaryGroomerId ?? groomerId;
+
+  bool get isGroomerAssignmentLocked =>
+      isReadyForCheckout ||
+      status.toLowerCase() == 'completed' ||
+      status.toLowerCase() == 'ready_for_checkout' ||
+      serviceStage?.toLowerCase() == 'ready_for_checkout' ||
+      serviceStage?.toLowerCase() == 'checkout_completed';
 
   double? get totalCollected {
     if (tipAmount == null && taxAmount == null && isPaid != true) {
@@ -998,6 +1138,66 @@ class GroomerBooking {
       }
     }
 
+    // Parse Preferred Groomer restriction
+    bool parsedIsPreferredGroomer = false;
+    if (json['isPreferredGroomer'] != null) {
+      final val = json['isPreferredGroomer'];
+      parsedIsPreferredGroomer = val == true || val.toString().toLowerCase() == 'true' || val == 1 || val.toString() == '1';
+    } else if (json['is_preferred_groomer'] != null) {
+      final val = json['is_preferred_groomer'];
+      parsedIsPreferredGroomer = val == true || val.toString().toLowerCase() == 'true' || val == 1 || val.toString() == '1';
+    } else if (json['preferredGroomer'] != null) {
+      final val = json['preferredGroomer'];
+      if (val is bool) {
+        parsedIsPreferredGroomer = val;
+      } else if (val is Map) {
+        parsedIsPreferredGroomer = true;
+      } else {
+        parsedIsPreferredGroomer = val.toString().toLowerCase() == 'true';
+      }
+    } else if (json['hasPreferredGroomer'] != null) {
+      final val = json['hasPreferredGroomer'];
+      parsedIsPreferredGroomer = val == true || val.toString().toLowerCase() == 'true';
+    } else if (json['preferredGroomerSelected'] != null) {
+      final val = json['preferredGroomerSelected'];
+      parsedIsPreferredGroomer = val == true || val.toString().toLowerCase() == 'true';
+    }
+
+    // Parse Reassignment History
+    final List<Map<String, dynamic>> parsedReassignmentHistory = [];
+    final rawHistory = json['reassignmentHistory'] ?? json['reassignment_history'];
+    if (rawHistory is List) {
+      for (final item in rawHistory) {
+        if (item is Map) {
+          parsedReassignmentHistory.add(Map<String, dynamic>.from(item));
+        }
+      }
+    }
+
+    // Parse Primary Groomer and Service Assignment Activity
+    String? parsedPrimaryGroomerName;
+    int? parsedPrimaryGroomerId;
+    if (json['bookingPrimaryGroomer'] is Map) {
+      final bpg = json['bookingPrimaryGroomer'] as Map;
+      parsedPrimaryGroomerName = bpg['primaryGroomerName']?.toString();
+      parsedPrimaryGroomerId = int.tryParse(bpg['primaryGroomerDbId']?.toString() ?? bpg['catalogGroomerId']?.toString() ?? '');
+      if (bpg['petGroomerPreferenceLocked'] == true || bpg['petPreferredGroomerId'] != null) {
+        parsedIsPreferredGroomer = true;
+      }
+    }
+    parsedPrimaryGroomerName ??= json['primaryGroomerName']?.toString() ?? json['primary_groomer_name']?.toString() ?? gName;
+    parsedPrimaryGroomerId ??= int.tryParse(json['primaryGroomerId']?.toString() ?? json['primary_groomer_id']?.toString() ?? '') ?? gId;
+
+    final List<Map<String, dynamic>> parsedServiceAssignmentActivity = [];
+    final rawActivity = json['serviceAssignmentActivity'] ?? json['service_assignment_activity'];
+    if (rawActivity is List) {
+      for (final item in rawActivity) {
+        if (item is Map) {
+          parsedServiceAssignmentActivity.add(Map<String, dynamic>.from(item));
+        }
+      }
+    }
+
     final pMedical = json['petMedicalNotes']?.toString() ??
         json['notesAllergies']?.toString() ??
         json['notes_allergies']?.toString() ??
@@ -1062,6 +1262,11 @@ class GroomerBooking {
       serviceStage: (json['serviceStage'] ?? json['service_stage'])?.toString(),
       bookedServices: parsedBookedServices,
       serviceProgress: parsedServiceProgress,
+      isPreferredGroomer: parsedIsPreferredGroomer,
+      reassignmentHistory: parsedReassignmentHistory,
+      primaryGroomerName: parsedPrimaryGroomerName,
+      primaryGroomerId: parsedPrimaryGroomerId,
+      serviceAssignmentActivity: parsedServiceAssignmentActivity,
     );
   }
 
@@ -1104,6 +1309,12 @@ class GroomerBooking {
     if (serviceStage != null) 'serviceStage': serviceStage,
     if (bookedServices.isNotEmpty) 'bookedServices': bookedServices,
     if (serviceProgress.isNotEmpty) 'serviceProgress': serviceProgress.map((e) => e.toJson()).toList(),
+    'isPreferredGroomer': isPreferredGroomer,
+    'preferredGroomer': isPreferredGroomer,
+    if (reassignmentHistory.isNotEmpty) 'reassignmentHistory': reassignmentHistory,
+    if (primaryGroomerName != null) 'primaryGroomerName': primaryGroomerName,
+    if (primaryGroomerId != null) 'primaryGroomerId': primaryGroomerId,
+    if (serviceAssignmentActivity.isNotEmpty) 'serviceAssignmentActivity': serviceAssignmentActivity,
   };
 
   GroomerBooking copyWith({
@@ -1145,6 +1356,11 @@ class GroomerBooking {
     String? serviceStage,
     List<String>? bookedServices,
     List<ServiceProgressItem>? serviceProgress,
+    bool? isPreferredGroomer,
+    List<Map<String, dynamic>>? reassignmentHistory,
+    String? primaryGroomerName,
+    int? primaryGroomerId,
+    List<Map<String, dynamic>>? serviceAssignmentActivity,
   }) {
     return GroomerBooking(
       bookingId: bookingId ?? this.bookingId,
@@ -1185,6 +1401,11 @@ class GroomerBooking {
       serviceStage: serviceStage ?? this.serviceStage,
       bookedServices: bookedServices ?? this.bookedServices,
       serviceProgress: serviceProgress ?? this.serviceProgress,
+      isPreferredGroomer: isPreferredGroomer ?? this.isPreferredGroomer,
+      reassignmentHistory: reassignmentHistory ?? this.reassignmentHistory,
+      primaryGroomerName: primaryGroomerName ?? this.primaryGroomerName,
+      primaryGroomerId: primaryGroomerId ?? this.primaryGroomerId,
+      serviceAssignmentActivity: serviceAssignmentActivity ?? this.serviceAssignmentActivity,
     );
   }
 }

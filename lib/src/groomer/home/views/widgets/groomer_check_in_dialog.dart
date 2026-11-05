@@ -470,9 +470,11 @@ class _GroomerCheckInDialogState extends State<GroomerCheckInDialog> {
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _canSubmit
-                          ? const Color(0xFF111827)
-                          : const Color(0xFF9CA3AF),
-                      foregroundColor: Colors.white,
+                          ? Theme.of(context).colorScheme.primary
+                          : const Color(0xFFE5E7EB),
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                      disabledBackgroundColor: const Color(0xFFE5E7EB),
+                      disabledForegroundColor: const Color(0xFF9CA3AF),
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -481,12 +483,12 @@ class _GroomerCheckInDialogState extends State<GroomerCheckInDialog> {
                     ),
                     onPressed: _canSubmit ? _submitCheckIn : null,
                     child: _isSubmitting
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 18,
                             height: 18,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Colors.white,
+                              color: Theme.of(context).colorScheme.onPrimary,
                             ),
                           )
                         : FittedBox(
@@ -496,7 +498,9 @@ class _GroomerCheckInDialogState extends State<GroomerCheckInDialog> {
                               style: AppFonts.parkinsans(
                                 size: 13.5,
                                 weight: FontWeight.w700,
-                                color: Colors.white,
+                                color: _canSubmit
+                                    ? Theme.of(context).colorScheme.onPrimary
+                                    : const Color(0xFF9CA3AF),
                               ),
                               maxLines: 1,
                             ),

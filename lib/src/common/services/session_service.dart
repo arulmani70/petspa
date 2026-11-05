@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:logger/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shear_heaven_pet_spa/src/bookings/utils/booking_date_utils.dart';
 import 'package:shear_heaven_pet_spa/src/common/common.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_booking.dart';
 
 class SessionService {
   final Logger log = Logger();
@@ -400,6 +402,108 @@ class SessionService {
     final user = getSessionUser();
     if (user != null && user['role'] != null) {
       return user['role'].toString();
+    }
+    return null;
+  }
+
+  /// Whether current active session belongs to an Administrator / Store Manager / Owner.
+  bool get isAdmin {
+    final groomer = getGroomerUser();
+    if (groomer != null) {
+      if (groomer['isAdmin'] == true) return true;
+      final role = (groomer['role'] ?? '').toString().toLowerCase().trim();
+      if (role == 'admin' ||
+          role == 'platform_admin' ||
+          role == 'store_admin' ||
+          role == 'staff_admin' ||
+          role.contains('admin') ||
+          role.contains('manager') ||
+          role.contains('owner')) {
+        return true;
+      }
+    }
+    final user = getSessionUser();
+    if (user != null) {
+      if (user['isAdmin'] == true) return true;
+      final role = (user['role'] ?? '').toString().toLowerCase().trim();
+      if (role == 'admin' ||
+          role == 'platform_admin' ||
+          role == 'store_admin' ||
+          role == 'staff_admin' ||
+          role.contains('admin') ||
+          role.contains('manager') ||
+          role.contains('owner')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Whether current active session is the groomer currently assigned to [booking].
+  bool isCurrentGroomerAssigned(GroomerBooking booking) {
+    final groomer = getGroomerUser();
+    if (groomer == null) return false;
+
+    final gId = int.tryParse((groomer['id'] ?? groomer['groomerId'] ?? '').toString());
+    final gCode = (groomer['groomerCode'] ?? groomer['code'] ?? groomer['GroomerId'] ?? '').toString().toUpperCase().trim();
+    final gName = (groomer['fullName'] ??
+            groomer['name'] ??
+            '${groomer['firstName'] ?? ''} ${groomer['lastName'] ?? ''}')
+        .toString()
+        .toLowerCase()
+        .trim();
+
+    if (gId != null && gId > 0 && booking.groomerId != null && booking.groomerId! > 0) {
+      final canonCur = BookingDateUtils.resolveCanonicalGroomerId(gId, groomerCode: gCode, groomerName: gName);
+      final canonBooking = BookingDateUtils.resolveCanonicalGroomerId(booking.groomerId, groomerCode: booking.groomerCode, groomerName: booking.groomerName);
+      if (canonCur != null && canonBooking != null && canonCur == canonBooking) {
+        return true;
+      }
+      if (gId == booking.groomerId) {
+        return true;
+      }
+    }
+
+    if (gCode.isNotEmpty && booking.groomerCode != null && booking.groomerCode!.isNotEmpty) {
+      if (gCode == booking.groomerCode!.toUpperCase().trim()) {
+        return true;
+      }
+    }
+
+    if (gName.isNotEmpty) {
+      final bName = (booking.groomerName ?? booking.effectiveGroomerName).toLowerCase().trim();
+      if (bName.isNotEmpty && (gName == bName || gName.contains(bName) || bName.contains(gName))) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /// Determines whether the current user is authorized to manually reassign [booking].
+  ///
+  /// Rules:
+  /// 1. Customer selected Preferred Groomer -> Reassignment is STRICTLY FORBIDDEN.
+  /// 2. Admin -> Allowed to reassign any booking.
+  /// 3. Currently assigned groomer -> Allowed to reassign their own booking.
+  /// 4. All other users -> Blocked.
+  bool canReassignBooking(GroomerBooking booking) {
+    if (booking.isPreferredGroomer) {
+      return false;
+    }
+    if (isAdmin) {
+      return true;
+    }
+    return isCurrentGroomerAssigned(booking);
+  }
+
+  /// User-facing reason why reassignment is prohibited for [booking], or null if allowed.
+  String? getReassignDisabledReason(GroomerBooking booking) {
+    if (booking.isPreferredGroomer) {
+      return 'The customer selected a Preferred Groomer. Reassignment to another groomer is not allowed.';
+    }
+    if (!isAdmin && !isCurrentGroomerAssigned(booking)) {
+      return 'Unauthorized: Only an Administrator or the currently assigned groomer can reassign this appointment.';
     }
     return null;
   }

@@ -719,6 +719,122 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
     }
   }
 
+  bool _isBookingDateToday(String? dateStr) {
+    if (dateStr == null || dateStr.trim().isEmpty) return false;
+    try {
+      final now = DateTime.now();
+      final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      if (dateStr.startsWith(todayStr)) return true;
+      final dt = DateTime.parse(dateStr);
+      return dt.year == now.year && dt.month == now.month && dt.day == now.day;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  ({bool show, bool locked, String label, String tooltip}) _getWebMilestoneButtonInfo(GroomerBooking booking) {
+    final st = booking.status.toLowerCase().trim();
+    final isToday = _isBookingDateToday(booking.bookingDate);
+    final isRelevant = st == 'confirmed' ||
+        st == 'in_progress' ||
+        st == 'in-progress' ||
+        st == 'completed' ||
+        booking.isCompleted ||
+        st == 'checked_in' ||
+        st == 'bath_completed' ||
+        st == 'grooming_completed' ||
+        st == 'ready_for_checkout';
+
+    if (!isRelevant) {
+      return (show: false, locked: false, label: '', tooltip: '');
+    }
+
+    if (isToday) {
+      if (booking.isCompleted || st == 'completed') {
+        return (show: true, locked: false, label: 'View milestones', tooltip: '');
+      } else {
+        return (show: true, locked: false, label: 'Update milestone', tooltip: '');
+      }
+    } else {
+      if (booking.isCompleted || st == 'completed') {
+        return (show: true, locked: false, label: 'View milestones', tooltip: '');
+      } else if (st == 'confirmed' || st == 'in_progress' || st == 'in-progress' || st == 'checked_in') {
+        return (
+          show: true,
+          locked: true,
+          label: 'Check-in locked',
+          tooltip: 'Milestones unlock on the appointment date (${booking.bookingDate}).',
+        );
+      }
+      return (show: false, locked: false, label: '', tooltip: '');
+    }
+  }
+
+  Widget _buildWebMilestoneButton(GroomerBooking booking) {
+    final info = _getWebMilestoneButtonInfo(booking);
+    if (!info.show) return const SizedBox.shrink();
+
+    if (info.locked) {
+      return OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFF9CA3AF),
+          side: const BorderSide(color: Color(0xFFE5E7EB)),
+          backgroundColor: const Color(0xFFF9FAFB),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          minimumSize: const Size(0, 36),
+        ),
+        onPressed: () {
+          if (info.tooltip.isNotEmpty) {
+            ToastUtil.showInfoToast(context, info.tooltip);
+          }
+        },
+        icon: const Icon(Icons.lock_outline_rounded, size: 15, color: Color(0xFF9CA3AF)),
+        label: Text(
+          info.label,
+          style: AppFonts.poppins(size: 11.5, weight: FontWeight.w600, color: const Color(0xFF9CA3AF)),
+        ),
+      );
+    }
+
+    final theme = Theme.of(context);
+    return ElevatedButton.icon(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: theme.colorScheme.primary,
+        foregroundColor: theme.colorScheme.onPrimary,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        minimumSize: const Size(0, 36),
+      ),
+      onPressed: _processingBookingIds.contains(booking.bookingId)
+          ? null
+          : () async {
+              final updated = await GroomerMilestoneDialog.show(
+                context,
+                booking: booking,
+                onMilestoneSuccess: (ub) {
+                  if (!mounted) return;
+                  _recordGroomerAction();
+                  setState(() {
+                    final idx = _upcomingBookings.indexWhere((b) => b.bookingId == ub.bookingId);
+                    if (idx >= 0) _upcomingBookings[idx] = ub;
+                  });
+                },
+              );
+              if (updated != null && mounted) {
+                _recordGroomerAction();
+                _loadAllData();
+              }
+            },
+      icon: Icon(Icons.sync_rounded, size: 15, color: theme.colorScheme.onPrimary),
+      label: Text(
+        info.label,
+        style: AppFonts.parkinsans(size: 11.5, weight: FontWeight.w600, color: theme.colorScheme.onPrimary),
+      ),
+    );
+  }
+
   Future<void> _handleReadyForCheckoutBooking(GroomerBooking booking) async {
     if (_processingBookingIds.contains(booking.bookingId)) return;
     setState(() => _processingBookingIds.add(booking.bookingId));
@@ -6153,42 +6269,56 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (!booking.isCheckedIn)
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(
-                            0xFF111827,
-                          ), // Brand Deep Slate
-                          foregroundColor: Colors.white,
-                          disabledBackgroundColor: const Color(0xFFE5E7EB),
-                          disabledForegroundColor: const Color(0xFF9CA3AF),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 7,
-                          ),
-                          minimumSize: const Size(0, 36),
-                        ),
-                        onPressed:
-                            _processingBookingIds.contains(booking.bookingId) ||
-                                    !booking.canCheckIn()
-                            ? null
-                            : () => _handleCheckInBooking(booking),
-                        icon: const Icon(
-                          Icons.assignment_turned_in_outlined,
-                          size: 16,
-                        ),
-                        label: Text(
-                          'Check In',
-                          style: AppFonts.poppins(
-                            size: 12,
-                            weight: FontWeight.w600,
-                          ),
-                        ),
-                      )
+                    if (!_isBookingDateToday(booking.bookingDate))
+                      _buildWebMilestoneButton(booking)
+                    else ...[
+                      _buildWebMilestoneButton(booking),
+                      const SizedBox(width: 8),
+                      if (!booking.isCheckedIn)
+                        Builder(
+                          builder: (btnCtx) {
+                            final canCheckIn = booking.canCheckIn() &&
+                                !_processingBookingIds.contains(booking.bookingId);
+                            final theme = Theme.of(btnCtx);
+                            return ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: theme.colorScheme.primary,
+                                foregroundColor: theme.colorScheme.onPrimary,
+                                disabledBackgroundColor: const Color(0xFFE5E7EB),
+                                disabledForegroundColor: const Color(0xFF9CA3AF),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 7,
+                                ),
+                                minimumSize: const Size(0, 36),
+                              ),
+                              onPressed: canCheckIn
+                                  ? () => _handleCheckInBooking(booking)
+                                  : null,
+                              icon: Icon(
+                                Icons.assignment_turned_in_outlined,
+                                size: 16,
+                                color: canCheckIn
+                                    ? theme.colorScheme.onPrimary
+                                    : const Color(0xFF9CA3AF),
+                              ),
+                              label: Text(
+                                'Check In',
+                                style: AppFonts.parkinsans(
+                                  size: 12,
+                                  weight: FontWeight.w600,
+                                  color: canCheckIn
+                                      ? theme.colorScheme.onPrimary
+                                      : const Color(0xFF9CA3AF),
+                                ),
+                              ),
+                            );
+                          },
+                        )
                     else if (_isStartTimeReached(booking)) ...[
                       OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
@@ -6287,6 +6417,7 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                           ],
                         ),
                       ),
+                    ],
                   ],
                 ),
               ],
@@ -6321,6 +6452,7 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                     spacing: 8,
                     runSpacing: 6,
                     children: [
+                      _buildWebMilestoneButton(booking),
                       if (!booking.areRequiredMilestonesCompleted) ...[
                         if (booking.nextPendingMilestone == 'bath_completed')
                           ElevatedButton.icon(
@@ -6583,6 +6715,8 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
+                _buildWebMilestoneButton(booking),
+                const SizedBox(width: 8),
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF111827),

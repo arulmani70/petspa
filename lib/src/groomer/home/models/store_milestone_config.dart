@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_booking.dart';
 
 /// Represents a store-configured appointment milestone definition from
 /// GET /api/common/groomer/appointment-milestones or GET /api/common/appointment-milestones
@@ -375,6 +376,17 @@ class BookingMilestoneTimeline {
   final List<String> allowedNextKeys;
   final bool canSkipToReadyForCheckout;
   final List<BookingMilestoneItem> milestones;
+  final List<ServiceProgressItem> serviceProgress;
+  final List<Map<String, dynamic>> serviceAssignmentActivity;
+  final Map<String, dynamic>? bookingPrimaryGroomer;
+  final bool customerConfirmed;
+  final double? tipAmount;
+  final String? customerPaymentMethod;
+  final bool canManageAllServiceLines;
+  final bool canEditAllServiceLines;
+  final bool canShopWideServiceProgress;
+  final List<Map<String, dynamic>> groomerMilestoneOptions;
+  final Map<String, dynamic>? servicePlan;
 
   const BookingMilestoneTimeline({
     required this.appointmentId,
@@ -391,6 +403,17 @@ class BookingMilestoneTimeline {
     this.allowedNextKeys = const [],
     this.canSkipToReadyForCheckout = false,
     this.milestones = const [],
+    this.serviceProgress = const [],
+    this.serviceAssignmentActivity = const [],
+    this.bookingPrimaryGroomer,
+    this.customerConfirmed = false,
+    this.tipAmount,
+    this.customerPaymentMethod,
+    this.canManageAllServiceLines = false,
+    this.canEditAllServiceLines = true,
+    this.canShopWideServiceProgress = false,
+    this.groomerMilestoneOptions = const [],
+    this.servicePlan,
   });
 
   bool isMilestoneCompleted(String key) {
@@ -443,6 +466,47 @@ class BookingMilestoneTimeline {
       }
     }
 
+    final serviceProgressItems = <ServiceProgressItem>[];
+    if (json['serviceProgress'] is List) {
+      for (final item in json['serviceProgress'] as List) {
+        if (item is Map) {
+          serviceProgressItems.add(ServiceProgressItem.fromJson(Map<String, dynamic>.from(item)));
+        }
+      }
+    }
+
+    final activityItems = <Map<String, dynamic>>[];
+    if (json['serviceAssignmentActivity'] is List) {
+      for (final item in json['serviceAssignmentActivity'] as List) {
+        if (item is Map) {
+          activityItems.add(Map<String, dynamic>.from(item));
+        }
+      }
+    }
+
+    final primaryGroomerMap = json['bookingPrimaryGroomer'] is Map
+        ? Map<String, dynamic>.from(json['bookingPrimaryGroomer'] as Map)
+        : null;
+
+    double? parseDouble(dynamic val) {
+      if (val == null) return null;
+      if (val is num) return val.toDouble();
+      return double.tryParse(val.toString());
+    }
+
+    final milestoneOptions = <Map<String, dynamic>>[];
+    if (json['groomerMilestoneOptions'] is List) {
+      for (final item in json['groomerMilestoneOptions'] as List) {
+        if (item is Map) {
+          milestoneOptions.add(Map<String, dynamic>.from(item));
+        }
+      }
+    }
+
+    final servicePlanMap = json['servicePlan'] is Map
+        ? Map<String, dynamic>.from(json['servicePlan'] as Map)
+        : null;
+
     return BookingMilestoneTimeline(
       appointmentId: parseInt(json['appointmentId'] ?? json['bookingId'] ?? json['id']),
       storeId: json['storeId']?.toString() ??
@@ -462,6 +526,17 @@ class BookingMilestoneTimeline {
       allowedNextKeys: parseStringList(json['allowedNextKeys']),
       canSkipToReadyForCheckout: parseBool(json['canSkipToReadyForCheckout']),
       milestones: List.unmodifiable(milestoneItems),
+      serviceProgress: List.unmodifiable(serviceProgressItems),
+      serviceAssignmentActivity: List.unmodifiable(activityItems),
+      bookingPrimaryGroomer: primaryGroomerMap,
+      customerConfirmed: parseBool(json['customerConfirmed']),
+      tipAmount: parseDouble(json['tipAmount']),
+      customerPaymentMethod: json['customerPaymentMethod']?.toString(),
+      canManageAllServiceLines: parseBool(json['canManageAllServiceLines']),
+      canEditAllServiceLines: parseBool(json['canEditAllServiceLines'], defaultValue: true),
+      canShopWideServiceProgress: parseBool(json['canShopWideServiceProgress']),
+      groomerMilestoneOptions: List.unmodifiable(milestoneOptions),
+      servicePlan: servicePlanMap,
     );
   }
 
@@ -483,6 +558,22 @@ class BookingMilestoneTimeline {
       'allowedNextKeys': allowedNextKeys,
       'canSkipToReadyForCheckout': canSkipToReadyForCheckout,
       'milestones': milestones.map((m) => m.toJson()).toList(),
+      if (serviceProgress.isNotEmpty)
+        'serviceProgress': serviceProgress.map((m) => m.toJson()).toList(),
+      if (serviceAssignmentActivity.isNotEmpty)
+        'serviceAssignmentActivity': serviceAssignmentActivity,
+      if (bookingPrimaryGroomer != null)
+        'bookingPrimaryGroomer': bookingPrimaryGroomer,
+      'customerConfirmed': customerConfirmed,
+      if (tipAmount != null) 'tipAmount': tipAmount,
+      if (customerPaymentMethod != null)
+        'customerPaymentMethod': customerPaymentMethod,
+      'canManageAllServiceLines': canManageAllServiceLines,
+      'canEditAllServiceLines': canEditAllServiceLines,
+      'canShopWideServiceProgress': canShopWideServiceProgress,
+      if (groomerMilestoneOptions.isNotEmpty)
+        'groomerMilestoneOptions': groomerMilestoneOptions,
+      if (servicePlan != null) 'servicePlan': servicePlan,
     };
   }
 }

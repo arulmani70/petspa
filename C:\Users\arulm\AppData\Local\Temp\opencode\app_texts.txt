@@ -1,0 +1,282 @@
+===== welcome =====
+  "Welcome to\nShear Heaven Pet Spa" fs=26.0 fw=ww700 fam=Parkinsans_700 pos=(24,582) lh=1.2 ls=null
+  "Skip" fs=12.0 fw=ww600 fam=Poppins_600 pos=(306,73) lh=null ls=null
+
+===== login =====
+  "Login" fs=20.0 fw=ww700 fam=Parkinsans_700 pos=(?,?) lh=null ls=null
+  "Log in to book your pet's appointment" fs=14.0 fw=ww400 fam=Poppins_regular pos=(58,167) lh=null ls=null
+  "Log in" fs=16.0 fw=ww700 fam=Parkinsans_700 pos=(111,218) lh=null ls=null
+  "Sign up" fs=16.0 fw=ww700 fam=Parkinsans_700 pos=(223,218) lh=null ls=null
+  "Enter Email ID" fs=13.0 fw=ww500 fam=Poppins_500 pos=(48,288) lh=null ls=null
+  "name@gmail.com" fs=14.0 fw=ww400 fam=Poppins_regular pos=(49,326) lh=1.5 ls=0.5
+  "Enter Password" fs=13.0 fw=ww500 fam=Poppins_500 pos=(48,378) lh=null ls=null
+  "Enter your password" fs=14.0 fw=ww400 fam=Poppins_regular pos=(49,416) lh=1.5 ls=0.5
+  "Forgot Password?" fs=12.0 fw=ww600 fam=Poppins_600 pos=(250,458) lh=null ls=null
+  "or" fs=14.0 fw=ww400 fam=DMSans_regular pos=(181,570) lh=null ls=null
+  "Continue as Guest" fs=16.0 fw=ww600 fam=Parkinsans_600 pos=(80,623) lh=null ls=null
+  "" fs=- fw=null fam=default pos=(?,?) lh=null ls=null
+
+===== signup =====
+  "Create an Account" fs=20.0 fw=ww700 fam=Parkinsans_700 pos=(96,170) lh=null ls=null
+  "Sign up to create and account for booking" fs=14.0 fw=ww400 fam=Poppins_regular pos=(42,203) lh=null ls=null
+  "Log in" fs=16.0 fw=ww700 fam=Parkinsans_700 pos=(111,252) lh=null ls=null
+  "Sign up" fs=16.0 fw=ww700 fam=Parkinsans_700 pos=(223,252) lh=null ls=null
+  "Enter Full Name" fs=13.0 fw=ww500 fam=Poppins_500 pos=(48,314) lh=null ls=null
+  "Eg: Robert Martin" fs=14.0 fw=ww400 fam=Poppins_regular pos=(49,352) lh=1.5 ls=0.5
+  "Enter Email ID" fs=13.0 fw=ww500 fam=Poppins_500 pos=(48,402) lh=null ls=null
+  "name@gmail.com" fs=14.0 fw=ww400 fam=Poppins_regular pos=(49,440) lh=1.5 ls=0.5
+  "Enter Mobile Number" fs=13.0 fw=ww500 fam=Poppins_500 pos=(48,490) lh=null ls=null
+  "(817) 123-4567" fs=14.0 fw=ww400 fam=Poppins_regular pos=(49,528) lh=1.5 ls=0.5
+  "Enter Password" fs=13.0 fw=ww500 fam=Poppins_500 pos=(48,578) lh=null ls=null
+  "••••••••••••••••••••" fs=14.0 fw=ww400 fam=Poppins_regular pos=(?,?) lh=1.5 ls=0.5
+  "Confirm Password" fs=13.0 fw=ww500 fam=Poppins_500 pos=(48,666) lh=null ls=null
+  "Sign Up" fs=18.0 fw=ww700 fam=Parkinsans_700 pos=(159,774) lh=null ls=null
+  "or" fs=14.0 fw=ww400 fam=DMSans_regular pos=(181,949) lh=null ls=null
+  "Continue as Guest" fs=16.0 fw=ww600 fam=Parkinsans_600 pos=(133,1002) lh=null ls=null
+  "" fs=- fw=null fam=default pos=(?,?) lh=null ls=null
+
+===== forgot =====
+  "Forgot Password" fs=20.0 fw=ww700 fam=Parkinsans_700 pos=(108,214) lh=null ls=null
+  "Enter your registered email address to receive a verification code" fs=14.0 fw=ww400 fam=Poppins_regular pos=(28,249) lh=null ls=null
+  "Enter Email ID" fs=13.0 fw=ww500 fam=Poppins_500 pos=(48,317) lh=null ls=null
+  "name@gmail.com" fs=14.0 fw=ww400 fam=Poppins_regular pos=(49,355) lh=1.5 ls=0.5
+  "Send OTP" fs=18.0 fw=ww700 fam=Parkinsans_700 pos=(151,427) lh=null ls=null
+  "" fs=- fw=null fam=default pos=(49,355) lh=null ls=null
+
+===== otp =====
+  "Enter OTP" fs=22.0 fw=ww700 fam=Parkinsans_700 pos=(?,?) lh=null ls=null
+  "" fs=20.0 fw=ww700 fam=Poppins_700 pos=(?,?) lh=null ls=null
+  "Verify" fs=18.0 fw=ww700 fam=Parkinsans_700 pos=(167,400) lh=null ls=null
+  "Resend OTP" fs=14.0 fw=ww600 fam=Poppins_600 pos=(152,457) lh=null ls=null
+
+===== account_created =====
+  "You're all set" fs=22.0 fw=ww700 fam=Parkinsans_700 pos=(121,422) lh=null ls=null
+  "Your account is verified. Add your pet's details anytime before booking an appointment." fs=14.0 fw=ww400 fam=Poppins_regular pos=(40,461) lh=1.45 ls=null
+  "Continue" fs=18.0 fw=ww700 fam=Parkinsans_700 pos=(151,569) lh=null ls=null
+
+===== home =====
+  "Hi, Guest" fs=18.0 fw=ww500 fam=Poppins_500 pos=(102,34) lh=0.9766111111111111 ls=null
+  "California" fs=14.0 fw=ww400 fam=Poppins_regular pos=(114,57) lh=1.2556428571428573 ls=null
+  "Where Every\nPet Gets The Royal\nTreatment" fs=18.0 fw=ww700 fam=Parkinsans_700 pos=(35,124) lh=1.15 ls=null
+  "Trusted by 35k+ pet parents" fs=11.5 fw=ww600 fam=Poppins_600 pos=(52,193) lh=1.6666666666666667 ls=null
+  "Book Appointment" fs=13.0 fw=ww600 fam=Parkinsans_600 pos=(56,228) lh=1.5384615384615385 ls=null
+  "Book Now" fs=13.0 fw=ww500 fam=Poppins_500 pos=(23,402) lh=null ls=null
+  "Pets" fs=13.0 fw=ww500 fam=Poppins_500 pos=(134,402) lh=null ls=null
+  "Bookings" fs=13.0 fw=ww500 fam=Poppins_500 pos=(211,402) lh=null ls=null
+  "Gallery" fs=13.0 fw=ww500 fam=Poppins_500 pos=(310,402) lh=null ls=null
+  "My Pets" fs=20.0 fw=ww600 fam=Parkinsans pos=(17,471) lh=1.35 ls=null
+  "View All" fs=14.0 fw=ww500 fam=Poppins pos=(243,471) lh=1.92 ls=null
+  "Add Pet" fs=14.0 fw=ww400 fam=Poppins pos=(17,597) lh=null ls=null
+  "Popular Services" fs=20.0 fw=ww600 fam=Parkinsans_600 pos=(17,637) lh=1.34745 ls=null
+  "Services loading…" fs=13.0 fw=null fam=Poppins pos=(82,698) lh=null ls=null
+  "View All Services" fs=18.0 fw=ww600 fam=Poppins_600 pos=(117,790) lh=0.7777777777777778 ls=null
+  "Popular Packages" fs=20.0 fw=ww600 fam=Parkinsans_600 pos=(17,236) lh=1.34745 ls=null
+  "View More Packages" fs=18.0 fw=ww600 fam=Poppins_600 pos=(98,304) lh=0.7777777777777778 ls=null
+  "Why Choose Us" fs=20.0 fw=ww600 fam=Parkinsans_600 pos=(17,377) lh=1.34745 ls=null
+  "Stress Free\nSpace" fs=14.0 fw=ww500 fam=Poppins_500 pos=(78,424) lh=1.1428571428571428 ls=null
+  "Safe Products" fs=14.0 fw=ww500 fam=Poppins_500 pos=(78,507) lh=1.1428571428571428 ls=null
+  "20+ Years Of\nExperience" fs=14.0 fw=ww500 fam=Poppins_500 pos=(78,574) lh=1.1428571428571428 ls=null
+  "Ready for a happier, healthier pet?" fs=20.0 fw=ww700 fam=Parkinsans_700 pos=(17,696) lh=1.1 ls=null
+
+===== pet_select =====
+  "No pets added to select" fs=20.0 fw=ww600 fam=Poppins_600 pos=(73,430) lh=1.0 ls=null
+  "add your dog and complete details to\nsave as a pet" fs=16.0 fw=ww400 fam=Poppins_regular pos=(43,462) lh=1.0 ls=null
+  "+ Add Pet" fs=16.0 fw=ww700 fam=Parkinsans_700 pos=(155,555) lh=1.0 ls=null
+  "Select Your Pet" fs=20.0 fw=ww700 fam=Parkinsans_700 pos=(56,16) lh=null ls=null
+
+===== my_pets =====
+  "Sign In to Manage Pets" fs=20.0 fw=ww700 fam=Parkinsans_700 pos=(75,430) lh=null ls=null
+  "Save your dogs, track grooming preferences, and streamline your appointment bookings." fs=14.0 fw=ww400 fam=Poppins_regular pos=(28,467) lh=1.4 ls=null
+  "Sign In / Register" fs=16.0 fw=ww600 fam=Parkinsans_600 pos=(125,544) lh=null ls=null
+  "My Pets" fs=20.0 fw=ww700 fam=Parkinsans_700 pos=(56,16) lh=null ls=null
+
+===== service_select =====
+  "Select Service" fs=20.0 fw=ww600 fam=Parkinsans_600 pos=(66,20) lh=null ls=null
+  "Step 2 of 4 — Choose a Service" fs=14.0 fw=ww400 fam=Poppins_regular pos=(10,87) lh=1.1428571428571428 ls=null
+  "No services available" fs=17.0 fw=ww600 fam=Parkinsans_600 pos=(100,455) lh=null ls=null
+  "No services are available for this location." fs=13.0 fw=ww400 fam=Poppins_regular pos=(55,487) lh=null ls=null
+  "Retry" fs=- fw=null fam=default pos=(187,542) lh=null ls=null
+
+===== date_time =====
+  "Date & Time" fs=20.0 fw=ww600 fam=Parkinsans_600 pos=(66,20) lh=null ls=null
+  "Step 3 of 4 — Select Date & Time" fs=14.0 fw=ww400 fam=Poppins_regular pos=(10,87) lh=1.1428571428571428 ls=null
+  "Select Date" fs=15.0 fw=ww600 fam=Poppins_600 pos=(17,141) lh=null ls=null
+  "November 2026" fs=16.0 fw=ww600 fam=Poppins_600 pos=(54,193) lh=null ls=null
+  "Sun" fs=14.0 fw=ww600 fam=Poppins pos=(30,228) lh=null ls=null
+  "Mon" fs=14.0 fw=ww600 fam=Poppins pos=(77,228) lh=null ls=null
+  "Tue" fs=14.0 fw=ww600 fam=Poppins pos=(124,228) lh=null ls=null
+  "Wed" fs=14.0 fw=ww600 fam=Poppins pos=(171,228) lh=null ls=null
+  "Thu" fs=14.0 fw=ww600 fam=Poppins pos=(219,228) lh=null ls=null
+  "Fri" fs=14.0 fw=ww600 fam=Poppins pos=(266,228) lh=null ls=null
+  "Sat" fs=14.0 fw=ww600 fam=Poppins pos=(313,228) lh=null ls=null
+  "1" fs=14.0 fw=ww400 fam=Poppins_regular pos=(?,?) lh=null ls=null
+  "2" fs=14.0 fw=ww400 fam=Poppins_regular pos=(?,?) lh=null ls=null
+  "3" fs=14.0 fw=ww400 fam=Poppins_regular pos=(?,?) lh=null ls=null
+  "4" fs=14.0 fw=ww600 fam=Poppins_600 pos=(?,?) lh=null ls=null
+  "5" fs=14.0 fw=ww400 fam=Poppins_regular pos=(?,?) lh=null ls=null
+  "6" fs=14.0 fw=ww400 fam=Poppins_regular pos=(285,260) lh=null ls=null
+  "7" fs=14.0 fw=ww400 fam=Poppins_regular pos=(332,260) lh=null ls=null
+  "8" fs=14.0 fw=ww400 fam=Poppins_regular pos=(49,288) lh=null ls=null
+  "9" fs=14.0 fw=ww400 fam=Poppins_regular pos=(96,288) lh=null ls=null
+  "10" fs=14.0 fw=ww400 fam=Poppins_regular pos=(141,288) lh=null ls=null
+  "11" fs=14.0 fw=ww400 fam=Poppins_regular pos=(190,288) lh=null ls=null
+  "12" fs=14.0 fw=ww400 fam=Poppins_regular pos=(236,288) lh=null ls=null
+  "13" fs=14.0 fw=ww400 fam=Poppins_regular pos=(283,288) lh=null ls=null
+  "14" fs=14.0 fw=ww400 fam=Poppins_regular pos=(330,288) lh=null ls=null
+  "15" fs=14.0 fw=ww400 fam=Poppins_regular pos=(47,316) lh=null ls=null
+  "16" fs=14.0 fw=ww400 fam=Poppins_regular pos=(94,316) lh=null ls=null
+  "17" fs=14.0 fw=ww400 fam=Poppins_regular pos=(142,316) lh=null ls=null
+  "18" fs=14.0 fw=ww400 fam=Poppins_regular pos=(188,316) lh=null ls=null
+  "19" fs=14.0 fw=ww400 fam=Poppins_regular pos=(235,316) lh=null ls=null
+  "20" fs=14.0 fw=ww400 fam=Poppins_regular pos=(281,316) lh=null ls=null
+  "21" fs=14.0 fw=ww400 fam=Poppins_regular pos=(330,316) lh=null ls=null
+  "22" fs=14.0 fw=ww400 fam=Poppins_regular pos=(45,344) lh=null ls=null
+  "23" fs=14.0 fw=ww400 fam=Poppins_regular pos=(92,344) lh=null ls=null
+  "24" fs=14.0 fw=ww400 fam=Poppins_regular pos=(139,344) lh=null ls=null
+  "25" fs=14.0 fw=ww400 fam=Poppins_regular pos=(186,344) lh=null ls=null
+  "26" fs=14.0 fw=ww400 fam=Poppins_regular pos=(233,344) lh=null ls=null
+  "27" fs=14.0 fw=ww400 fam=Poppins_regular pos=(281,344) lh=null ls=null
+  "28" fs=14.0 fw=ww400 fam=Poppins_regular pos=(328,344) lh=null ls=null
+  "29" fs=14.0 fw=ww400 fam=Poppins_regular pos=(45,372) lh=null ls=null
+  "30" fs=14.0 fw=ww400 fam=Poppins_regular pos=(92,372) lh=null ls=null
+  "Preferred Groomer" fs=15.0 fw=ww600 fam=Poppins_600 pos=(17,436) lh=null ls=null
+  "Choose a groomer or keep "No Pref" to see all available slots." fs=12.0 fw=ww400 fam=Poppins_regular pos=(17,461) lh=null ls=null
+  "Select Time" fs=15.0 fw=ww600 fam=Poppins_600 pos=(17,531) lh=null ls=null
+  "No Available Slots" fs=15.0 fw=ww600 fam=Parkinsans_600 pos=(124,663) lh=null ls=null
+  "No slots available on this date. Please select another date." fs=13.0 fw=ww400 fam=Poppins_regular pos=(38,690) lh=null ls=null
+  "–" fs=10.0 fw=ww700 fam=Poppins_700 pos=(?,?) lh=null ls=null
+  "Available" fs=12.0 fw=ww500 fam=Poppins_500 pos=(49,782) lh=null ls=null
+  "Selected" fs=12.0 fw=ww500 fam=Poppins_500 pos=(156,782) lh=null ls=null
+  "Already Booked" fs=12.0 fw=ww500 fam=Poppins_500 pos=(258,782) lh=null ls=null
+  "No date & time selected" fs=14.0 fw=ww400 fam=Poppins_regular pos=(32,718) lh=null ls=null
+  "Continue" fs=18.0 fw=ww700 fam=Parkinsans_700 pos=(151,779) lh=null ls=null
+
+===== review_confirm =====
+  "Review & Confirm" fs=20.0 fw=ww600 fam=Parkinsans_600 pos=(66,20) lh=null ls=null
+  "Step 4 of 4 - Review the Booking and Confirm" fs=14.0 fw=ww400 fam=Poppins_regular pos=(10,87) lh=1.1428571428571428 ls=null
+  "Have a promo code?" fs=16.0 fw=ww600 fam=Poppins_600 pos=(17,141) lh=null ls=null
+  "Enter promo code" fs=14.0 fw=ww400 fam=Poppins pos=(32,191) lh=1.5 ls=0.0
+  "Apply" fs=15.0 fw=ww600 fam=Poppins_600 pos=(303,188) lh=null ls=null
+  "View available offers" fs=13.0 fw=ww500 fam=Poppins_500 pos=(38,232) lh=null ls=null
+  "Selected Pet" fs=16.0 fw=ww600 fam=Poppins_600 pos=(17,292) lh=null ls=null
+  "Edit" fs=15.0 fw=ww400 fam=Poppins_regular pos=(?,?) lh=null ls=null
+  "My Pet" fs=18.0 fw=ww700 fam=Poppins_700 pos=(127,346) lh=null ls=null
+  "Selected Service" fs=16.0 fw=ww600 fam=Poppins_600 pos=(17,460) lh=null ls=null
+  "Full Grooming" fs=17.0 fw=ww600 fam=Poppins_600 pos=(127,517) lh=null ls=null
+  "Bath, trim, nails, and ears — the complete pampering session." fs=13.0 fw=ww300 fam=Poppins_300 pos=(127,545) lh=null ls=null
+  "Selected Date & Time" fs=16.0 fw=ww600 fam=Poppins_600 pos=(17,628) lh=null ls=null
+  "Nov 4, 2026 · " fs=17.0 fw=ww600 fam=Poppins_600 pos=(127,694) lh=null ls=null
+  "No groomer preference" fs=13.0 fw=ww300 fam=Poppins_300 pos=(127,722) lh=null ls=null
+  "Notes for the groomer (optional)" fs=16.0 fw=ww600 fam=Poppins pos=(17,796) lh=null ls=null
+  "Eg: Teddy gets a little anxious with dryers..." fs=14.0 fw=ww300 fam=Poppins pos=(32,870) lh=1.1428571428571428 ls=0.0
+  "Payment is handled at the salon. No online payment required to confirm." fs=13.0 fw=ww400 fam=Poppins pos=(66,664) lh=null ls=null
+  "Confirm Booking" fs=18.0 fw=ww700 fam=Parkinsans_700 pos=(116,779) lh=null ls=null
+
+===== booking_confirmed =====
+  "Booking Confirmed" fs=22.0 fw=ww700 fam=Parkinsans_700 pos=(84,221) lh=null ls=null
+  "Your pet's appointment is all set. See you at the salon!" fs=13.5 fw=ww400 fam=Poppins_regular pos=(40,258) lh=null ls=null
+  "My Pet" fs=18.0 fw=ww700 fam=Poppins_700 pos=(114,320) lh=null ls=null
+  "" fs=- fw=null fam=default pos=(?,?) lh=null ls=null
+  "Full Grooming" fs=14.0 fw=ww400 fam=Poppins_regular pos=(70,421) lh=null ls=null
+  "Aug 4, 2026 · 10:30 AM" fs=14.0 fw=ww400 fam=Poppins_regular pos=(70,453) lh=null ls=null
+  "Shear Heaven Pet Spa, Arlington" fs=14.0 fw=ww400 fam=Poppins_regular pos=(70,485) lh=null ls=null
+  "Add To Calendar" fs=14.0 fw=ww600 fam=Parkinsans_600 pos=(80,541) lh=null ls=null
+  "View" fs=14.0 fw=ww600 fam=Parkinsans_600 pos=(284,541) lh=null ls=null
+  "Go to Home" fs=15.0 fw=ww700 fam=Parkinsans_700 pos=(149,621) lh=null ls=null
+
+===== create_pet =====
+  "Pet Profile Picture" fs=16.0 fw=ww400 fam=Poppins pos=(41,196) lh=null ls=null
+  "Pet Name" fs=16.0 fw=ww500 fam=Poppins pos=(20,267) lh=null ls=null
+  "Eg: Bruno" fs=16.0 fw=ww400 fam=Poppins pos=(44,314) lh=1.684375 ls=0.0
+  "Breed" fs=16.0 fw=ww500 fam=Poppins pos=(20,381) lh=null ls=null
+  "Select Breed" fs=16.0 fw=null fam=Poppins pos=(41,432) lh=1.0 ls=0.0
+  "Weight" fs=16.0 fw=ww500 fam=Poppins pos=(20,492) lh=null ls=null
+  "Medium" fs=- fw=null fam=default pos=(41,543) lh=null ls=null
+  "Age" fs=16.0 fw=ww500 fam=Poppins pos=(203,492) lh=null ls=null
+  "eg: 2 Yrs" fs=16.0 fw=null fam=Poppins pos=(224,539) lh=1.0 ls=0.0
+  "Date of Birth" fs=16.0 fw=ww500 fam=Poppins pos=(20,665) lh=null ls=null
+  "eg: 03-08-2022" fs=16.0 fw=null fam=Poppins pos=(41,713) lh=1.684375 ls=0.0
+  "Gender" fs=16.0 fw=ww500 fam=Poppins pos=(20,781) lh=null ls=null
+  "Male" fs=18.0 fw=ww600 fam=Poppins pos=(67,827) lh=null ls=null
+  "Female" fs=18.0 fw=ww600 fam=Poppins pos=(232,827) lh=null ls=null
+  "Notes & Allergies" fs=16.0 fw=ww500 fam=Poppins pos=(20,892) lh=null ls=null
+  "eg: Sensitive skin, afraid of dryers..." fs=16.0 fw=ww400 fam=Poppins pos=(44,939) lh=1.684375 ls=0.0
+  "All Vaccinated Current" fs=16.0 fw=ww500 fam=Poppins pos=(20,1033) lh=null ls=null
+  "Yes" fs=16.0 fw=ww400 fam=Poppins pos=(52,1087) lh=null ls=null
+  "No" fs=16.0 fw=ww400 fam=Poppins pos=(167,1087) lh=null ls=null
+  "Last Vaccinated Date" fs=16.0 fw=ww500 fam=Poppins pos=(20,1134) lh=null ls=null
+  "eg: 03-08-2025" fs=16.0 fw=null fam=Poppins pos=(41,1182) lh=1.684375 ls=0.0
+  "Behavior Notes" fs=16.0 fw=ww500 fam=Poppins pos=(20,1250) lh=null ls=null
+  "eg: He is a little bit soft and angry whe...." fs=16.0 fw=ww400 fam=Poppins pos=(44,1297) lh=1.684375 ls=0.0
+  "Save & Continue" fs=18.0 fw=ww700 fam=Parkinsans pos=(58,1406) lh=null ls=null
+  "Please review the details before saving or updating." fs=14.0 fw=ww400 fam=Poppins pos=(20,1463) lh=null ls=null
+  "Add a Pet" fs=20.0 fw=ww600 fam=Parkinsans pos=(56,16) lh=null ls=null
+
+===== services_list =====
+  "No services available" fs=16.0 fw=ww700 fam=Parkinsans_700 pos=(104,438) lh=null ls=null
+  "Retry" fs=- fw=null fam=default pos=(187,495) lh=null ls=null
+  "All Services" fs=20.0 fw=ww700 fam=Parkinsans_700 pos=(72,16) lh=null ls=null
+
+===== package_list =====
+  "All Packages" fs=20.0 fw=ww600 fam=Parkinsans pos=(72,16) lh=null ls=null
+
+===== my_bookings =====
+  "Sign In to View Bookings" fs=20.0 fw=ww700 fam=Parkinsans_700 pos=(67,420) lh=null ls=null
+  "Keep track of your upcoming spa sessions, appointment history, and reschedule with ease." fs=14.0 fw=ww400 fam=Poppins_regular pos=(28,457) lh=1.4 ls=null
+  "Sign In / Register" fs=16.0 fw=ww600 fam=Parkinsans_600 pos=(125,554) lh=null ls=null
+  "My Bookings" fs=20.0 fw=ww600 fam=Parkinsans_600 pos=(72,16) lh=null ls=null
+
+===== settings =====
+  "Guest User" fs=17.0 fw=ww700 fam=Parkinsans_700 pos=(102,95) lh=null ls=null
+  "Sign in to access your account & bookings" fs=12.0 fw=ww400 fam=Poppins_regular pos=(120,123) lh=null ls=null
+  "Sign In" fs=12.0 fw=ww600 fam=Parkinsans_600 pos=(304,109) lh=null ls=null
+  "Account" fs=13.5 fw=ww600 fam=Poppins_600 pos=(16,178) lh=null ls=null
+  "Profile" fs=15.5 fw=ww500 fam=Poppins_500 pos=(76,224) lh=null ls=null
+  "My Pets" fs=15.5 fw=ww500 fam=Poppins_500 pos=(76,281) lh=null ls=null
+  "My Bookings" fs=15.5 fw=ww500 fam=Poppins_500 pos=(76,338) lh=null ls=null
+  "My Notification" fs=15.5 fw=ww500 fam=Poppins_500 pos=(76,395) lh=null ls=null
+  "About & Support" fs=13.5 fw=ww600 fam=Poppins_600 pos=(16,454) lh=null ls=null
+  "About Us" fs=15.5 fw=ww500 fam=Poppins_500 pos=(76,490) lh=null ls=null
+  "Help & Support" fs=15.5 fw=ww500 fam=Poppins_500 pos=(76,547) lh=null ls=null
+  "Privacy Policy" fs=15.5 fw=ww500 fam=Poppins_500 pos=(76,604) lh=null ls=null
+  "Terms & Conditions" fs=15.5 fw=ww500 fam=Poppins_500 pos=(76,661) lh=null ls=null
+  "Sign In / Register" fs=16.0 fw=ww700 fam=Parkinsans_700 pos=(109,739) lh=null ls=null
+  "Shear Heaven App · v1.0.0" fs=12.0 fw=ww400 fam=Poppins_regular pos=(116,804) lh=null ls=null
+  "Settings" fs=20.0 fw=ww700 fam=Parkinsans_700 pos=(56,18) lh=null ls=null
+
+===== service_inner =====
+  "Service Details" fs=13.0 fw=ww500 fam=Poppins_500 pos=(17,315) lh=null ls=null
+  "$65.0" fs=14.0 fw=ww700 fam=Poppins_700 pos=(319,314) lh=null ls=null
+  "Full Grooming" fs=24.0 fw=ww700 fam=Parkinsans_700 pos=(17,344) lh=null ls=null
+  "4.9" fs=13.5 fw=ww600 fam=Poppins_600 pos=(38,387) lh=null ls=null
+  "-" fs=null fw=null fam=default pos=(68,386) lh=null ls=null
+  "Most Booked Service" fs=13.5 fw=ww600 fam=Poppins_600 pos=(90,387) lh=null ls=null
+  "Our Full Service Pet Grooming includes a refreshing bath, blow drying, brushing, haircut, styling, Nail Clipping, ear cleaning, and finishing touches. Every grooming session is tailored to your dog's breed coat condition, and individual needs." fs=14.5 fw=ww400 fam=Poppins_regular pos=(17,422) lh=1.5 ls=null
+  "What's Included" fs=17.0 fw=ww700 fam=Parkinsans_700 pos=(17,578) lh=null ls=null
+  "Bath with premium pet-safe shampoo" fs=14.5 fw=ww400 fam=Poppins_regular pos=(43,616) lh=1.4 ls=null
+  "Coat trim and brush-out" fs=14.5 fw=ww400 fam=Poppins_regular pos=(43,648) lh=1.4 ls=null
+  "Nail trimming and ear cleaning" fs=14.5 fw=ww400 fam=Poppins_regular pos=(43,680) lh=1.4 ls=null
+  "Finishing blow dry and fluff" fs=14.5 fw=ww400 fam=Poppins_regular pos=(43,712) lh=1.4 ls=null
+  "Suitable For" fs=17.0 fw=ww700 fam=Parkinsans_700 pos=(17,768) lh=null ls=null
+  "All Breeds" fs=13.0 fw=ww600 fam=Poppins_600 pos=(34,814) lh=null ls=null
+  "Long & Short" fs=13.0 fw=ww600 fam=Poppins_600 pos=(144,814) lh=null ls=null
+  "3 Months +" fs=13.0 fw=ww600 fam=Poppins_600 pos=(273,814) lh=null ls=null
+  "Time Taken Around" fs=17.0 fw=ww700 fam=Parkinsans_700 pos=(17,866) lh=null ls=null
+  "Takes approximately 45-60 minutes" fs=13.5 fw=ww500 fam=Poppins_500 pos=(59,914) lh=null ls=null
+  "Book Appointment" fs=17.0 fw=ww700 fam=Parkinsans_700 pos=(110,789) lh=1.0 ls=null
+
+===== splash1 =====
+  "Booking made simple" fs=26.0 fw=ww700 fam=Parkinsans_700 pos=(24,657) lh=1.2 ls=null
+  "Next" fs=18.0 fw=ww600 fam=Parkinsans_600 pos=(174,743) lh=1.0 ls=null
+  "Skip" fs=12.0 fw=ww600 fam=Poppins_600 pos=(328,73) lh=null ls=null
+
+===== splash2 =====
+  "Booking made simple" fs=26.0 fw=ww700 fam=Parkinsans_700 pos=(24,657) lh=1.2 ls=null
+  "Next" fs=18.0 fw=ww600 fam=Parkinsans_600 pos=(174,743) lh=1.0 ls=null
+  "Skip" fs=12.0 fw=ww600 fam=Poppins_600 pos=(328,73) lh=null ls=null
+
+===== splash3 =====
+  "Booking made simple" fs=26.0 fw=ww700 fam=Parkinsans_700 pos=(24,657) lh=1.2 ls=null
+  "Next" fs=18.0 fw=ww600 fam=Parkinsans_600 pos=(174,743) lh=1.0 ls=null
+  "Skip" fs=12.0 fw=ww600 fam=Poppins_600 pos=(328,73) lh=null ls=null
+

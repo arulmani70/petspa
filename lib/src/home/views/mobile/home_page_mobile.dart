@@ -1302,6 +1302,10 @@ class _HomePageMobileState extends State<HomePageMobile> {
 
 Widget _buildSpecialOffers(BuildContext context, {List<OfferModel>? offers}) {
   final hasDynamicOffers = offers != null && offers.isNotEmpty;
+  if (!hasDynamicOffers) {
+    return const SizedBox.shrink();
+  }
+
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -1348,59 +1352,21 @@ Widget _buildSpecialOffers(BuildContext context, {List<OfferModel>? offers}) {
         child: ListView(
           scrollDirection: Axis.horizontal,
           clipBehavior: Clip.none,
-          children: hasDynamicOffers
-              ? offers.map((offer) => Padding(
-                  padding: const EdgeInsets.only(right: 14.0),
-                  child: _buildSpecialOfferCard(
-                    context: context,
-                    badgeText: offer.discountBadge,
-                    title: offer.title,
-                    expiry: offer.formattedExpiry,
-                    code: offer.promoCode,
-                    imagePath: offer.imageUrl ?? 'assets/images/common/offer_1.png',
-                    description: offer.description.isNotEmpty
-                        ? offer.description
-                        : "Get special discounts on our premium pet grooming packages.",
-                    eligibleServices: 'Full Grooming, Spa Package',
-                  ),
-                )).toList()
-              : [
-                  _buildSpecialOfferCard(
-                    context: context,
-                    badgeText: '50% OFF',
-                    title: '50% Off Full Grooming for New Pets!',
-                    expiry: 'Ends in 2 days',
-                    code: 'PAWSOME50',
-                    imagePath: 'assets/images/common/offer_1.png',
-                    description:
-                        "Get 50% off your pet's first Full Grooming session with us. A perfect way to try the royal treatment your pet deserves.",
-                    eligibleServices: 'Full Grooming, Spa Package',
-                  ),
-                  const SizedBox(width: 14),
-                  _buildSpecialOfferCard(
-                    context: context,
-                    badgeText: 'FREE ADD-ON',
-                    title: 'Summer Splash: Free Nail Trimming',
-                    expiry: 'Ends Aug 20',
-                    code: 'SUMMERTRIM',
-                    imagePath: 'assets/images/common/offer_2.png',
-                    description:
-                        'Complimentary nail trimming and paw pad moisturizing with any full grooming or bath service.',
-                    eligibleServices: 'Bath & Brush, Full Grooming',
-                  ),
-                  const SizedBox(width: 14),
-                  _buildSpecialOfferCard(
-                    context: context,
-                    badgeText: 'REFER & EARN',
-                    title: 'Refer a Friend, Get 20% Off',
-                    expiry: 'No expiry',
-                    code: 'FRIEND20',
-                    imagePath: 'assets/images/common/offer_3.png',
-                    description:
-                        'Refer a fellow pet parent and both of you enjoy 20% off on your next pet spa visit!',
-                    eligibleServices: 'All Services & Packages',
-                  ),
-                ],
+          children: offers.map((offer) => Padding(
+            padding: const EdgeInsets.only(right: 14.0),
+            child: _buildSpecialOfferCard(
+              context: context,
+              badgeText: offer.discountBadge,
+              title: offer.title,
+              expiry: offer.formattedExpiry,
+              code: offer.promoCode,
+              imagePath: offer.imageUrl ?? 'assets/images/common/offer_1.png',
+              description: offer.description.isNotEmpty
+                  ? offer.description
+                  : (offer.label ?? "Get special discounts on our premium pet grooming packages."),
+              eligibleServices: offer.appliesToText,
+            ),
+          )).toList(),
         ),
       ),
     ],
@@ -1823,13 +1789,12 @@ void _showOffersPopup(BuildContext context, {List<OfferModel>? offers}) {
       promoCode: topOffer.promoCode,
       description: topOffer.description.isNotEmpty
           ? topOffer.description
-          : "Get special discounts on our premium pet grooming packages.",
-      eligibleServices: 'Full Grooming, Spa Package',
-      termsConditions:
-          'Valid for selected services only · Subject to store terms & conditions.',
+          : (topOffer.label ?? "Get special discounts on our premium pet grooming packages."),
+      eligibleServices: topOffer.appliesToText,
+      termsConditions: topOffer.minOrderAmount != null && topOffer.minOrderAmount! > 0
+          ? 'Minimum order \$${topOffer.minOrderAmount!.toStringAsFixed(0)}. Valid until ${topOffer.validUntil ?? 'further notice'}.'
+          : 'Valid until ${topOffer.validUntil ?? 'further notice'} · Cannot be combined with other offers.',
     );
-  } else {
-    OfferDetailsDialog.show(context);
   }
 }
 

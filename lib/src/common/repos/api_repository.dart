@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:logger/logger.dart';
@@ -69,6 +70,24 @@ class ApiRepository {
           error.type == DioExceptionType.receiveTimeout ||
           error.type == DioExceptionType.connectionError;
     }
+    return false;
+  }
+
+  /// Whether a JWT access token has already expired or will expire within [thresholdSeconds] (default: 60s).
+  /// Matches the web portal's proactive expiration checking (`jz(token, 5 * 60 * 1000)`).
+  bool _isTokenExpiringSoon(String token, {int thresholdSeconds = 60}) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return false;
+      var normalized = base64Url.normalize(parts[1]);
+      final payload = utf8.decode(base64Url.decode(normalized));
+      final map = jsonDecode(payload);
+      if (map is Map && map['exp'] is num) {
+        final expSec = (map['exp'] as num).toInt();
+        final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+        return (expSec - nowSec) < thresholdSeconds;
+      }
+    } catch (_) {}
     return false;
   }
 
@@ -149,7 +168,10 @@ class ApiRepository {
       try {
         response = await _dio.post(
           '/api/auth/refresh-token',
-          data: {'refreshToken': refreshToken},
+          data: {
+            'refreshToken': refreshToken,
+            'role': 'customer',
+          },
           options: Options(
             extra: {'is_retry': true},
             headers: refreshHeaders,
@@ -162,7 +184,11 @@ class ApiRepository {
         log.w('[AUTH] Customer refresh via /api/auth/refresh-token failed: $e. Trying fallback.');
         response = await _dio.post(
           '/api/auth/refresh',
-          data: {'refresh_token': refreshToken, 'refreshToken': refreshToken},
+          data: {
+            'refresh_token': refreshToken,
+            'refreshToken': refreshToken,
+            'role': 'customer',
+          },
           options: Options(
             extra: {'is_retry': true},
             headers: refreshHeaders,
@@ -170,15 +196,22 @@ class ApiRepository {
         );
       }
 
-      if (response.statusCode == 404 && response.requestOptions.path != '/api/auth/refresh') {
+      if ((response.statusCode == null || response.statusCode! >= 400) && response.requestOptions.path != '/api/auth/refresh') {
         log.d('[AUTH] POST /api/auth/refresh fallback called');
-        response = await _dio.post(
-          '/api/auth/refresh',
-          data: {'refresh_token': refreshToken, 'refreshToken': refreshToken},
-          options: Options(
-            extra: {'is_retry': true},
-          ),
-        );
+        try {
+          response = await _dio.post(
+            '/api/auth/refresh',
+            data: {
+              'refresh_token': refreshToken,
+              'refreshToken': refreshToken,
+              'role': 'customer',
+            },
+            options: Options(
+              extra: {'is_retry': true},
+              headers: refreshHeaders,
+            ),
+          );
+        } catch (_) {}
       }
 
       if (response.statusCode == null ||
@@ -305,36 +338,68 @@ class ApiRepository {
         return false;
       }
 
+      final session = ServicesLocator.sessionService;
+      final cId = (session.clientId != null && session.clientId!.isNotEmpty)
+          ? session.clientId!
+          : 'SHEAR-001';
+      final rId = (session.regionId != null && session.regionId!.isNotEmpty)
+          ? session.regionId!
+          : 'DWG-001';
+      final sId = (session.storeId != null && session.storeId!.isNotEmpty)
+          ? session.storeId!
+          : 'SHEAR-001';
+
+      final refreshHeaders = {
+        'ClientId': cId,
+        'RegionId': rId,
+        'StoreId': sId,
+      };
+
       log.d('[AUTH] POST /api/auth/refresh-token called (groomer)');
       Response response;
       try {
         response = await _dio.post(
           '/api/auth/refresh-token',
-          data: {'refreshToken': refreshToken},
+          data: {
+            'refreshToken': refreshToken,
+            'role': 'groomer',
+          },
           options: Options(
             extra: {'is_retry': true},
+            headers: refreshHeaders,
           ),
         );
       } catch (e) {
         log.w('[AUTH] Groomer refresh via /api/auth/refresh-token failed: $e. Trying fallback.');
         response = await _dio.post(
           '/api/groomer-auth/refresh-token',
-          data: {'refreshToken': refreshToken},
+          data: {
+            'refreshToken': refreshToken,
+            'role': 'groomer',
+          },
           options: Options(
             extra: {'is_retry': true},
+            headers: refreshHeaders,
           ),
         );
       }
 
-      if (response.statusCode == 404 && response.requestOptions.path != '/api/groomer-auth/refresh-token') {
+      if ((response.statusCode == null || response.statusCode! >= 400) &&
+          response.requestOptions.path != '/api/groomer-auth/refresh-token') {
         log.d('[AUTH] POST /api/groomer-auth/refresh-token fallback called');
-        response = await _dio.post(
-          '/api/groomer-auth/refresh-token',
-          data: {'refreshToken': refreshToken},
-          options: Options(
-            extra: {'is_retry': true},
-          ),
-        );
+        try {
+          response = await _dio.post(
+            '/api/groomer-auth/refresh-token',
+            data: {
+              'refreshToken': refreshToken,
+              'role': 'groomer',
+            },
+            options: Options(
+              extra: {'is_retry': true},
+              headers: refreshHeaders,
+            ),
+          );
+        } catch (_) {}
       }
 
       if (response.statusCode == null ||
@@ -356,8 +421,14 @@ class ApiRepository {
       }
 
       final responseData = data['data'] as Map<String, dynamic>? ?? data;
-      final newAccessToken = responseData['accessToken']?.toString();
-      final newRefreshToken = responseData['refreshToken']?.toString() ?? refreshToken;
+      final newAccessToken = (responseData['accessToken'] ??
+              responseData['access_token'] ??
+              responseData['token'])
+          ?.toString();
+      final newRefreshToken = (responseData['refreshToken'] ??
+              responseData['refresh_token'])
+          ?.toString() ??
+          refreshToken;
 
       if (newAccessToken != null && newAccessToken.isNotEmpty) {
         final currentGroomer = ServicesLocator.sessionService.getGroomerUser() ?? {};
@@ -464,11 +535,21 @@ class ApiRepository {
 
           if (isGroomerPath) {
             log.d('[AUTH] Groomer API request started: ${options.path}');
-            final groomerToken = await session.getGroomerAccessToken();
-            if (groomerToken != null &&
-                groomerToken.isNotEmpty &&
-                !options.headers.containsKey('Authorization')) {
-              options.headers['Authorization'] = 'Bearer $groomerToken';
+            var groomerToken = await session.getGroomerAccessToken();
+            if (groomerToken != null && groomerToken.isNotEmpty) {
+              // Proactively refresh expired / expiring token (matching web portal jz(token, 5 * 60 * 1000))
+              if (_isTokenExpiringSoon(groomerToken) && options.extra['is_retry'] != true) {
+                log.d('[AUTH] Groomer token expiring soon or expired, proactively refreshing before request...');
+                final refreshed = await _refreshGroomerTokenWithMutex();
+                if (refreshed) {
+                  groomerToken = await session.getGroomerAccessToken();
+                }
+              }
+              if (groomerToken != null &&
+                  groomerToken.isNotEmpty &&
+                  !options.headers.containsKey('Authorization')) {
+                options.headers['Authorization'] = 'Bearer $groomerToken';
+              }
             }
           } else {
             if (session.isLoggedIn) {
@@ -477,11 +558,20 @@ class ApiRepository {
               log.d('[AUTH] Guest API request started: ${options.path}');
             }
 
-            final accessToken = await session.getAccessToken();
-            if (accessToken != null &&
-                accessToken.isNotEmpty &&
-                !options.headers.containsKey('Authorization')) {
-              options.headers['Authorization'] = 'Bearer $accessToken';
+            var accessToken = await session.getAccessToken();
+            if (accessToken != null && accessToken.isNotEmpty) {
+              if (_isTokenExpiringSoon(accessToken) && options.extra['is_retry'] != true) {
+                log.d('[AUTH] Customer token expiring soon or expired, proactively refreshing before request...');
+                final refreshed = await _refreshCustomerTokenWithMutex();
+                if (refreshed) {
+                  accessToken = await session.getAccessToken();
+                }
+              }
+              if (accessToken != null &&
+                  accessToken.isNotEmpty &&
+                  !options.headers.containsKey('Authorization')) {
+                options.headers['Authorization'] = 'Bearer $accessToken';
+              }
             }
           }
 

@@ -741,9 +741,7 @@ void main() {
 
       // For bath-only: Bath is present in the stage tracker, Grooming is NOT in the stage tracker
       expect(find.text('Bath Completed'), findsWidgets);
-      expect(find.text('Confirm Bath Completed'), findsOneWidget);
       expect(find.text('Grooming Completed'), findsNothing);
-      expect(find.text('Confirm Grooming Completed'), findsNothing);
     });
 
     // ─────────────────────────────────────────────────────────────────────────

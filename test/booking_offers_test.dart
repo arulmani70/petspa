@@ -200,4 +200,40 @@ void main() {
     expect(find.text('WRONGCODE applied'), findsNothing);
     expect(draft.appliedOffer, isNull);
   });
+
+  testWidgets('Amount Details reflects subtotal, applied coupon discount, and updated total', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: BookingReviewPageMobile(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify initial Amount Details
+    expect(find.text('Amount Details'), findsOneWidget);
+    expect(find.text('Subtotal'), findsOneWidget);
+    expect(find.text('Appointment total'), findsOneWidget);
+    expect(find.text('\$100.00'), findsWidgets);
+    expect(find.text('Coupon discount'), findsNothing);
+
+    // Enter and apply promo code
+    final inputFinder = find.widgetWithText(TextField, 'Enter promo code');
+    await tester.enterText(inputFinder, 'PAWSOME50');
+    await tester.tap(find.text('Apply'));
+    await tester.pumpAndSettle();
+
+    // Verify Amount Details with coupon applied
+    expect(find.text('Coupon discount'), findsOneWidget);
+    expect(find.text('−\$50.00'), findsOneWidget);
+    expect(find.text('Total after coupon'), findsOneWidget);
+    expect(find.text('\$50.00'), findsOneWidget);
+
+    // Remove promo code
+    await tester.tap(find.text('Remove'));
+    await tester.pumpAndSettle();
+
+    // Verify Amount Details returns to regular total
+    expect(find.text('Coupon discount'), findsNothing);
+    expect(find.text('Appointment total'), findsOneWidget);
+  });
 }

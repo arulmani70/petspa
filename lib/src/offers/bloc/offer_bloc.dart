@@ -78,6 +78,9 @@ class OfferBloc extends Bloc<OfferEvent, OfferState> {
       emit(state.copyWith(status: () => OfferStatus.validating));
       final result = await _repository.validatePromo(
         promoCode: event.promoCode,
+        offerId: event.offerId,
+        serviceAmount: event.serviceAmount,
+        packageAmount: event.packageAmount,
         orderAmount: event.orderAmount,
         clientId: event.clientId,
         regionId: event.regionId,

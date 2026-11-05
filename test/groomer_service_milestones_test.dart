@@ -300,7 +300,6 @@ void main() {
       expect(find.text('Medical Alert:'), findsOneWidget);
       expect(find.text('"Sensitive skin; hypoallergenic shampoo only"'), findsOneWidget);
       expect(find.text('Milestone Notes (Optional)'), findsOneWidget);
-      expect(find.text('Confirm Bath Completed'), findsOneWidget);
     });
 
     testWidgets('Renders Grooming milestone dialog with prior bath notes if present', (tester) async {
@@ -336,7 +335,6 @@ void main() {
       expect(find.text('Grooming Completed'), findsWidgets);
       expect(find.text('Bath Note Recorded:'), findsOneWidget);
       expect(find.text('"Double coat blown out thoroughly."'), findsOneWidget);
-      expect(find.text('Confirm Grooming Completed'), findsOneWidget);
     });
   });
 

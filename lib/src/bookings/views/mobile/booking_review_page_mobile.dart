@@ -32,10 +32,15 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
   final TextEditingController _promoController = TextEditingController();
   final Logger _log = Logger();
 
+  List<OfferModel> _availableOffers = [];
+  OfferModel? _selectedCoupon;
+  String? _couponError;
+
   @override
   void initState() {
     super.initState();
     _draft = ServicesLocator.bookingDraft;
+    _draft.addListener(_onDraftChanged);
     if (_draft.serviceRequestNotes != null && _draft.serviceRequestNotes!.isNotEmpty) {
       _notesController.text = _draft.serviceRequestNotes!;
     }
@@ -43,6 +48,34 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
       _promoController.text = _draft.appliedPromoCode!;
     }
     _ensurePetDetails();
+    _loadAvailableCoupons();
+  }
+
+  void _onDraftChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _loadAvailableCoupons() async {
+    try {
+      final offers = await ServicesLocator.offerRepository.getOffers();
+      if (!mounted) return;
+      setState(() {
+        _availableOffers = offers;
+      });
+
+      if (_draft.appliedPromoCode != null && _draft.appliedPromoCode!.isNotEmpty) {
+        final code = _draft.appliedPromoCode!.trim().toUpperCase();
+        for (final o in offers) {
+          if (o.promoCode.trim().toUpperCase() == code) {
+            _selectedCoupon = o;
+            break;
+          }
+        }
+        if (_draft.discountAmount == null) {
+          _applyPromoCode(code, offerId: _selectedCoupon?.id, showToast: false);
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _ensurePetDetails() async {
@@ -129,27 +162,37 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
 
   @override
   void dispose() {
+    _draft.removeListener(_onDraftChanged);
     _cleanupOfferOnExit();
     _notesController.dispose();
     _promoController.dispose();
     super.dispose();
   }
 
-  Future<void> _applyPromoCode(String code) async {
+  Future<void> _applyPromoCode(String code, {dynamic offerId, bool showToast = true}) async {
     final trimmed = code.trim();
     if (trimmed.isEmpty) {
-      ToastUtil.showErrorToast(context, 'Please enter a promo code.');
+      if (showToast) ToastUtil.showErrorToast(context, 'Please enter a promo code.');
       return;
     }
 
     if (_isApplyingPromo) return;
-    setState(() => _isApplyingPromo = true);
+    setState(() {
+      _isApplyingPromo = true;
+      _couponError = null;
+    });
 
     try {
+      final serviceAmt = _draft.serviceSubtotal;
+      final packageAmt = _draft.packageSubtotal;
       final baseAmount = _draft.totalPrice ?? _draft.estimatedTotal;
+
       final result = await ServicesLocator.offerRepository.validatePromo(
         promoCode: trimmed,
-        orderAmount: baseAmount > 0 ? baseAmount : 100.0,
+        offerId: offerId ?? _selectedCoupon?.id,
+        serviceAmount: serviceAmt,
+        packageAmount: packageAmt,
+        orderAmount: baseAmount > 0 ? baseAmount : (serviceAmt + packageAmt),
       );
 
       if (!mounted) return;
@@ -158,10 +201,10 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
         final serviceName = _draft.service?['service_name']?.toString() ??
             _draft.service?['name']?.toString() ??
             'Full Grooming';
-        String desc = result.description ?? '';
+        String desc = result.description ?? result.label ?? result.title ?? '';
         if (desc.isEmpty || desc == '${result.promoCode ?? trimmed} applied') {
-          if (result.discountValue != null) {
-            desc = '${result.discountValue}% off $serviceName';
+          if (result.discountValue != null && result.discountValue! > 0) {
+            desc = '${result.discountValue!.toInt()}% off $serviceName';
           } else if (result.discountAmount > 0) {
             desc = '\$${result.discountAmount.toStringAsFixed(0)} off $serviceName';
           } else {
@@ -170,22 +213,52 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
         }
 
         _draft.applyOffer({
+          'offerId': result.offerId ?? offerId ?? _selectedCoupon?.id,
           'promoCode': result.promoCode ?? trimmed,
+          'couponCode': result.couponCode ?? result.promoCode ?? trimmed,
           'discountAmount': result.discountAmount,
           'discountType': result.discountType,
           'discountValue': result.discountValue,
           'finalAmount': result.finalAmount,
           'description': desc,
+          'title': result.title,
+          'label': result.label,
+          'appliesTo': result.appliesTo,
         });
         _promoController.text = result.promoCode ?? trimmed;
+        _couponError = null;
+
+        if (_availableOffers.isNotEmpty) {
+          final matched = _availableOffers.where((o) =>
+            o.promoCode.toUpperCase() == (result.promoCode ?? trimmed).toUpperCase() ||
+            (result.offerId != null && o.id == result.offerId)
+          ).firstOrNull;
+          if (matched != null) {
+            _selectedCoupon = matched;
+          }
+        }
+
         setState(() {});
-        ToastUtil.showSuccessToast(context, result.message.isNotEmpty ? result.message : 'Promo code applied successfully!');
+        if (showToast) {
+          ToastUtil.showSuccessToast(context, result.message.isNotEmpty ? result.message : 'Promo code applied successfully!');
+        }
       } else {
-        ToastUtil.showErrorToast(context, result.message);
+        setState(() {
+          _couponError = result.message;
+        });
+        if (showToast) {
+          ToastUtil.showErrorToast(context, result.message);
+        }
       }
     } catch (e) {
       if (!mounted) return;
-      ToastUtil.showErrorToast(context, 'Failed to validate promo code. Please try again.');
+      const msg = 'Failed to validate promo code. Please try again.';
+      setState(() {
+        _couponError = msg;
+      });
+      if (showToast) {
+        ToastUtil.showErrorToast(context, msg);
+      }
     } finally {
       if (mounted) {
         setState(() => _isApplyingPromo = false);
@@ -197,6 +270,8 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
     setState(() {
       _draft.removeOffer();
       _promoController.clear();
+      _selectedCoupon = null;
+      _couponError = null;
     });
     ToastUtil.showSuccessToast(context, 'Promo code removed.');
   }
@@ -397,8 +472,20 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                             ),
                           ),
                         ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            offer.discountBadge,
+                            style: AppFonts.poppins(size: 10.5, weight: FontWeight.w700, color: const Color(0xFF2563EB)),
+                          ),
+                        ),
                         if (isApplied) ...[
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
@@ -425,13 +512,28 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                         style: AppFonts.poppins(size: 12.5, color: const Color(0xFF4B5563)),
                       ),
                     ],
-                    if (offer.minOrderAmount != null && offer.minOrderAmount! > 0) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'Min. order \$${offer.minOrderAmount!.toStringAsFixed(0)}',
-                        style: AppFonts.poppins(size: 11, color: const Color(0xFF9CA3AF)),
-                      ),
-                    ],
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        if (offer.appliesTo != null && offer.appliesTo!.isNotEmpty)
+                          Text(
+                            offer.appliesToText,
+                            style: AppFonts.poppins(size: 11, weight: FontWeight.w500, color: const Color(0xFF6B7280)),
+                          ),
+                        if (offer.validUntil != null && offer.validUntil!.isNotEmpty)
+                          Text(
+                            '•  ${offer.formattedExpiry}',
+                            style: AppFonts.poppins(size: 11, color: const Color(0xFF6B7280)),
+                          ),
+                        if (offer.minOrderAmount != null && offer.minOrderAmount! > 0)
+                          Text(
+                            '•  Min. \$${offer.minOrderAmount!.toStringAsFixed(0)}',
+                            style: AppFonts.poppins(size: 11, color: const Color(0xFF9CA3AF)),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -450,7 +552,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                   if (isApplied) {
                     _removePromoCode();
                   } else {
-                    _applyPromoCode(offer.promoCode);
+                    _applyPromoCode(offer.promoCode, offerId: offer.id);
                   }
                 },
                 child: Text(
@@ -697,6 +799,16 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
           _draft.apiTotalPrice = apiPrice.toDouble();
         }
 
+        final sSub = availData['serviceSubtotal'];
+        if (sSub is num) {
+          _draft.apiServiceSubtotal = sSub.toDouble();
+        }
+
+        final pSub = availData['packageSubtotal'];
+        if (pSub is num) {
+          _draft.apiPackageSubtotal = pSub.toDouble();
+        }
+
         // ── Step 1b: Exact Slot Matching & Capacity Validation ───────────────
         _log.d("BookingReviewPage::_confirmBooking::Validating selected slot capacity");
 
@@ -801,6 +913,12 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
               ? _draft.serviceRequestNotes!.trim()
               : null);
 
+      final isPreferredGroomer = _draft.groomer != null &&
+          _draft.groomer?['id'] != null &&
+          _draft.groomer!['id'].toString().trim().isNotEmpty &&
+          _draft.groomer!['id'].toString().trim() != 'any' &&
+          _draft.groomer!['name'] != 'No. pref';
+
       final createPayload = <String, dynamic>{
         'ClientId'   : session.clientId ?? 'SHEAR-001',
         'RegionId'   : session.regionId ?? 'DWG-001',
@@ -814,9 +932,16 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
         'bookingDate': bookingDate,
         'startTime'  : finalStartTime,
         'endTime'    : finalEndTime,
+        'isPreferredGroomer': isPreferredGroomer,
+        'preferredGroomer': isPreferredGroomer,
         if (notesText != null && notesText.isNotEmpty) ...{
           'specialInstructions': notesText,
           'notes': notesText,
+        },
+        if (_draft.appliedPromoCode != null) ...{
+          'couponCode': _draft.appliedPromoCode,
+          if (_draft.appliedOffer?['offerId'] != null)
+            'offerId': _draft.appliedOffer!['offerId'],
         },
       };
 
@@ -866,6 +991,8 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
           'start_time': _draft.timeSlot ?? '',
           'end_time': _draft.endTime ?? '',
           'groomer_name': _draft.groomer?['name']?.toString() ?? '',
+          'isPreferredGroomer': isPreferredGroomer,
+          'is_preferred_groomer': isPreferredGroomer,
           'applied_offer': _draft.appliedOffer,
           'discount_amount': _draft.discountAmount,
           if (notesText != null && notesText.isNotEmpty) ...{
@@ -1264,6 +1391,13 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 24),
+                    Text(
+                      "Amount Details",
+                      style: AppFonts.poppins(size: 16, weight: FontWeight.w600, color: Colors.black),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildAmountDetailsCard(),
                   ],
                 ),
               ),
@@ -1543,9 +1677,14 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
 
     String offerDesc = appliedOffer?['description']?.toString() ?? '';
     if (offerDesc.isEmpty || offerDesc.toLowerCase().endsWith('applied')) {
+      final title = appliedOffer?['title']?.toString();
+      final label = appliedOffer?['label']?.toString();
       final discountVal = appliedOffer?['discountValue'] ?? appliedOffer?['discountPercent'];
       final discountAmt = appliedOffer?['discountAmount'];
-      if (discountVal != null && discountVal.toString().isNotEmpty) {
+      if (title != null && title.isNotEmpty && discountAmt != null && discountAmt is num && discountAmt > 0) {
+        final labelPart = (label != null && label.isNotEmpty) ? ' ($label)' : '';
+        offerDesc = '$title: −\$${discountAmt.toStringAsFixed(0)}$labelPart';
+      } else if (discountVal != null && discountVal.toString().isNotEmpty) {
         offerDesc = '$discountVal% off $serviceName';
       } else if (discountAmt != null && discountAmt is num && discountAmt > 0) {
         offerDesc = '\$${discountAmt.toStringAsFixed(0)} off $serviceName';
@@ -1632,6 +1771,13 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
             ),
           ],
         ),
+        if (_couponError != null && _couponError!.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(
+            _couponError!,
+            style: AppFonts.poppins(size: 13, color: const Color(0xFFDC2626), weight: FontWeight.w500),
+          ),
+        ],
         const SizedBox(height: 10),
 
         // View Available Offers Link
@@ -1734,6 +1880,277 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
         ] else ...[
           const SizedBox(height: 8),
         ],
+      ],
+    );
+  }
+
+  Widget _buildAmountDetailsCard() {
+    final servicePriceRaw = _draft.service?['price'] ??
+        _draft.service?[Constants.database.COLUMN_PRICE] ??
+        _draft.service?['cost'];
+    double servicePrice = 0.0;
+    if (servicePriceRaw is num) {
+      servicePrice = servicePriceRaw.toDouble();
+    } else if (servicePriceRaw != null) {
+      servicePrice = double.tryParse(servicePriceRaw.toString().replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0.0;
+    }
+
+    final addOnItems = <Map<String, dynamic>>[];
+    double addOnsTotal = 0.0;
+    for (final a in _draft.addOns) {
+      final pRaw = a['price'] ?? a[Constants.database.COLUMN_PRICE];
+      double p = 0.0;
+      if (pRaw is num) {
+        p = pRaw.toDouble();
+      } else if (pRaw != null) {
+        p = double.tryParse(pRaw.toString().replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0.0;
+      }
+      addOnsTotal += p;
+      addOnItems.add({
+        'name': a['name'] ?? a['service_name'] ?? a['title'] ?? 'Add-on',
+        'price': p,
+      });
+    }
+
+    double subtotal = _draft.totalPrice ?? _draft.estimatedTotal;
+    if (subtotal <= 0.0) {
+      subtotal = servicePrice + addOnsTotal;
+    }
+    if (servicePrice <= 0.0 && addOnsTotal <= 0.0 && subtotal > 0.0) {
+      servicePrice = subtotal;
+    } else if (servicePrice <= 0.0 && subtotal > 0.0 && addOnsTotal > 0.0) {
+      servicePrice = (subtotal - addOnsTotal).clamp(0.0, double.infinity);
+    }
+
+    final durationMinutes = _draft.apiDurationMinutes ?? _draft.duration;
+    final appliedOffer = _draft.appliedOffer;
+    final isApplied = appliedOffer != null;
+    final appliedCode = _draft.appliedPromoCode ??
+        appliedOffer?['promoCode']?.toString() ??
+        appliedOffer?['couponCode']?.toString() ??
+        '';
+    final discount = _draft.discountAmount ?? 0.0;
+    final finalTotal = isApplied
+        ? (_draft.discountedTotalPrice ?? (subtotal - discount).clamp(0.0, double.infinity))
+        : subtotal;
+
+    final serviceName = _draft.service?[Constants.database.COLUMN_SERVICE_NAME]?.toString() ??
+        _draft.service?['service_name']?.toString() ??
+        _draft.service?['name']?.toString() ??
+        'Full Grooming';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (durationMinutes != null && durationMinutes > 0) ...[
+            Row(
+              children: [
+                const Icon(Icons.access_time_rounded, size: 14, color: Color(0xFF6B7280)),
+                const SizedBox(width: 6),
+                Text(
+                  "Appointment length: ",
+                  style: AppFonts.poppins(size: 12.5, color: const Color(0xFF6B7280)),
+                ),
+                Text(
+                  "$durationMinutes min",
+                  style: AppFonts.poppins(size: 12.5, weight: FontWeight.w600, color: const Color(0xFF111827)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Divider(height: 1, color: Color(0xFFF3F4F6)),
+            const SizedBox(height: 12),
+          ],
+
+          // Base service charge row
+          _priceRow(
+            label: serviceName,
+            amount: '\$${servicePrice.toStringAsFixed(2)}',
+          ),
+
+          // Add-on services
+          for (final addOn in addOnItems) ...[
+            const SizedBox(height: 8),
+            _priceRow(
+              label: '+ ${addOn['name']}',
+              amount: '\$${(addOn['price'] as double).toStringAsFixed(2)}',
+              isSubtle: true,
+            ),
+          ],
+
+          const SizedBox(height: 10),
+          const Divider(height: 1, color: Color(0xFFF3F4F6)),
+          const SizedBox(height: 10),
+
+          // Subtotal
+          _priceRow(
+            label: "Subtotal",
+            amount: '\$${subtotal.toStringAsFixed(2)}',
+            isBold: !isApplied,
+          ),
+
+          // Coupon row (if applied)
+          if (isApplied && discount > 0) ...[
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDCFCE7),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.check_circle_rounded, size: 12, color: Color(0xFF15803D)),
+                          const SizedBox(width: 4),
+                          Text(
+                            appliedCode.isNotEmpty ? appliedCode : "COUPON",
+                            style: AppFonts.poppins(
+                              size: 11,
+                              weight: FontWeight.w700,
+                              color: const Color(0xFF15803D),
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      "Coupon discount",
+                      style: AppFonts.poppins(
+                        size: 13.5,
+                        weight: FontWeight.w500,
+                        color: const Color(0xFF15803D),
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  "−\$${discount.toStringAsFixed(2)}",
+                  style: AppFonts.poppins(
+                    size: 14,
+                    weight: FontWeight.w700,
+                    color: const Color(0xFF15803D),
+                  ),
+                ),
+              ],
+            ),
+          ],
+
+          const SizedBox(height: 12),
+          const Divider(height: 1, color: Color(0xFFE5E7EB)),
+          const SizedBox(height: 12),
+
+          // Total row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isApplied ? "Total after coupon" : "Appointment total",
+                    style: AppFonts.poppins(
+                      size: 15,
+                      weight: FontWeight.w700,
+                      color: const Color(0xFF111827),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    "Pay at salon",
+                    style: AppFonts.poppins(
+                      size: 11.5,
+                      weight: FontWeight.w400,
+                      color: const Color(0xFF6B7280),
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  if (isApplied && discount > 0) ...[
+                    Text(
+                      '\$${subtotal.toStringAsFixed(2)}',
+                      style: AppFonts.poppins(
+                        size: 13.5,
+                        color: const Color(0xFF9CA3AF),
+                        weight: FontWeight.w500,
+                      ).copyWith(decoration: TextDecoration.lineThrough),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  Text(
+                    '\$${finalTotal.toStringAsFixed(2)}',
+                    style: AppFonts.poppins(
+                      size: 20,
+                      weight: FontWeight.w800,
+                      color: isApplied ? const Color(0xFF15803D) : const Color(0xFF111827),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _priceRow({
+    required String label,
+    required String amount,
+    bool isBold = false,
+    bool isSubtle = false,
+    Color? textColor,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppFonts.poppins(
+              size: 13.5,
+              weight: isBold ? FontWeight.w600 : FontWeight.w400,
+              color: isSubtle
+                  ? const Color(0xFF6B7280)
+                  : (textColor ?? (isBold ? const Color(0xFF111827) : const Color(0xFF374151))),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          amount,
+          style: AppFonts.poppins(
+            size: 13.5,
+            weight: isBold ? FontWeight.w700 : FontWeight.w500,
+            color: textColor ?? (isBold ? const Color(0xFF111827) : const Color(0xFF111827)),
+          ),
+        ),
       ],
     );
   }

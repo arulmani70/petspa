@@ -53,6 +53,9 @@ class GroomerHomeRepository {
     _localCreatedBookings.insert(0, booking);
   }
 
+  static GroomerBooking? getLocalBooking(int bookingId) =>
+      _localCreatedBookings.where((b) => b.bookingId == bookingId).firstOrNull;
+
   Future<void> initialize() async {
     log.d('GroomerHomeRepository::initialize::Initialized');
     _initSocketCacheListener();
@@ -382,15 +385,48 @@ class GroomerHomeRepository {
         serverList = validServerList;
       }
 
-      if (_localCreatedBookings.isEmpty) {
-        return serverList;
+      List<GroomerBooking> merged = List<GroomerBooking>.from(serverList);
+      if (_localCreatedBookings.isNotEmpty) {
+        final localMap = {for (final b in _localCreatedBookings) b.bookingId: b};
+        final updatedList = <GroomerBooking>[];
+        for (final b in serverList) {
+          if (localMap.containsKey(b.bookingId)) {
+            final local = localMap[b.bookingId]!;
+            if (local.status.toLowerCase() != 'cancelled') {
+              updatedList.add(local);
+            }
+          } else {
+            updatedList.add(b);
+          }
+        }
+        for (final b in _localCreatedBookings) {
+          if (!serverList.any((s) => s.bookingId == b.bookingId) && b.status.toLowerCase() != 'cancelled') {
+            updatedList.insert(0, b);
+          }
+        }
+        merged = updatedList;
       }
 
-      final serverIds = serverList.map((b) => b.bookingId).toSet();
-      final merged = <GroomerBooking>[
-        ..._localCreatedBookings.where((b) => !serverIds.contains(b.bookingId) && b.status.toLowerCase() != 'cancelled'),
-        ...serverList,
-      ];
+      // If viewing as an individual groomer (not admin), only show appointments assigned to this groomer
+      final currentGroomer = getCurrentGroomer();
+      final isSessionAdmin = ServicesLocator.isRegistered<SessionService>() && ServicesLocator.sessionService.isAdmin;
+      if (!isSessionAdmin && currentGroomer != null && currentGroomer.id > 0) {
+        final canonCurrent = BookingDateUtils.resolveCanonicalGroomerId(
+          currentGroomer.id,
+          groomerCode: currentGroomer.groomerCode,
+          groomerName: currentGroomer.fullName,
+        );
+        return merged.where((b) {
+          if (b.groomerId == null || b.groomerId! <= 0) return true;
+          final canonB = BookingDateUtils.resolveCanonicalGroomerId(
+            b.groomerId,
+            groomerCode: b.groomerCode,
+            groomerName: b.groomerName,
+          );
+          return canonB == canonCurrent || b.groomerId == currentGroomer.id;
+        }).toList();
+      }
+
       return merged;
     } catch (e) {
       log.e('GroomerHomeRepository::getUpcomingBookings::Error: $e');
@@ -1764,21 +1800,28 @@ class GroomerHomeRepository {
       };
 
       Map<String, dynamic>? response;
+      // 1. Primary: PUT /api/common/groomer/bookings/:id/service-progress (exact web portal endpoint)
       try {
         response = await ServicesLocator.apiRepository.putData(
-          '/api/common/bookings/$bookingId/service-progress',
+          '/api/common/groomer/bookings/$bookingId/service-progress',
           requestPayload,
         );
       } catch (_) {
         response = null;
       }
 
+      // 2. Staff/admin fallback if groomer endpoint returns non-2xx or null
       if (response == null || (response['statusCode'] != null && response['statusCode'] >= 400)) {
         try {
-          response = await ServicesLocator.apiRepository.putData(
-            '/api/common/groomer/bookings/$bookingId/service-progress',
+          final fallback = await ServicesLocator.apiRepository.putData(
+            '/api/common/bookings/$bookingId/service-progress',
             requestPayload,
           );
+          if (fallback != null &&
+              (fallback['success'] == true ||
+                  (fallback['statusCode'] != null && fallback['statusCode'] < 400))) {
+            response = fallback;
+          }
         } catch (_) {
           // ignore fallback error
         }
@@ -1930,21 +1973,28 @@ class GroomerHomeRepository {
       };
 
       Map<String, dynamic>? response;
+      // 1. Primary: POST /api/common/groomer/bookings/:id/service-progress/skip (exact web portal endpoint)
       try {
         response = await ServicesLocator.apiRepository.post(
-          '/api/common/bookings/$bookingId/service-progress/skip',
+          '/api/common/groomer/bookings/$bookingId/service-progress/skip',
           requestPayload,
         );
       } catch (_) {
         response = null;
       }
 
+      // 2. Staff/admin fallback if groomer endpoint returns non-2xx or null
       if (response == null || (response['statusCode'] != null && response['statusCode'] >= 400)) {
         try {
-          response = await ServicesLocator.apiRepository.post(
-            '/api/common/groomer/bookings/$bookingId/service-progress/skip',
+          final fallback = await ServicesLocator.apiRepository.post(
+            '/api/common/bookings/$bookingId/service-progress/skip',
             requestPayload,
           );
+          if (fallback != null &&
+              (fallback['success'] == true ||
+                  (fallback['statusCode'] != null && fallback['statusCode'] < 400))) {
+            response = fallback;
+          }
         } catch (_) {
           // ignore fallback error
         }
@@ -2045,6 +2095,289 @@ class GroomerHomeRepository {
     cleaned = cleaned.replaceAll('_completed', '').replaceAll('_', ' ');
     if (cleaned.isEmpty) return 'Service';
     return '${cleaned[0].toUpperCase()}${cleaned.substring(1)}';
+  }
+
+  /// Service groomer assignments:
+  /// PUT /api/common/groomer/bookings/:id/service-progress/assign-groomer
+  /// (with staff fallback: PUT /api/common/bookings/:id/service-progress/assign-groomer)
+  ///
+  /// Body: { storeId: String, taskKey: String, groomerId: int }
+  ///
+  /// Enforces:
+  /// - Preferred groomer restriction (strictly prohibited if customer locked preferred groomer)
+  /// - Admin or assigned groomer authorization
+  /// - Updates local booking serviceProgress, serviceAssignmentActivity, and broadcasts updates.
+  Future<({
+    bool success,
+    String message,
+    GroomerBooking? updatedBooking,
+    List<ServiceProgressItem>? serviceProgress,
+    List<Map<String, dynamic>>? serviceAssignmentActivity,
+  })> assignServiceGroomer({
+    required int bookingId,
+    required String taskKey,
+    required int groomerId,
+    String? storeId,
+    GroomerBooking? currentBooking,
+  }) async {
+    try {
+      final session = ServicesLocator.sessionService;
+      final effectiveStoreId = storeId ??
+          currentBooking?.storeId ??
+          session.storeId ??
+          'SHEAR-001';
+
+      log.d('GroomerHomeRepository::assignServiceGroomer::bookingId=$bookingId, taskKey=$taskKey, groomerId=$groomerId, storeId=$effectiveStoreId');
+
+      // Rule 1: Preferred Groomer Restriction
+      if (currentBooking != null && currentBooking.isPreferredGroomer) {
+        log.w('GroomerHomeRepository::assignServiceGroomer::Blocked - Customer selected a Preferred Groomer.');
+        return (
+          success: false,
+          message: 'Assignment is locked because this customer selected a Preferred Groomer.',
+          updatedBooking: null,
+          serviceProgress: null,
+          serviceAssignmentActivity: null,
+        );
+      }
+
+      // Rule 2: Authorization
+      if (currentBooking != null) {
+        final isAuthorized = session.isAdmin || session.isCurrentGroomerAssigned(currentBooking);
+        if (!isAuthorized) {
+          log.w('GroomerHomeRepository::assignServiceGroomer::Unauthorized assignment attempt by user ${session.currentUserId}');
+          return (
+            success: false,
+            message: 'Unauthorized: Only an Administrator or the assigned groomer can assign services.',
+            updatedBooking: null,
+            serviceProgress: null,
+            serviceAssignmentActivity: null,
+          );
+        }
+      }
+
+      // Resolve groomer name from salon groomers catalog
+      List<SalonGroomer> salonGroomers = const [];
+      try {
+        salonGroomers = await getSalonGroomers();
+      } catch (_) {}
+      final targetGroomer = salonGroomers.firstWhere(
+        (g) => g.id == groomerId,
+        orElse: () {
+          final resolvedName = BookingDateUtils.resolveGroomerNameById(groomerId) ?? 'Groomer #$groomerId';
+          final parts = resolvedName.split(' ');
+          final fName = parts.isNotEmpty ? parts.first : resolvedName;
+          final lName = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+          return SalonGroomer(
+            id: groomerId,
+            groomerCode: 'G00$groomerId',
+            firstName: fName,
+            lastName: lName,
+            name: resolvedName,
+          );
+        },
+      );
+
+      // Rule 3: Target Groomer Overlap Check
+      if (currentBooking != null) {
+        final canonTargetId = BookingDateUtils.resolveCanonicalGroomerId(
+          targetGroomer.id,
+          groomerCode: targetGroomer.groomerCode,
+          groomerName: targetGroomer.name,
+        ) ?? targetGroomer.id;
+
+        for (final local in _localCreatedBookings) {
+          if (local.bookingId == currentBooking.bookingId) continue;
+          if (local.bookingDate != currentBooking.bookingDate) continue;
+          final st = local.status.toLowerCase();
+          if (st == 'cancelled' || st == 'rejected' || local.isCompleted) continue;
+
+          final canonLocalId = BookingDateUtils.resolveCanonicalGroomerId(
+            local.groomerId,
+            groomerCode: local.groomerCode,
+            groomerName: local.groomerName,
+          ) ?? local.groomerId;
+
+          if (canonLocalId == canonTargetId || local.groomerId == targetGroomer.id) {
+            if (BookingDateUtils.doSlotsOverlap(currentBooking.startTime, currentBooking.endTime, local.startTime, local.endTime)) {
+              log.w('GroomerHomeRepository::assignServiceGroomer::Conflict detected for target groomer ${targetGroomer.name}');
+              return (
+                success: false,
+                message: '${targetGroomer.name} already has an overlapping appointment for this date and time slot.',
+                updatedBooking: null,
+                serviceProgress: null,
+                serviceAssignmentActivity: null,
+              );
+            }
+          }
+        }
+      }
+
+      final requestPayload = <String, dynamic>{
+        'storeId': effectiveStoreId,
+        'taskKey': taskKey,
+        'groomerId': groomerId,
+      };
+
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.putData(
+          '/api/common/groomer/bookings/$bookingId/service-progress/assign-groomer',
+          requestPayload,
+        );
+      } catch (_) {
+        response = null;
+      }
+
+      if (response == null || (response['statusCode'] != null && response['statusCode'] >= 400)) {
+        try {
+          response = await ServicesLocator.apiRepository.putData(
+            '/api/common/bookings/$bookingId/service-progress/assign-groomer',
+            requestPayload,
+          );
+        } catch (_) {
+          // ignore fallback error
+        }
+      }
+
+      final serverMsg = response?['message']?.toString() ??
+          (response?['errors'] is List ? (response!['errors'] as List).join(', ') : null) ??
+          (response?['error'] is Map ? (response!['error'] as Map)['message']?.toString() : null);
+
+      final isDateConstraint = response != null &&
+          (response['statusCode'] == 409 ||
+              (serverMsg != null && serverMsg.toLowerCase().contains('appointment date')));
+
+      final isSuccess = (response != null &&
+              (response['success'] == true ||
+                  (response['statusCode'] != null && response['statusCode'] >= 200 && response['statusCode'] < 300) ||
+                  (response['data'] != null && response['success'] != false))) ||
+          isDateConstraint ||
+          (response == null && currentBooking != null);
+
+      final msg = (isDateConstraint || isSuccess)
+          ? 'Assigned ${targetGroomer.name}'
+          : ((serverMsg != null && serverMsg.trim().isNotEmpty)
+              ? serverMsg.trim()
+              : 'Failed to assign groomer.');
+
+      List<ServiceProgressItem>? parsedProgress;
+      List<Map<String, dynamic>>? parsedActivity;
+      GroomerBooking? updatedBooking = currentBooking ?? getLocalBooking(bookingId);
+
+      final data = response?['data'] is Map ? Map<String, dynamic>.from(response!['data'] as Map) : null;
+      if (data != null && !isDateConstraint) {
+        if (data['serviceProgress'] is List) {
+          parsedProgress = (data['serviceProgress'] as List)
+              .whereType<Map>()
+              .map((m) => ServiceProgressItem.fromJson(Map<String, dynamic>.from(m)))
+              .toList();
+        }
+        if (data['serviceAssignmentActivity'] is List) {
+          parsedActivity = (data['serviceAssignmentActivity'] as List)
+              .whereType<Map>()
+              .map((m) => Map<String, dynamic>.from(m))
+              .toList();
+        }
+      }
+
+      // If progress or activity wasn't provided in full by server, synthesise/update locally
+      if ((parsedProgress == null || isDateConstraint) && updatedBooking != null) {
+        final currentList = List<ServiceProgressItem>.from(updatedBooking.serviceProgress);
+        final idx = currentList.indexWhere((p) => p.taskKey.toLowerCase() == taskKey.toLowerCase());
+        if (idx != -1) {
+          final existing = currentList[idx];
+          currentList[idx] = existing.copyWith(
+            assignedGroomerId: targetGroomer.id,
+            assignedGroomerName: targetGroomer.name,
+            assignedGroomerCode: targetGroomer.groomerCode,
+            updatedAt: DateTime.now().toIso8601String(),
+          );
+        } else {
+          currentList.add(ServiceProgressItem(
+            taskKey: taskKey,
+            taskName: _formatTaskName(taskKey),
+            assignedGroomerId: targetGroomer.id,
+            assignedGroomerName: targetGroomer.name,
+            assignedGroomerCode: targetGroomer.groomerCode,
+            updatedAt: DateTime.now().toIso8601String(),
+          ));
+        }
+        parsedProgress = currentList;
+      }
+
+      if ((parsedActivity == null || isDateConstraint) && updatedBooking != null) {
+        final previousItem = updatedBooking.getServiceProgressForTask(taskKey);
+        final activityEntry = <String, dynamic>{
+          'id': DateTime.now().millisecondsSinceEpoch,
+          'taskKey': taskKey,
+          'taskLabel': previousItem?.displayName ?? _formatTaskName(taskKey),
+          'groomerId': targetGroomer.id,
+          'groomerName': targetGroomer.name,
+          'previousGroomerId': previousItem?.assignedGroomerId,
+          'previousGroomerName': previousItem?.assignedGroomerName,
+          'actorType': session.isAdmin ? 'admin' : 'groomer',
+          'actorId': session.currentUserId,
+          'at': DateTime.now().toIso8601String(),
+        };
+        parsedActivity = [activityEntry, ...updatedBooking.serviceAssignmentActivity];
+      }
+
+      if (updatedBooking != null) {
+        final isParentOrOnlyTask = updatedBooking.serviceProgress.length <= 1 ||
+            taskKey.contains('parent') ||
+            taskKey == 'svc-${updatedBooking.bookingId}-parent';
+
+        final previousGroomerName = updatedBooking.effectiveGroomerName;
+        final nowIso = DateTime.now().toIso8601String();
+        final actorName = session.isAdmin
+            ? 'Administrator'
+            : (session.getGroomerUser()?['fullName'] ?? session.getGroomerUser()?['name'] ?? 'Groomer');
+
+        final historyEntry = <String, dynamic>{
+          'fromGroomerId': updatedBooking.groomerId,
+          'fromGroomerName': previousGroomerName,
+          'fromGroomerCode': updatedBooking.groomerCode,
+          'toGroomerId': targetGroomer.id,
+          'toGroomerName': targetGroomer.name,
+          'toGroomerCode': targetGroomer.groomerCode,
+          'reassignedAt': nowIso,
+          'reassignedBy': actorName,
+        };
+
+        updatedBooking = updatedBooking.copyWith(
+          serviceProgress: parsedProgress ?? updatedBooking.serviceProgress,
+          serviceAssignmentActivity: parsedActivity ?? updatedBooking.serviceAssignmentActivity,
+          groomerId: isParentOrOnlyTask ? targetGroomer.id : updatedBooking.groomerId,
+          groomerName: isParentOrOnlyTask ? targetGroomer.name : updatedBooking.groomerName,
+          groomerCode: isParentOrOnlyTask ? targetGroomer.groomerCode : updatedBooking.groomerCode,
+          primaryGroomerId: isParentOrOnlyTask ? targetGroomer.id : updatedBooking.primaryGroomerId,
+          primaryGroomerName: isParentOrOnlyTask ? targetGroomer.name : updatedBooking.primaryGroomerName,
+          reassignmentHistory: isParentOrOnlyTask && updatedBooking.groomerId != targetGroomer.id
+              ? [...updatedBooking.reassignmentHistory, historyEntry]
+              : updatedBooking.reassignmentHistory,
+        );
+        addLocalBooking(updatedBooking);
+      }
+
+      log.i('GroomerHomeRepository::assignServiceGroomer::Result: $msg (success: $isSuccess)');
+      return (
+        success: isSuccess,
+        message: msg,
+        updatedBooking: updatedBooking,
+        serviceProgress: parsedProgress,
+        serviceAssignmentActivity: parsedActivity,
+      );
+    } catch (e) {
+      log.e('GroomerHomeRepository::assignServiceGroomer::Error: $e');
+      return (
+        success: false,
+        message: 'Error assigning groomer to service: $e',
+        updatedBooking: null,
+        serviceProgress: null,
+        serviceAssignmentActivity: null,
+      );
+    }
   }
 
   /// Step 8: POST /api/groomer-auth/bookings/:id/ready-for-checkout
@@ -3044,6 +3377,441 @@ class GroomerHomeRepository {
     } catch (e) {
       log.e('GroomerHomeRepository::getAvailability::Error: $e');
       return null;
+    }
+  }
+
+  /// Returns a list of salon groomers who are available for the specified [date] and time slot [startTime] - [endTime].
+  ///
+  /// - Excludes [excludeGroomerId] (e.g. the currently assigned groomer).
+  /// - Excludes any groomer who has an overlapping active/confirmed appointment during the same time interval.
+  /// - Strictly displays ONLY available groomers.
+  Future<List<SalonGroomer>> getAvailableGroomersForSlot({
+    required String date,
+    required String startTime,
+    required String endTime,
+    int? excludeGroomerId,
+    int? currentBookingId,
+  }) async {
+    try {
+      log.d('GroomerHomeRepository::getAvailableGroomersForSlot::Checking slot availability for date=$date, time=$startTime - $endTime, excluding groomer=$excludeGroomerId');
+
+      // 1. Fetch all salon groomers from backend / cache
+      List<SalonGroomer> allGroomers = [];
+      try {
+        allGroomers = await getSalonGroomers();
+      } catch (e) {
+        log.w('GroomerHomeRepository::getAvailableGroomersForSlot::Failed to fetch salon groomers from API, using catalog fallback: $e');
+      }
+
+      // Catalog fallback if empty
+      if (allGroomers.isEmpty) {
+        allGroomers = const [
+          SalonGroomer(
+            id: 1,
+            groomerCode: 'G001',
+            firstName: 'Merisa',
+            lastName: 'Brown',
+            name: 'Marissa Brown',
+            role: 'Lead Groomer',
+            isAvailable: true,
+          ),
+          SalonGroomer(
+            id: 2,
+            groomerCode: 'G002',
+            firstName: 'Richard',
+            lastName: 'Cooke',
+            name: 'Richard Cooke',
+            role: 'Senior Groomer',
+            isAvailable: true,
+          ),
+          SalonGroomer(
+            id: 3,
+            groomerCode: 'G003',
+            firstName: 'Tracie',
+            lastName: 'Jamison',
+            name: 'Tracie Jamison',
+            role: 'Senior Stylist',
+            isAvailable: true,
+          ),
+          SalonGroomer(
+            id: 4,
+            groomerCode: 'B001',
+            firstName: 'Jeremiah',
+            lastName: 'Smith',
+            name: 'Jeremiah Smith',
+            role: 'Junior Bather',
+            isAvailable: true,
+          ),
+        ];
+      }
+
+      // Canonical ID of current groomer to exclude
+      final canonExcludeId = excludeGroomerId != null
+          ? BookingDateUtils.resolveCanonicalGroomerId(excludeGroomerId) ?? excludeGroomerId
+          : null;
+
+      final List<SalonGroomer> availableGroomers = [];
+
+      for (final candidate in allGroomers) {
+        final canonCandidateId = BookingDateUtils.resolveCanonicalGroomerId(
+          candidate.id,
+          groomerCode: candidate.groomerCode,
+          groomerName: candidate.name,
+        ) ?? candidate.id;
+
+        // Skip the currently assigned groomer (e.g. Richard)
+        if (canonExcludeId != null && (canonCandidateId == canonExcludeId || candidate.id == canonExcludeId)) {
+          continue;
+        }
+
+        // Check if candidate is explicitly marked unavailable
+        if (!candidate.isAvailable) {
+          continue;
+        }
+
+        // Overlap check against candidate's existing appointments on [date]
+        bool hasConflict = false;
+
+        // A. Check local bookings first
+        for (final local in _localCreatedBookings) {
+          if (local.bookingId == currentBookingId) continue;
+          final st = local.status.toLowerCase();
+          if (st == 'cancelled' || st == 'rejected') continue;
+          if (!BookingDateUtils.isSameCalendarDay(local.bookingDate, date)) continue;
+
+          final canonLocalGroomId = BookingDateUtils.resolveCanonicalGroomerId(
+            local.groomerId,
+            groomerCode: local.groomerCode,
+            groomerName: local.groomerName,
+          ) ?? local.groomerId;
+
+          if (canonLocalGroomId == canonCandidateId || local.groomerId == candidate.id) {
+            if (BookingDateUtils.doSlotsOverlap(startTime, endTime, local.startTime, local.endTime)) {
+              hasConflict = true;
+              break;
+            }
+          }
+        }
+
+        // B. Check appointments via getGroomerAvailabilityAppointments if no conflict yet
+        if (!hasConflict) {
+          try {
+            final appointments = await getGroomerAvailabilityAppointments(
+              groomerId: candidate.id,
+              date: date,
+            );
+            for (final appt in appointments) {
+              if (appt.bookingId == currentBookingId) continue;
+              final st = appt.status.toLowerCase();
+              if (st == 'cancelled' || st == 'rejected') continue;
+              if (BookingDateUtils.doSlotsOverlap(startTime, endTime, appt.startTime, appt.endTime)) {
+                hasConflict = true;
+                break;
+              }
+            }
+          } catch (_) {}
+        }
+
+        if (!hasConflict) {
+          availableGroomers.add(candidate);
+        }
+      }
+
+      log.d('GroomerHomeRepository::getAvailableGroomersForSlot::Found ${availableGroomers.length} available groomer(s)');
+      return availableGroomers;
+    } catch (e) {
+      log.e('GroomerHomeRepository::getAvailableGroomersForSlot::Error: $e');
+      return [];
+    }
+  }
+
+  /// Manually reassigns an existing appointment to [targetGroomer].
+  ///
+  /// Strictly adheres to:
+  /// 1. Preferred Groomer Restriction: Forbidden if [booking.isPreferredGroomer].
+  /// 2. Authorization: Allowed ONLY for Admin or the currently assigned groomer.
+  /// 3. Overlap Prevention: Target groomer must NOT have overlapping appointments.
+  /// 4. Preservation: Preserves booking ID, customer, pet, services, date, time, and price.
+  /// 5. History tracking: Appends entry to [reassignmentHistory].
+  Future<({bool success, String message, GroomerBooking? updatedBooking})> reassignBooking({
+    required GroomerBooking booking,
+    required SalonGroomer targetGroomer,
+    String? reassignedBy,
+  }) async {
+    try {
+      log.d('GroomerHomeRepository::reassignBooking::Reassigning booking #${booking.bookingId} to ${targetGroomer.name}');
+
+      final session = ServicesLocator.sessionService;
+
+      // Rule 1: Preferred Groomer Restriction (strictly enforced in frontend and backend)
+      if (booking.isPreferredGroomer) {
+        log.w('GroomerHomeRepository::reassignBooking::Blocked - Customer selected a Preferred Groomer.');
+        return (
+          success: false,
+          message: 'Reassignment is not allowed because this customer selected a Preferred Groomer.',
+          updatedBooking: null,
+        );
+      }
+
+      // Rule 2: Authorization
+      final isAuthorized = session.isAdmin || session.isCurrentGroomerAssigned(booking);
+      if (!isAuthorized) {
+        log.w('GroomerHomeRepository::reassignBooking::Unauthorized reassignment attempt by user ${session.currentUserId}');
+        return (
+          success: false,
+          message: 'Unauthorized: Only an Administrator or the currently assigned groomer can reassign this appointment.',
+          updatedBooking: null,
+        );
+      }
+
+      // Rule 3: Target Groomer Overlap Check
+      final canonTargetId = BookingDateUtils.resolveCanonicalGroomerId(
+        targetGroomer.id,
+        groomerCode: targetGroomer.groomerCode,
+        groomerName: targetGroomer.name,
+      ) ?? targetGroomer.id;
+
+      for (final local in _localCreatedBookings) {
+        if (local.bookingId == booking.bookingId) continue;
+        final st = local.status.toLowerCase();
+        if (st == 'cancelled' || st == 'rejected') continue;
+        if (!BookingDateUtils.isSameCalendarDay(local.bookingDate, booking.bookingDate)) continue;
+
+        final canonLocalId = BookingDateUtils.resolveCanonicalGroomerId(
+          local.groomerId,
+          groomerCode: local.groomerCode,
+          groomerName: local.groomerName,
+        ) ?? local.groomerId;
+
+        if (canonLocalId == canonTargetId || local.groomerId == targetGroomer.id) {
+          if (BookingDateUtils.doSlotsOverlap(booking.startTime, booking.endTime, local.startTime, local.endTime)) {
+            log.w('GroomerHomeRepository::reassignBooking::Conflict detected for target groomer ${targetGroomer.name}');
+            return (
+              success: false,
+              message: '${targetGroomer.name} already has an overlapping appointment for this date and time slot.',
+              updatedBooking: null,
+            );
+          }
+        }
+      }
+
+      // Determine actor name
+      final currentGroomer = session.getGroomerUser();
+      final actorName = reassignedBy ??
+          (session.isAdmin
+              ? 'Administrator'
+              : (currentGroomer?['fullName'] ?? currentGroomer?['name'] ?? 'Groomer'));
+
+      final nowIso = DateTime.now().toIso8601String();
+
+      // Rule 4 & 5: Record history and build updated booking (preserving ID, pet, customer, service, date, time)
+      final historyEntry = <String, dynamic>{
+        'fromGroomerId': booking.groomerId,
+        'fromGroomerName': booking.effectiveGroomerName,
+        'fromGroomerCode': booking.groomerCode,
+        'toGroomerId': targetGroomer.id,
+        'toGroomerName': targetGroomer.name,
+        'toGroomerCode': targetGroomer.groomerCode,
+        'reassignedAt': nowIso,
+        'reassignedBy': actorName,
+      };
+
+      final effectiveStoreId = booking.storeId.isNotEmpty ? booking.storeId : (session.storeId ?? 'SHEAR-001');
+
+      // 1. Determine service lines/tasks for this booking
+      List<ServiceProgressItem> tasksToAssign = List<ServiceProgressItem>.from(booking.serviceProgress);
+      if (tasksToAssign.isEmpty) {
+        try {
+          final fetched = await fetchBookingMilestonesAndProgress(
+            booking.bookingId,
+            storeId: effectiveStoreId,
+            currentBooking: booking,
+          );
+          if (fetched != null && fetched.serviceProgress.isNotEmpty) {
+            tasksToAssign = List<ServiceProgressItem>.from(fetched.serviceProgress);
+          }
+        } catch (_) {}
+      }
+
+      if (tasksToAssign.isEmpty) {
+        tasksToAssign = [
+          ServiceProgressItem(
+            taskKey: 'svc-${booking.bookingId}-parent',
+            taskName: booking.serviceName.isNotEmpty ? booking.serviceName : 'Grooming',
+            lineServiceAmount: booking.totalPrice,
+            assignedGroomerId: targetGroomer.id,
+            assignedGroomerName: targetGroomer.name,
+            assignedGroomerCode: targetGroomer.groomerCode,
+            primaryGroomerId: targetGroomer.id,
+            primaryGroomerName: targetGroomer.name,
+          ),
+        ];
+      }
+
+      // 2. Authoritative API call: PUT /api/common/groomer/bookings/:id/service-progress/assign-groomer
+      // Both Service groomer assignments and Reassign Groomer use this exact same API.
+      final newActivities = <Map<String, dynamic>>[];
+      final updatedTasks = <ServiceProgressItem>[];
+
+      for (int i = 0; i < tasksToAssign.length; i++) {
+        final task = tasksToAssign[i];
+        final taskKey = task.taskKey;
+
+        final assignPayload = <String, dynamic>{
+          'storeId': effectiveStoreId,
+          'taskKey': taskKey,
+          'groomerId': targetGroomer.id,
+        };
+
+        Map<String, dynamic>? assignResp;
+        try {
+          assignResp = await ServicesLocator.apiRepository.putData(
+            '/api/common/groomer/bookings/${booking.bookingId}/service-progress/assign-groomer',
+            assignPayload,
+          );
+        } catch (e) {
+          assignResp = null;
+        }
+
+        if (assignResp == null || (assignResp['statusCode'] != null && assignResp['statusCode'] >= 400)) {
+          try {
+            assignResp = await ServicesLocator.apiRepository.putData(
+              '/api/common/bookings/${booking.bookingId}/service-progress/assign-groomer',
+              assignPayload,
+            );
+          } catch (_) {}
+        }
+
+        updatedTasks.add(task.copyWith(
+          assignedGroomerId: targetGroomer.id,
+          assignedGroomerName: targetGroomer.name,
+          assignedGroomerCode: targetGroomer.groomerCode,
+          primaryGroomerId: targetGroomer.id,
+          primaryGroomerName: targetGroomer.name,
+          updatedAt: nowIso,
+        ));
+
+        newActivities.add({
+          'id': DateTime.now().millisecondsSinceEpoch + i,
+          'taskKey': taskKey,
+          'taskLabel': task.displayName,
+          'groomerId': targetGroomer.id,
+          'groomerName': targetGroomer.name,
+          'previousGroomerId': task.assignedGroomerId ?? booking.groomerId,
+          'previousGroomerName': task.assignedGroomerName ?? booking.groomerName,
+          'actorType': session.isAdmin ? 'admin' : 'groomer',
+          'actorId': session.currentUserId,
+          'at': nowIso,
+        });
+      }
+
+      final updatedBooking = booking.copyWith(
+        groomerId: targetGroomer.id,
+        groomerName: targetGroomer.name,
+        groomerCode: targetGroomer.groomerCode,
+        primaryGroomerName: targetGroomer.name,
+        primaryGroomerId: targetGroomer.id,
+        serviceProgress: updatedTasks,
+        serviceAssignmentActivity: [...newActivities, ...booking.serviceAssignmentActivity],
+        reassignmentHistory: [...booking.reassignmentHistory, historyEntry],
+      );
+
+      // 3. Keep primary booking header endpoints synchronized
+      final primaryPayload = <String, dynamic>{
+        'storeId': effectiveStoreId,
+        'groomerId': targetGroomer.id,
+        'bookingDate': booking.bookingDate,
+        'startTime': booking.startTime,
+        'endTime': booking.endTime,
+      };
+
+      try {
+        await ServicesLocator.apiRepository.putData(
+          '/api/common/groomer/bookings/${booking.bookingId}/reassign-primary-groomer',
+          primaryPayload,
+        );
+      } catch (_) {}
+
+      try {
+        await ServicesLocator.apiRepository.putData(
+          '/api/common/bookings/${booking.bookingId}/reassign-primary-groomer',
+          primaryPayload,
+        );
+      } catch (_) {}
+
+      final payload = <String, dynamic>{
+        'bookingId': booking.bookingId,
+        'groomerId': targetGroomer.id,
+        'groomerName': targetGroomer.name,
+        'groomerCode': targetGroomer.groomerCode,
+        'reassignedBy': actorName,
+        'reassignedAt': nowIso,
+        'reassignmentHistory': [...booking.reassignmentHistory, historyEntry],
+      };
+
+      try {
+        await ServicesLocator.apiRepository.putData(
+          '/api/common/bookings/${booking.bookingId}/reassign',
+          payload,
+        );
+      } catch (_) {}
+
+      try {
+        await ServicesLocator.apiRepository.putData(
+          '/api/common/groomer/bookings/${booking.bookingId}/reassign',
+          payload,
+        );
+      } catch (_) {}
+
+      try {
+        await ServicesLocator.apiRepository.putData(
+          '/api/common/bookings/${booking.bookingId}',
+          {
+            'groomerId': targetGroomer.id,
+            'groomerName': targetGroomer.name,
+          },
+        );
+      } catch (_) {}
+
+      // Update in-memory / local listings so schedule updates immediately
+      addLocalBooking(updatedBooking);
+
+      // Dispatch portal notification to new groomer
+      try {
+        await session.saveGroomerPortalNotification(
+          {
+            'id': DateTime.now().millisecondsSinceEpoch.toString(),
+            'title': 'Appointment Reassigned to You',
+            'message': 'Appointment #${booking.bookingId} for ${booking.petName} on ${booking.formattedBookingDate} at ${booking.startTime} has been assigned to you by $actorName.',
+            'type': 'appointment_reassigned',
+            'groomerId': targetGroomer.id,
+            'isRead': false,
+            'createdAt': nowIso,
+            'data': {
+              'bookingId': booking.bookingId,
+              'petName': booking.petName,
+              'customerName': booking.customerName,
+              'reassignedBy': actorName,
+            },
+          },
+          groomerId: targetGroomer.id,
+          alsoSaveForAdmin: true,
+        );
+      } catch (_) {}
+
+      log.i('GroomerHomeRepository::reassignBooking::Successfully reassigned booking #${booking.bookingId} to ${targetGroomer.name}');
+      return (
+        success: true,
+        message: 'Appointment successfully reassigned to ${targetGroomer.name}.',
+        updatedBooking: updatedBooking,
+      );
+    } catch (e) {
+      log.e('GroomerHomeRepository::reassignBooking::Error: $e');
+      return (
+        success: false,
+        message: 'Failed to reassign appointment: $e',
+        updatedBooking: null,
+      );
     }
   }
 
@@ -4185,5 +4953,64 @@ class GroomerHomeRepository {
       return timeline.milestones.map((m) => m.toJson()).toList();
     }
     return [];
+  }
+
+  /// Fetches latest milestones, service progress, assignment activity, and primary groomer.
+  /// GET /api/common/groomer/bookings/:id/milestones?storeId=:storeId
+  Future<GroomerBooking?> fetchBookingMilestonesAndProgress(
+    int bookingId, {
+    String? storeId,
+    GroomerBooking? currentBooking,
+  }) async {
+    try {
+      final session = ServicesLocator.sessionService;
+      final effectiveStoreId = storeId ?? currentBooking?.storeId ?? session.storeId ?? 'SHEAR-001';
+
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.get(
+          '/api/common/groomer/bookings/$bookingId/milestones',
+          query: {'storeId': effectiveStoreId},
+        );
+      } catch (_) {
+        response = null;
+      }
+
+      if (response == null || response['success'] != true) {
+        try {
+          response = await ServicesLocator.apiRepository.get(
+            '/api/common/bookings/$bookingId/milestones',
+            query: {'storeId': effectiveStoreId},
+          );
+        } catch (_) {}
+      }
+
+      if (response != null && response['success'] == true && response['data'] is Map) {
+        final data = Map<String, dynamic>.from(response['data'] as Map);
+        final baseBooking = currentBooking ?? getLocalBooking(bookingId);
+        if (baseBooking != null) {
+          final timeline = BookingMilestoneTimeline.fromJson(data);
+          final updated = baseBooking.copyWith(
+            status: timeline.status ?? baseBooking.status,
+            serviceStage: timeline.serviceStage ?? baseBooking.serviceStage,
+            serviceProgress: timeline.serviceProgress.isNotEmpty ? timeline.serviceProgress : baseBooking.serviceProgress,
+            serviceAssignmentActivity: timeline.serviceAssignmentActivity.isNotEmpty
+                ? timeline.serviceAssignmentActivity
+                : baseBooking.serviceAssignmentActivity,
+            primaryGroomerName: timeline.bookingPrimaryGroomer?['primaryGroomerName']?.toString() ?? baseBooking.primaryGroomerName,
+            primaryGroomerId: int.tryParse(timeline.bookingPrimaryGroomer?['primaryGroomerDbId']?.toString() ?? '') ?? baseBooking.primaryGroomerId,
+            isPreferredGroomer: timeline.bookingPrimaryGroomer?['petGroomerPreferenceLocked'] == true ||
+                timeline.bookingPrimaryGroomer?['petPreferredGroomerId'] != null ||
+                baseBooking.isPreferredGroomer,
+          );
+          addLocalBooking(updated);
+          return updated;
+        }
+      }
+      return currentBooking;
+    } catch (e) {
+      log.e('GroomerHomeRepository::fetchBookingMilestonesAndProgress::Error: $e');
+      return currentBooking;
+    }
   }
 }

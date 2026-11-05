@@ -24,6 +24,9 @@ class FetchOffers extends OfferEvent {
 
 class ValidatePromoCode extends OfferEvent {
   final String promoCode;
+  final dynamic offerId;
+  final double? serviceAmount;
+  final double? packageAmount;
   final double orderAmount;
   final String? clientId;
   final String? regionId;
@@ -31,6 +34,9 @@ class ValidatePromoCode extends OfferEvent {
 
   const ValidatePromoCode({
     required this.promoCode,
+    this.offerId,
+    this.serviceAmount,
+    this.packageAmount,
     required this.orderAmount,
     this.clientId,
     this.regionId,
@@ -38,7 +44,16 @@ class ValidatePromoCode extends OfferEvent {
   });
 
   @override
-  List<Object?> get props => [promoCode, orderAmount, clientId, regionId, storeId];
+  List<Object?> get props => [
+        promoCode,
+        offerId,
+        serviceAmount,
+        packageAmount,
+        orderAmount,
+        clientId,
+        regionId,
+        storeId,
+      ];
 }
 
 class ApplyOfferEvent extends OfferEvent {

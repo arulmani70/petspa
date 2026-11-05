@@ -345,6 +345,22 @@ class _BookingDateTimePageMobileState
               double.tryParse(apiPrice.replaceAll(RegExp(r'[^0-9.]'), ''));
         }
 
+        final sSub = d['serviceSubtotal'];
+        if (sSub is num) {
+          _draft.apiServiceSubtotal = sSub.toDouble();
+        } else if (sSub is String) {
+          _draft.apiServiceSubtotal =
+              double.tryParse(sSub.replaceAll(RegExp(r'[^0-9.]'), ''));
+        }
+
+        final pSub = d['packageSubtotal'];
+        if (pSub is num) {
+          _draft.apiPackageSubtotal = pSub.toDouble();
+        } else if (pSub is String) {
+          _draft.apiPackageSubtotal =
+              double.tryParse(pSub.replaceAll(RegExp(r'[^0-9.]'), ''));
+        }
+
         final rawAvailSlots = d['availableSlots'] as List<dynamic>? ?? [];
         final slotMap = <String, Map<String, dynamic>>{};
         final countMap = <String, int>{};

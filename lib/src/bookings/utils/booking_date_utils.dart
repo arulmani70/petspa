@@ -409,6 +409,16 @@ class BookingDateUtils {
     return normA == normB;
   }
 
+  /// Returns true if time slot A [startA, endA] overlaps with time slot B [startB, endB].
+  static bool doSlotsOverlap(dynamic startA, dynamic endA, dynamic startB, dynamic endB) {
+    final sA = timeToMinutes(startA);
+    final eA = timeToMinutes(endA);
+    final sB = timeToMinutes(startB);
+    final eB = timeToMinutes(endB);
+    if (sA == null || eA == null || sB == null || eB == null) return false;
+    return sA < eB && sB < eA;
+  }
+
   /// Formats any time representation to 12-hour display, e.g. "09:00" → "9:00 AM".
   static String format12Hour(dynamic time) {
     if (time == null) return '';
@@ -510,7 +520,7 @@ class BookingDateUtils {
 
     // 5. Fallback name-based token match against known catalog roles/names
     final cleanName = (groomerName ?? '').toLowerCase().trim();
-    if (cleanName.contains('merisa') || cleanName.contains('brown')) {
+    if (cleanName.contains('merisa') || cleanName.contains('marissa') || cleanName.contains('brown')) {
       return 1;
     }
     if (cleanName.contains('richard') || cleanName.contains('cooke')) {
@@ -551,6 +561,10 @@ class BookingDateUtils {
         return 'Tracie Jamison';
       case 4:
         return 'Jeremiah Smith';
+      case 100:
+        return 'Elena Vance';
+      case 104:
+        return 'liam L';
       default:
         return null;
     }
