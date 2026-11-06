@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shear_heaven_pet_spa/src/common/constants/constansts.dart';
 
@@ -44,20 +45,43 @@ class PetImageHelper {
     if (str.startsWith('assets/')) {
       return str;
     }
+    if (str.startsWith('/assets/')) {
+      return str.substring(1);
+    }
 
     // Local file path (e.g. from image picker)
-    try {
-      final file = File(str);
-      if (file.existsSync()) {
-        return str;
-      }
-    } catch (_) {}
+    if (!kIsWeb) {
+      try {
+        final file = File(str);
+        if (file.existsSync()) {
+          return str;
+        }
+      } catch (_) {}
+    }
 
     // Relative backend paths
     final base = Constants.app.BASE_URL;
+    if (str.startsWith('/uploads/') || str.startsWith('/services_img/')) {
+      return '$base$str';
+    }
+    if (str.startsWith('uploads/') || str.startsWith('services_img/')) {
+      return '$base/$str';
+    }
     if (str.startsWith('/')) {
       return '$base$str';
     }
+
+    // Bare uploaded filename (e.g. pet-1793603406683-853781872.jpg)
+    final lower = str.toLowerCase();
+    if (lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.png') ||
+        lower.endsWith('.webp') ||
+        str.startsWith('pet-')) {
+      final clean = str.replaceFirst(RegExp(r'^.*[/\\]'), '');
+      return '$base/uploads/pets/$clean';
+    }
+
     return '$base/$str';
   }
 
@@ -75,6 +99,18 @@ class PetImageHelper {
     // Check nested pet map first if present
     if (map['pet'] is Map) {
       final petPhoto = extractPetPhoto(map['pet']);
+      if (petPhoto != null && petPhoto.isNotEmpty) {
+        return petPhoto;
+      }
+    }
+    if (map['data'] is Map) {
+      final petPhoto = extractPetPhoto(map['data']);
+      if (petPhoto != null && petPhoto.isNotEmpty) {
+        return petPhoto;
+      }
+    }
+    if (map['petData'] is Map) {
+      final petPhoto = extractPetPhoto(map['petData']);
       if (petPhoto != null && petPhoto.isNotEmpty) {
         return petPhoto;
       }
@@ -173,6 +209,9 @@ class PetImageHelper {
         width: width,
         height: height,
         fit: fit,
+        headers: const {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+        },
         loadingBuilder: loadingWidget != null
             ? (context, child, loadingProgress) {
                 if (loadingProgress == null) return child;
@@ -193,18 +232,20 @@ class PetImageHelper {
       );
     }
 
-    try {
-      final file = File(resolved);
-      if (file.existsSync()) {
-        return Image.file(
-          file,
-          width: width,
-          height: height,
-          fit: fit,
-          errorBuilder: (context, error, stackTrace) => fallbackWidget(),
-        );
-      }
-    } catch (_) {}
+    if (!kIsWeb) {
+      try {
+        final file = File(resolved);
+        if (file.existsSync()) {
+          return Image.file(
+            file,
+            width: width,
+            height: height,
+            fit: fit,
+            errorBuilder: (context, error, stackTrace) => fallbackWidget(),
+          );
+        }
+      } catch (_) {}
+    }
 
     final clean = resolved.startsWith('/') ? resolved.substring(1) : resolved;
     return Image.network(
@@ -212,6 +253,9 @@ class PetImageHelper {
       width: width,
       height: height,
       fit: fit,
+      headers: const {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+      },
       errorBuilder: (context, error, stackTrace) => fallbackWidget(),
     );
   }

@@ -384,6 +384,34 @@ class _BookingDateTimePageMobileState
               double.tryParse(pSub.replaceAll(RegExp(r'[^0-9.]'), ''));
         }
 
+        final tax = d['salesTax'];
+        if (tax is num) {
+          _draft.apiSalesTax = tax.toDouble();
+        } else if (tax is String) {
+          _draft.apiSalesTax =
+              double.tryParse(tax.replaceAll(RegExp(r'[^0-9.]'), ''));
+        }
+
+        final tRate = d['taxRate'];
+        if (tRate is num) {
+          _draft.apiTaxRate = tRate.toDouble();
+        } else if (tRate is String) {
+          _draft.apiTaxRate = double.tryParse(tRate);
+        }
+
+        final totWithTax = d['totalWithTax'];
+        if (totWithTax is num) {
+          _draft.apiTotalWithTax = totWithTax.toDouble();
+        } else if (totWithTax is String) {
+          _draft.apiTotalWithTax =
+              double.tryParse(totWithTax.replaceAll(RegExp(r'[^0-9.]'), ''));
+        }
+
+        final stateName = d['stateName']?.toString() ?? d['stateCode']?.toString();
+        if (stateName != null && stateName.isNotEmpty && stateName != 'null') {
+          _draft.apiStateName = stateName;
+        }
+
         final isClosed = d['closed'] == true;
         final holiday = d['holiday'];
         final storeHours = d['storeWorkingHours'] as Map<String, dynamic>?;

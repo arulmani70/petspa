@@ -581,8 +581,10 @@ class _BreedTab extends StatelessWidget {
                     } else {
                       updated['breed'] = breedName;
                     }
-                    if (item.imageUrl != null && item.imageUrl!.isNotEmpty) {
-                      updated['photo_url'] = item.imageUrl;
+                    if (petId == 0 && (updated['photo_url'] == null || updated['photo_url'].toString().isEmpty)) {
+                      if (item.imageUrl != null && item.imageUrl!.isNotEmpty) {
+                        updated['photo_url'] = item.imageUrl;
+                      }
                     }
                     draft.setPet(updated);
                   }

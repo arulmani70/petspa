@@ -266,9 +266,24 @@ class BookingDraft extends ChangeNotifier {
   /// API-computed package subtotal (set from /api/availability response).
   double? apiPackageSubtotal;
 
+  /// API-computed sales tax (set from /api/availability response).
+  double? apiSalesTax;
+
+  /// API-computed tax rate (set from /api/availability response).
+  double? apiTaxRate;
+
+  /// API-computed total with tax (set from /api/availability response).
+  double? apiTotalWithTax;
+
+  /// API-computed state name or state code (set from /api/availability response).
+  String? apiStateName;
+
   // Legacy names kept for backward compat (lastBooking, confirmed page).
   int? get duration => apiDurationMinutes;
   double? get totalPrice => apiTotalPrice;
+  double? get salesTax => apiSalesTax;
+  double? get taxRate => apiTaxRate;
+  double? get totalWithTax => apiTotalWithTax;
 
   // ---------------------------------------------------------------------------
   // Offers & Promo Code State
@@ -352,6 +367,10 @@ class BookingDraft extends ChangeNotifier {
     apiTotalPrice = null;
     apiServiceSubtotal = null;
     apiPackageSubtotal = null;
+    apiSalesTax = null;
+    apiTaxRate = null;
+    apiTotalWithTax = null;
+    apiStateName = null;
     appliedOffer = null;
     notifyListeners();
   }

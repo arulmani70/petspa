@@ -18,6 +18,7 @@ import 'package:shear_heaven_pet_spa/src/services/repo/service_repository.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/offers/bloc/offer_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/offers/models/offer_model.dart';
+import 'package:shear_heaven_pet_spa/src/pets/bloc/pet_bloc.dart';
 
 class BookingReviewPageMobile extends StatefulWidget {
   const BookingReviewPageMobile({super.key});
@@ -51,10 +52,83 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
     }
     _ensurePetDetails();
     _loadAvailableCoupons();
+    _fetchPricingDetails();
   }
 
   void _onDraftChanged() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _fetchPricingDetails() async {
+    try {
+      if (_draft.date == null) return;
+      final ids = _draft.extractServiceIds();
+      final dateStr = DateFormat('yyyy-MM-dd').format(_draft.date!);
+      final petId = BookingDateUtils.parsePetIdFromPet(_draft.pet);
+      final addOnIds = _draft.addOns
+          .map((a) => a['id'] ?? a['addOnId'] ?? a['serviceId'] ?? a['service_id'])
+          .whereType<int>()
+          .toList();
+
+      int? groomerId;
+      final gId = _draft.groomer?['id']?.toString() ?? '';
+      if (gId.isNotEmpty && gId != 'any') {
+        final parsed = int.tryParse(gId);
+        if (parsed != null && parsed > 0) groomerId = parsed;
+      }
+
+      final availResp = await ServicesLocator.bookingRepository.getAvailability(
+        date: dateStr,
+        serviceId: ids['serviceId'],
+        packageId: ids['packageId'],
+        addOnIds: addOnIds,
+        groomerId: groomerId,
+        petId: petId,
+      );
+
+      if (availResp != null && availResp['data'] != null && mounted) {
+        final d = availResp['data'] as Map<String, dynamic>;
+        final apiDur = d['totalDurationMinutes'];
+        if (apiDur is num && apiDur > 0) _draft.apiDurationMinutes = apiDur.toInt();
+
+        final apiPrice = d['totalPrice'];
+        if (apiPrice is num) _draft.apiTotalPrice = apiPrice.toDouble();
+
+        final sSub = d['serviceSubtotal'];
+        if (sSub is num) _draft.apiServiceSubtotal = sSub.toDouble();
+
+        final pSub = d['packageSubtotal'];
+        if (pSub is num) _draft.apiPackageSubtotal = pSub.toDouble();
+
+        final tax = d['salesTax'];
+        if (tax is num) {
+          _draft.apiSalesTax = tax.toDouble();
+        } else if (tax is String) {
+          _draft.apiSalesTax = double.tryParse(tax.replaceAll(RegExp(r'[^0-9.]'), ''));
+        }
+
+        final tRate = d['taxRate'];
+        if (tRate is num) {
+          _draft.apiTaxRate = tRate.toDouble();
+        } else if (tRate is String) {
+          _draft.apiTaxRate = double.tryParse(tRate);
+        }
+
+        final totWithTax = d['totalWithTax'];
+        if (totWithTax is num) {
+          _draft.apiTotalWithTax = totWithTax.toDouble();
+        } else if (totWithTax is String) {
+          _draft.apiTotalWithTax = double.tryParse(totWithTax.replaceAll(RegExp(r'[^0-9.]'), ''));
+        }
+
+        final stateName = d['stateName']?.toString() ?? d['stateCode']?.toString();
+        if (stateName != null && stateName.isNotEmpty && stateName != 'null') {
+          _draft.apiStateName = stateName;
+        }
+
+        setState(() {});
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadAvailableCoupons() async {
@@ -82,6 +156,21 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
 
   Future<void> _ensurePetDetails() async {
     try {
+      if (_draft.pet == null || BookingDateUtils.parsePetIdFromPet(_draft.pet) == null) {
+        try {
+          final petState = context.read<PetBloc>().state;
+          if (petState.selectedPetId != null && petState.pets.isNotEmpty) {
+            final petFromBloc = petState.pets.cast<Map<String, dynamic>?>().firstWhere(
+              (p) => p != null && BookingDateUtils.parsePetIdFromPet(p) == petState.selectedPetId,
+              orElse: () => null,
+            );
+            if (petFromBloc != null) {
+              _draft.setPet(petFromBloc);
+            }
+          }
+        } catch (_) {}
+      }
+
       if (ServicesLocator.sessionService.isLoggedIn) {
         final pets = await ServicesLocator.petRepository.getAllPets();
         if (pets.isNotEmpty && mounted) {
@@ -103,6 +192,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
             );
             _draft.setPet(matched);
           }
+          if (mounted) setState(() {});
         }
       }
     } catch (e) {
@@ -118,6 +208,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
         'weight': 'Standard',
         'photo_url': _draft.service?['imageUrl'] ?? _draft.service?['photo_url'],
       });
+      if (mounted) setState(() {});
     }
   }
 
@@ -546,9 +637,9 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: isApplied ? const Color(0xFFDC2626) : const Color(0xFF111827),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  minimumSize: Size.zero,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  minimumSize: const Size(68, 34),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   elevation: 0,
                 ),
                 onPressed: () {
@@ -561,7 +652,11 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                 },
                 child: Text(
                   isApplied ? 'Remove' : 'Apply',
-                  style: AppFonts.poppins(size: 12.5, weight: FontWeight.w600),
+                  style: AppFonts.poppins(
+                    size: 13,
+                    weight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ],
@@ -809,6 +904,32 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
           _draft.apiPackageSubtotal = pSub.toDouble();
         }
 
+        final tax = availData['salesTax'];
+        if (tax is num) {
+          _draft.apiSalesTax = tax.toDouble();
+        } else if (tax is String) {
+          _draft.apiSalesTax = double.tryParse(tax.replaceAll(RegExp(r'[^0-9.]'), ''));
+        }
+
+        final tRate = availData['taxRate'];
+        if (tRate is num) {
+          _draft.apiTaxRate = tRate.toDouble();
+        } else if (tRate is String) {
+          _draft.apiTaxRate = double.tryParse(tRate);
+        }
+
+        final totWithTax = availData['totalWithTax'];
+        if (totWithTax is num) {
+          _draft.apiTotalWithTax = totWithTax.toDouble();
+        } else if (totWithTax is String) {
+          _draft.apiTotalWithTax = double.tryParse(totWithTax.replaceAll(RegExp(r'[^0-9.]'), ''));
+        }
+
+        final stateName = availData['stateName']?.toString() ?? availData['stateCode']?.toString();
+        if (stateName != null && stateName.isNotEmpty && stateName != 'null') {
+          _draft.apiStateName = stateName;
+        }
+
         // ── Step 1b: Exact Slot Matching & Capacity Validation ───────────────
         _log.d("BookingReviewPage::_confirmBooking::Validating selected slot capacity");
 
@@ -996,6 +1117,11 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
           'is_preferred_groomer': isPreferredGroomer,
           'applied_offer': _draft.appliedOffer,
           'discount_amount': _draft.discountAmount,
+          'tax': _draft.apiSalesTax,
+          'sales_tax': _draft.apiSalesTax,
+          'tax_amount': _draft.apiSalesTax,
+          'tax_rate': _draft.apiTaxRate,
+          'total_with_tax': _draft.apiTotalWithTax ?? finalConfirmedPrice,
           if (notesText != null && notesText.isNotEmpty) ...{
             'specialInstructions': notesText,
             'special_instructions': notesText,
@@ -1122,7 +1248,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                     const SizedBox(height: 12),
                     _reviewCard(
                       image: _petImage(petPhoto),
-                      imageDecoration: petPhoto != null && petPhoto.isNotEmpty ? null : const Color(0xFFFAFAFA),
+                      imageDecoration: const Color(0xFFE5E5E5),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -1568,15 +1694,26 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
   }
 
   Widget _petImage(String? photo) {
+    final petName = _draft.pet?[Constants.database.COLUMN_PET_NAME]?.toString() ??
+        _draft.pet?['petName']?.toString() ??
+        _draft.pet?['name']?.toString() ??
+        '';
+    final fallbackAsset = PetImageHelper.getFallbackAsset(petName: petName);
     return PetImageHelper.buildImage(
       photoUrl: photo,
-      petName: _draft.pet?[Constants.database.COLUMN_PET_NAME]?.toString() ??
-          _draft.pet?['petName']?.toString() ??
-          _draft.pet?['name']?.toString(),
+      source: _draft.pet,
+      petName: petName,
+      fallbackAsset: fallbackAsset,
       width: double.infinity,
       height: double.infinity,
       fit: BoxFit.cover,
-      customFallback: const Center(child: Icon(Icons.pets, color: Colors.black, size: 32)),
+      customFallback: FigmaImage(
+        asset: fallbackAsset,
+        fit: BoxFit.cover,
+        fallback: const Center(
+          child: Icon(Icons.pets, color: Color(0xFF9CA3AF), size: 32),
+        ),
+      ),
     );
   }
 
@@ -2006,9 +2143,41 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
         appliedOffer?['couponCode']?.toString() ??
         '';
     final discount = _draft.discountAmount ?? 0.0;
-    final finalTotal = isApplied
-        ? (_draft.discountedTotalPrice ?? (subtotal - discount).clamp(0.0, double.infinity))
+
+    // Sales Tax calculation matching web ($v component):
+    final double? apiTax = _draft.apiSalesTax;
+    final double? apiTotWithTax = _draft.apiTotalWithTax;
+    final double rawTaxRate = _draft.apiTaxRate ??
+        (apiTax != null && subtotal > 0
+            ? apiTax / subtotal
+            : (apiTotWithTax != null && apiTotWithTax > subtotal && subtotal > 0
+                ? (apiTotWithTax - subtotal) / subtotal
+                : 0.0));
+
+    final double baseTax = apiTax != null && apiTax > 0
+        ? apiTax
+        : (apiTotWithTax != null && apiTotWithTax > subtotal
+            ? ((apiTotWithTax - subtotal) * 100).round() / 100
+            : (rawTaxRate > 0 ? ((subtotal * rawTaxRate * 100).round() / 100) : 0.0));
+
+    final double taxableAmount = isApplied
+        ? (subtotal - discount).clamp(0.0, double.infinity)
         : subtotal;
+
+    final double effectiveTax = isApplied
+        ? (rawTaxRate > 0 ? ((taxableAmount * rawTaxRate * 100).round() / 100) : baseTax)
+        : baseTax;
+
+    final double finalTotal = isApplied
+        ? ((taxableAmount + effectiveTax) * 100).round() / 100
+        : (apiTotWithTax != null && apiTotWithTax > 0
+            ? apiTotWithTax
+            : (((subtotal + effectiveTax) * 100).round() / 100));
+
+    final bool showTax = effectiveTax > 0.005;
+    final String taxLabel = (_draft.apiStateName != null && _draft.apiStateName!.isNotEmpty)
+        ? "Tax (${_draft.apiStateName})"
+        : "Tax";
 
     final serviceName = _draft.service?[Constants.database.COLUMN_SERVICE_NAME]?.toString() ??
         _draft.service?['service_name']?.toString() ??
@@ -2154,6 +2323,16 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
             ),
           ],
 
+          // Tax row (matching web)
+          if (showTax) ...[
+            const SizedBox(height: 8),
+            _priceRow(
+              label: taxLabel,
+              amount: '\$${effectiveTax.toStringAsFixed(2)}',
+              isSubtle: false,
+            ),
+          ],
+
           const SizedBox(height: 12),
           const Divider(height: 1, color: Color(0xFFE5E7EB)),
           const SizedBox(height: 12),
@@ -2194,7 +2373,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                 children: [
                   if (isApplied && discount > 0) ...[
                     Text(
-                      '\$${subtotal.toStringAsFixed(2)}',
+                      '\$${(subtotal + baseTax).toStringAsFixed(2)}',
                       style: AppFonts.poppins(
                         size: 13.5,
                         color: const Color(0xFF9CA3AF),

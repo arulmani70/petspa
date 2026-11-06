@@ -170,6 +170,13 @@ void main() {
     // Tap Apply in modal
     final modalApplyButton = find.widgetWithText(ElevatedButton, 'Apply');
     expect(modalApplyButton, findsOneWidget);
+
+    final elevatedBtn = tester.widget<ElevatedButton>(modalApplyButton);
+    expect(elevatedBtn.style?.backgroundColor?.resolve({}), equals(const Color(0xFF111827)));
+
+    final btnText = tester.widget<Text>(find.descendant(of: modalApplyButton, matching: find.text('Apply')));
+    expect(btnText.style?.color, equals(Colors.white));
+
     await tester.tap(modalApplyButton);
     await tester.pumpAndSettle();
 
