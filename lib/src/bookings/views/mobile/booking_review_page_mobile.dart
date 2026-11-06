@@ -456,7 +456,9 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -1091,9 +1093,13 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
         if (didPop) return;
         _handleBack();
       },
-      child: Scaffold(
-        backgroundColor: const Color(0xFFFAFAFA),
-      body: SafeArea(
+      child: MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          textScaler: MediaQuery.of(context).textScaler.clamp(minScaleFactor: 0.85, maxScaleFactor: 1.15),
+        ),
+        child: Scaffold(
+          backgroundColor: const Color(0xFFFAFAFA),
+          body: SafeArea(
         bottom: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1159,10 +1165,8 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              Flexible(
-                                flex: 1,
+                              Expanded(
                                 child: Row(
-                                  mainAxisSize: MainAxisSize.min,
                                   children: [
                                     SvgPicture.asset(
                                       'assets/images/pets/icon_pet_weight.svg',
@@ -1173,7 +1177,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                                           const Icon(Icons.fitness_center, size: 13, color: Color(0xFF374151)),
                                     ),
                                     const SizedBox(width: 4),
-                                    Flexible(
+                                    Expanded(
                                       child: RichText(
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
@@ -1193,10 +1197,8 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              Flexible(
-                                flex: 1,
+                              Expanded(
                                 child: Row(
-                                  mainAxisSize: MainAxisSize.min,
                                   children: [
                                     SvgPicture.asset(
                                       'assets/images/pets/icon_pet_age.svg',
@@ -1207,7 +1209,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                                           const Icon(Icons.pets, size: 13, color: Color(0xFF374151)),
                                     ),
                                     const SizedBox(width: 4),
-                                    Flexible(
+                                    Expanded(
                                       child: RichText(
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
@@ -1263,34 +1265,46 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                       ..._draft.addOns.map((addOn) {
                         final addOnName = addOn['name'] ?? addOn['service_name'] ?? addOn['title'] ?? 'Add-on';
                         final addOnDesc = addOn['description'] ?? addOn['short_description'] ?? '';
-                        final addOnPrice = _formatPrice(addOn['priceDisplay'] ?? addOn['price'] ?? addOn[Constants.database.COLUMN_PRICE]);
-                        final addOnDur = addOn['durationMinutes'] ?? addOn['duration'] ?? addOn['duration_minutes'];
+                        final addOnPrice = _formatPrice(addOn['price'] ?? addOn[Constants.database.COLUMN_PRICE] ?? addOn['priceDisplay']);
+                        final rawDur = addOn['durationMinutes'] ?? addOn['duration'] ?? addOn['duration_minutes'];
+                        String? durLabel;
+                        if (rawDur != null) {
+                          final durStr = rawDur.toString().trim();
+                          if (durStr.isNotEmpty && durStr != '0' && durStr != '0 min') {
+                            durLabel = durStr.toLowerCase().contains('min') ? durStr : '$durStr min';
+                          }
+                        }
 
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 12),
                           child: _reviewCard(
                             image: _serviceImage(addOn),
-                            height: 100,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
                               children: [
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
                                     Expanded(
                                       child: Text(
                                         addOnName.toString(),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: AppFonts.poppins(size: 16, weight: FontWeight.w600, color: Colors.black),
+                                        style: AppFonts.poppins(size: 15.5, weight: FontWeight.w600, color: Colors.black),
                                       ),
                                     ),
-                                    if (addOnPrice.isNotEmpty)
-                                      Text(
-                                        addOnPrice,
-                                        style: AppFonts.poppins(size: 14.5, weight: FontWeight.w700, color: Colors.black),
+                                    if (addOnPrice.isNotEmpty) ...[
+                                      const SizedBox(width: 8),
+                                      Flexible(
+                                        child: Text(
+                                          addOnPrice,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: AppFonts.poppins(size: 14, weight: FontWeight.w700, color: Colors.black),
+                                        ),
                                       ),
+                                    ],
                                   ],
                                 ),
                                 if (addOnDesc.toString().isNotEmpty) ...[
@@ -1299,18 +1313,22 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                                     addOnDesc.toString(),
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
-                                    style: AppFonts.poppins(size: 12.5, weight: FontWeight.w300, color: const Color(0xFF6B7280)),
+                                    style: AppFonts.poppins(size: 12, weight: FontWeight.w300, color: const Color(0xFF6B7280)),
                                   ),
                                 ],
-                                if (addOnDur != null) ...[
-                                  const SizedBox(height: 3),
+                                if (durLabel != null) ...[
+                                  const SizedBox(height: 4),
                                   Row(
                                     children: [
-                                      const Icon(Icons.access_time, size: 12, color: Color(0xFF6B7280)),
+                                      const Icon(Icons.access_time_rounded, size: 12, color: Color(0xFF6B7280)),
                                       const SizedBox(width: 4),
-                                      Text(
-                                        '$addOnDur min',
-                                        style: AppFonts.poppins(size: 11.5, weight: FontWeight.w500, color: const Color(0xFF6B7280)),
+                                      Expanded(
+                                        child: Text(
+                                          durLabel,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: AppFonts.poppins(size: 11.5, weight: FontWeight.w500, color: const Color(0xFF6B7280)),
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -1482,6 +1500,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
           ],
         ),
       ),
+      ),
     ),
   );
 }
@@ -1499,13 +1518,26 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
 
   String _formatPrice(dynamic price) {
     if (price == null) return '';
-    if (price is num) return '\$${price.toStringAsFixed(0)}';
+    if (price is num) {
+      return price % 1 == 0
+          ? '\$${price.toInt()}'
+          : '\$${price.toStringAsFixed(2)}';
+    }
     final str = price.toString().trim();
     if (str.isEmpty || str.toLowerCase() == 'null' || str.toLowerCase() == 'n/a') return '';
+    // If str contains catalogue multi-tier info like "$14.00small / $18 medium / $22 large", strip it down to the leading price
+    final match = RegExp(r'^\$?\s*([0-9]+(?:\.[0-9]+)?)').firstMatch(str);
+    if (match != null) {
+      final numStr = match.group(1)!;
+      final numVal = double.tryParse(numStr);
+      if (numVal != null) {
+        final isUp = str.toLowerCase().contains('& up') || str.toLowerCase().contains('&up');
+        final base = numVal % 1 == 0 ? '\$${numVal.toInt()}' : '\$${numVal.toStringAsFixed(2)}';
+        return isUp ? '$base & up' : base;
+      }
+    }
     if (str.startsWith('\$')) return str;
-    final numVal = double.tryParse(str.replaceAll(RegExp(r'[^0-9.]'), ''));
-    if (numVal != null) return '\$${numVal.toStringAsFixed(0)}';
-    return str;
+    return '\$$str';
   }
 
   String _formatSlotTime(String slot) {
@@ -1586,19 +1618,30 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
         service?['name']?.toString() ??
         service?['packageName']?.toString() ??
         service?['package_name']?.toString();
-    final fallback = serviceAssetFor(name) ??
-        (isPkg ? 'assets/images/home/promo_dog.png' : null);
-    if (fallback != null) {
-      return Image.asset(
-        fallback,
-        width: double.infinity,
-        height: double.infinity,
-        fit: effectiveFit,
-        errorBuilder: (c, e, s) => _defaultServiceIcon(),
-      );
-    }
-
-    return _defaultServiceIcon();
+    final liveUrl = ServiceRepository.liveServiceImageUrl(name ?? '');
+    return Image.network(
+      liveUrl,
+      width: double.infinity,
+      height: double.infinity,
+      fit: effectiveFit,
+      headers: const {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+      },
+      errorBuilder: (c, e, s) {
+        final fallback = serviceAssetFor(name) ??
+            (isPkg ? 'assets/images/home/promo_dog.png' : null);
+        if (fallback != null) {
+          return Image.asset(
+            fallback,
+            width: double.infinity,
+            height: double.infinity,
+            fit: effectiveFit,
+            errorBuilder: (c2, e2, s2) => _defaultServiceIcon(),
+          );
+        }
+        return _defaultServiceIcon();
+      },
+    );
   }
 
   Widget _defaultServiceIcon() {
@@ -1651,21 +1694,29 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
     required Widget child,
     required Widget image,
     Color? imageDecoration,
-    double height = 109,
+    double? height,
   }) {
     return Container(
-      constraints: BoxConstraints(minHeight: height),
-      padding: const EdgeInsets.fromLTRB(9, 10, 12, 10),
+      width: double.infinity,
+      constraints: BoxConstraints(minHeight: height ?? 96),
+      padding: const EdgeInsets.fromLTRB(10, 10, 12, 10),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            width: 89,
-            height: 89,
+            width: 80,
+            height: 80,
             clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
               color: imageDecoration ?? const Color(0xFFFAFAFA),
@@ -1800,7 +1851,6 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
         GestureDetector(
           onTap: _showAvailableOffersModal,
           child: Row(
-            mainAxisSize: MainAxisSize.min,
             children: [
               SvgPicture.asset(
                 'assets/images/bookings/fi_1076745_1_1768.svg',
@@ -1811,13 +1861,17 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                     const Icon(Icons.card_giftcard_outlined, size: 15, color: Color(0xFF374151)),
               ),
               const SizedBox(width: 6),
-              Text(
-                "View available offers",
-                style: AppFonts.poppins(
-                  size: 13,
-                  weight: FontWeight.w500,
-                  color: const Color(0xFF374151),
-                ).copyWith(decoration: TextDecoration.underline),
+              Expanded(
+                child: Text(
+                  "View available offers",
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppFonts.poppins(
+                    size: 13,
+                    weight: FontWeight.w500,
+                    color: const Color(0xFF374151),
+                  ).copyWith(decoration: TextDecoration.underline),
+                ),
               ),
             ],
           ),
@@ -1859,6 +1913,8 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                     children: [
                       Text(
                         "$appliedCode applied",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: AppFonts.poppins(
                           size: 15,
                           weight: FontWeight.w700,
@@ -1868,6 +1924,8 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                       const SizedBox(height: 2),
                       Text(
                         offerDesc,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: AppFonts.poppins(
                           size: 13,
                           weight: FontWeight.w400,
@@ -1929,8 +1987,9 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
     }
 
     double subtotal = _draft.totalPrice ?? _draft.estimatedTotal;
-    if (subtotal <= 0.0) {
-      subtotal = servicePrice + addOnsTotal;
+    final minSubtotal = servicePrice + addOnsTotal;
+    if (subtotal <= 0.0 || (addOnsTotal > 0 && subtotal < minSubtotal)) {
+      subtotal = minSubtotal;
     }
     if (servicePrice <= 0.0 && addOnsTotal <= 0.0 && subtotal > 0.0) {
       servicePrice = subtotal;
@@ -1977,13 +2036,21 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
               children: [
                 const Icon(Icons.access_time_rounded, size: 14, color: Color(0xFF6B7280)),
                 const SizedBox(width: 6),
-                Text(
-                  "Appointment length: ",
-                  style: AppFonts.poppins(size: 12.5, color: const Color(0xFF6B7280)),
-                ),
-                Text(
-                  "$durationMinutes min",
-                  style: AppFonts.poppins(size: 12.5, weight: FontWeight.w600, color: const Color(0xFF111827)),
+                Expanded(
+                  child: RichText(
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    text: TextSpan(
+                      style: AppFonts.poppins(size: 12.5, color: const Color(0xFF6B7280)),
+                      children: [
+                        const TextSpan(text: "Appointment length: "),
+                        TextSpan(
+                          text: "$durationMinutes min",
+                          style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF111827)),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -2025,45 +2092,57 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFDCFCE7),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.check_circle_rounded, size: 12, color: Color(0xFF15803D)),
-                          const SizedBox(width: 4),
-                          Text(
-                            appliedCode.isNotEmpty ? appliedCode : "COUPON",
-                            style: AppFonts.poppins(
-                              size: 11,
-                              weight: FontWeight.w700,
-                              color: const Color(0xFF15803D),
-                              letterSpacing: 0.3,
+                Expanded(
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDCFCE7),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.check_circle_rounded, size: 12, color: Color(0xFF15803D)),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                appliedCode.isNotEmpty ? appliedCode : "COUPON",
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppFonts.poppins(
+                                  size: 11,
+                                  weight: FontWeight.w700,
+                                  color: const Color(0xFF15803D),
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
                             ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          "Coupon discount",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppFonts.poppins(
+                            size: 13.5,
+                            weight: FontWeight.w500,
+                            color: const Color(0xFF15803D),
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      "Coupon discount",
-                      style: AppFonts.poppins(
-                        size: 13.5,
-                        weight: FontWeight.w500,
-                        color: const Color(0xFF15803D),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 8),
                 Text(
                   "−\$${discount.toStringAsFixed(2)}",
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: AppFonts.poppins(
                     size: 14,
                     weight: FontWeight.w700,
@@ -2082,29 +2161,35 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    isApplied ? "Total after coupon" : "Appointment total",
-                    style: AppFonts.poppins(
-                      size: 15,
-                      weight: FontWeight.w700,
-                      color: const Color(0xFF111827),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isApplied ? "Total after coupon" : "Appointment total",
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppFonts.poppins(
+                        size: 15,
+                        weight: FontWeight.w700,
+                        color: const Color(0xFF111827),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    "Pay at salon",
-                    style: AppFonts.poppins(
-                      size: 11.5,
-                      weight: FontWeight.w400,
-                      color: const Color(0xFF6B7280),
+                    const SizedBox(height: 2),
+                    Text(
+                      "Pay at salon",
+                      style: AppFonts.poppins(
+                        size: 11.5,
+                        weight: FontWeight.w400,
+                        color: const Color(0xFF6B7280),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   if (isApplied && discount > 0) ...[
                     Text(
@@ -2161,6 +2246,8 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
         const SizedBox(width: 12),
         Text(
           amount,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: AppFonts.poppins(
             size: 13.5,
             weight: isBold ? FontWeight.w700 : FontWeight.w500,

@@ -228,12 +228,6 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
               tabViews.add(_AddOnTab(addOns: bs.addOns, draft: _draft));
             }
 
-            // 4. Walk-In tab
-            if (bs.walkIn.isNotEmpty) {
-              tabs.add(const _TabDef(label: 'Walk-In', icon: Icons.directions_walk));
-              tabViews.add(_WalkInTab(items: bs.walkIn, draft: _draft));
-            }
-
             if (tabs.isEmpty) {
               return _EmptyScaffold(
                 petName: petName,
@@ -263,8 +257,12 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
                   if (didPop) return;
                   _handleBack(context);
                 },
-                child: Scaffold(
-                  backgroundColor: _kPageBg,
+                child: MediaQuery(
+                  data: MediaQuery.of(context).copyWith(
+                    textScaler: MediaQuery.of(context).textScaler.clamp(minScaleFactor: 0.85, maxScaleFactor: 1.15),
+                  ),
+                  child: Scaffold(
+                    backgroundColor: _kPageBg,
                   body: SafeArea(
                     bottom: false,
                     child: Column(
@@ -318,7 +316,8 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
                   ),
                 ),
               ),
-            );
+            ),
+          );
           },
         );
       },
@@ -408,13 +407,18 @@ class _PetStrip extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (name.isNotEmpty)
-                  Text(name,
-                      style: AppFonts.poppins(size: 13, weight: FontWeight.w600)),
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppFonts.poppins(size: 13, weight: FontWeight.w600),
+                  ),
                 if (breed.isNotEmpty)
                   Text(
                     '$breed${weight.isNotEmpty ? '  ·  $weight' : ''}',
-                    style: AppFonts.poppins(
-                        size: 11, color: _kSubText),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppFonts.poppins(size: 11, color: _kSubText),
                   ),
               ],
             ),
@@ -671,43 +675,6 @@ class _AddOnTab extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// WALK-IN TAB
-// ─────────────────────────────────────────────────────────────────────────────
-class _WalkInTab extends StatelessWidget {
-  final List<ServiceItem> items;
-  final BookingDraft draft;
-  const _WalkInTab({required this.items, required this.draft});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: draft,
-      builder: (ctx, _) => ListView(
-        padding: const EdgeInsets.fromLTRB(17, 16, 17, 120),
-        children: items.map((item) => Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _ServiceCard(
-            item      : item,
-            isSelected: draft.service?['serviceId'] == item.id,
-            isAddOn   : false,
-            onTap     : () {
-              draft.setService(item.toMap());
-              if (draft.pet == null) {
-                draft.setPet({
-                  'pet_name': 'My Pet',
-                  'breed': 'All Breeds',
-                  'weight': 'Standard',
-                  'photo_url': item.imageUrl,
-                });
-              }
-            },
-          ),
-        )).toList(),
-      ),
-    );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SERVICE CARD
@@ -914,6 +881,7 @@ class _Badge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      constraints: const BoxConstraints(maxWidth: 195),
       padding    : const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration : BoxDecoration(
         color       : bg,
@@ -924,9 +892,18 @@ class _Badge extends StatelessWidget {
         children: [
           Icon(icon, size: 12, color: color),
           const SizedBox(width: 3),
-          Text(label,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: AppFonts.poppins(
-                  size: 11, weight: FontWeight.w600, color: color)),
+                size: 11,
+                weight: FontWeight.w600,
+                color: color,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -990,11 +967,41 @@ class _ServiceImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final url = item.imageUrl;
+    final url = (item.imageUrl != null && item.imageUrl!.isNotEmpty)
+        ? item.imageUrl
+        : ServiceRepository.liveServiceImageUrl(item.name, id: item.id);
     final fullUrl = ServiceRepository.resolveImageUrl(url);
     if (fullUrl == null || fullUrl.isEmpty) return _placeholder();
 
     if (fullUrl.startsWith('assets/')) {
+      final remoteUrl = ServiceRepository.resolveImageUrl(fullUrl);
+      if (remoteUrl != null && (remoteUrl.startsWith('http://') || remoteUrl.startsWith('https://'))) {
+        return Image.network(
+          remoteUrl,
+          width: double.infinity,
+          height: double.infinity,
+          fit: _effectiveFit,
+          alignment: Alignment.center,
+          headers: const {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+          },
+          errorBuilder: (ctx, err, st) => _placeholder(),
+          loadingBuilder: (ctx, child, progress) {
+            if (progress == null) return child;
+            return Container(
+              width: double.infinity,
+              height: double.infinity,
+              color: const Color(0xFFF3F4F6),
+              alignment: Alignment.center,
+              child: const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2, color: _kBlack),
+              ),
+            );
+          },
+        );
+      }
       return FigmaImage(
         asset: fullUrl,
         width: double.infinity,
@@ -1096,12 +1103,16 @@ class ServiceRequestDescriptionCard extends StatelessWidget {
             children: [
               const Icon(Icons.edit_note_rounded, size: 18, color: _kBlack),
               const SizedBox(width: 6),
-              Text(
-                'Service Request Description',
-                style: AppFonts.poppins(
-                  size: 13,
-                  weight: FontWeight.w600,
-                  color: _kBlack,
+              Expanded(
+                child: Text(
+                  'Service Request Description',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppFonts.poppins(
+                    size: 13,
+                    weight: FontWeight.w600,
+                    color: _kBlack,
+                  ),
                 ),
               ),
               const SizedBox(width: 6),

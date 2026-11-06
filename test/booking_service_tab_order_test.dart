@@ -117,13 +117,15 @@ void main() {
       expect(result.packages, isNotEmpty);
       expect(result.packages.first.name, equals('Special Package'));
 
-      // Main Services must be loaded into breeds/services
+      // Main Services must be loaded into breeds/services with live images
       expect(result.breeds, isNotEmpty);
       expect(result.breeds.length, equals(2));
       expect(result.breeds[0].name, equals('Grooming'));
       expect(result.breeds[0].id, equals(193));
+      expect(result.breeds[0].imageUrl, contains('svc_full_grooming.png'));
       expect(result.breeds[1].name, equals('Bathing'));
       expect(result.breeds[1].id, equals(194));
+      expect(result.breeds[1].imageUrl, contains('svc_bath_blowdry.png'));
 
       expect(result.addOns, isNotEmpty);
       expect(result.walkIn, isNotEmpty);
@@ -166,20 +168,17 @@ void main() {
       expect(packagesTab, findsOneWidget);
       expect(servicesTab, findsOneWidget);
       expect(addOnsTab, findsOneWidget);
-      expect(walkInTab, findsOneWidget);
+      expect(walkInTab, findsNothing); // Walk-In tab should not be displayed in Select Service
 
-      // Verify Tab Order: Packages (x < Services x)
+      // Verify Tab Order: Packages (x < Services x < Add-Ons x)
       final packagesOffset = tester.getTopLeft(packagesTab);
       final servicesOffset = tester.getTopLeft(servicesTab);
       final addOnsOffset = tester.getTopLeft(addOnsTab);
-      final walkInOffset = tester.getTopLeft(walkInTab);
 
       // Packages is before Services
       expect(packagesOffset.dx, lessThan(servicesOffset.dx));
       // Services is before Add-Ons
       expect(servicesOffset.dx, lessThan(addOnsOffset.dx));
-      // Add-Ons is before Walk-In
-      expect(addOnsOffset.dx, lessThan(walkInOffset.dx));
 
       // Tap on the Services tab
       await tester.tap(servicesTab);
@@ -197,6 +196,68 @@ void main() {
       expect(draft.service!['name'], equals('Grooming'));
       expect(draft.service!['serviceId'], equals(193));
       expect(draft.isPackageSelected, isFalse);
+    });
+
+    test('ServiceRepository.liveServiceImageUrl and resolveImageUrl produce live URLs', () {
+      expect(
+        ServiceRepository.liveServiceImageUrl('Grooming'),
+        equals('https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_full_grooming.png'),
+      );
+      expect(
+        ServiceRepository.liveServiceImageUrl('Bathing'),
+        equals('https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_bath_blowdry.png'),
+      );
+      expect(
+        ServiceRepository.liveServiceImageUrl('Grooming and Bathing'),
+        equals('https://pcmdev.shearheavenpetspa.com/assets/images/home/promo_dog.png'),
+      );
+      expect(
+        ServiceRepository.resolveImageUrl('assets/images/common/svc_full_grooming.png'),
+        equals('assets/images/common/svc_full_grooming.png'),
+      );
+      expect(
+        ServiceRepository.resolveImageUrl('/assets/images/common/svc_spa.png'),
+        equals('https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_spa.png'),
+      );
+    });
+
+    testWidgets('Step 2 of 4 Add-Ons tab renders on narrow 320px screen without right side overflow', (tester) async {
+      tester.view.physicalSize = const Size(320, 700);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      draft.setPet({
+        'id': 1,
+        'pet_name': 'Max',
+        'breed': 'Golden Retriever',
+        'weight': 'Large',
+      });
+
+      final bloc = ServiceBloc(repository: serviceRepo)..add(const InitializeServices());
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BlocProvider<ServiceBloc>.value(
+            value: bloc,
+            child: const BookingServicePageMobile(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final addOnsTab = find.text('Add-Ons');
+      expect(addOnsTab, findsOneWidget);
+
+      await tester.tap(addOnsTab);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Flea Bath'), findsOneWidget);
+      // Tapping add-on selects it in draft
+      await tester.tap(find.text('Flea Bath'));
+      await tester.pumpAndSettle();
+
+      expect(draft.addOns.length, equals(1));
     });
   });
 }

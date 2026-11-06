@@ -558,38 +558,40 @@ class ServiceRepository {
     ['Gentle Puppy Bath', 'Brush Out', 'Nail Trim', 'Positive Intro Styling'],
   ];
 
-  /// Resolves relative, localhost, or outdated image URLs against the official API base URL.
+  /// Resolves relative, localhost, or outdated image URLs against the official API base URL or web portal host.
   static String? resolveImageUrl(dynamic rawUrl) {
     if (rawUrl == null) return null;
     final s = rawUrl.toString().trim();
     if (s.isEmpty || s == 'null' || s == 'undefined') return null;
 
+    if (s.startsWith('http://') || s.startsWith('https://')) {
+      final uri = Uri.tryParse(s);
+      if (uri != null &&
+          uri.host.isNotEmpty &&
+          uri.host != 'localhost' &&
+          uri.host != '127.0.0.1' &&
+          uri.host != '10.0.2.2' &&
+          !uri.host.contains('genzcodershub.com') &&
+          !uri.host.contains('devapi.shearheavenpetspa.com')) {
+        return s;
+      }
+    }
+
     if (s.startsWith('assets/')) {
       return s;
     }
-
-    final baseUrl = Constants.app.BASE_URL;
 
     // Static web portal assets (e.g. /assets/images/...) live on the web portal host
     if (s.startsWith('/assets/')) {
       return 'https://pcmdev.shearheavenpetspa.com$s';
     }
 
+    final baseUrl = Constants.app.BASE_URL;
+
     final uri = Uri.tryParse(s);
     if (uri == null) {
       final clean = s.startsWith('/') ? s : '/$s';
       return '$baseUrl$clean';
-    }
-
-    // Keep external remote URLs that are neither localhost nor old hosts
-    if (uri.hasScheme &&
-        uri.host.isNotEmpty &&
-        uri.host != 'localhost' &&
-        uri.host != '127.0.0.1' &&
-        uri.host != '10.0.2.2' &&
-        !uri.host.contains('genzcodershub.com') &&
-        !uri.host.contains('devapi.shearheavenpetspa.com')) {
-      return s;
     }
 
     final path = uri.path.startsWith('/') ? uri.path : '/${uri.path}';
@@ -600,6 +602,40 @@ class ServiceRepository {
     return '$baseUrl$path$query';
   }
 
+  /// Returns a live network image URL for a service or package by inspecting its API raw image or name.
+  static String liveServiceImageUrl(String name, {String? rawUrl, int? id}) {
+    if (rawUrl != null && rawUrl.trim().isNotEmpty) {
+      final resolved = resolveImageUrl(rawUrl);
+      if (resolved != null && resolved.isNotEmpty) return resolved;
+    }
+
+    final clean = name.toLowerCase();
+    if (clean.contains('groom') && clean.contains('bath')) {
+      return 'https://pcmdev.shearheavenpetspa.com/assets/images/home/promo_dog.png';
+    } else if (clean.contains('groom') || clean.contains('cut') || clean.contains('style')) {
+      return 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_full_grooming.png';
+    } else if (clean.contains('bath') || clean.contains('wash')) {
+      return 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_bath_blowdry.png';
+    } else if (clean.contains('hydro') || clean.contains('spa') || clean.contains('4hr') || clean.contains('4-hour')) {
+      return 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_spa.png';
+    } else if (clean.contains('skin') || clean.contains('coat') || clean.contains('allergy') || clean.contains('medic')) {
+      return 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_skin_care.png';
+    } else if (clean.contains('puppy')) {
+      return 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_puppy.png';
+    } else if (clean.contains('deshed') || clean.contains('brush') || clean.contains('dematt')) {
+      return 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_deshed.png';
+    } else if (clean.contains('teeth') || clean.contains('breath') || clean.contains('dental')) {
+      return 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_teeth_brush.png';
+    } else if (clean.contains('nail')) {
+      return 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_nail_trim.png';
+    } else if (clean.contains('ear')) {
+      return 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_ear_clean.png';
+    } else if (clean.contains('trim') || clean.contains('hygiene') || clean.contains('sanitary') || clean.contains('touch-up')) {
+      return 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_hair_trim.png';
+    }
+    return 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_full_grooming.png';
+  }
+
   static double _parseDouble(dynamic v) {
     if (v == null) return 0.0;
     if (v is num) return v.toDouble();
@@ -607,14 +643,19 @@ class ServiceRepository {
     return double.tryParse(s) ?? 0.0;
   }
 
-  /// Returns a display-ready price string, e.g. "$45" or "$18.00 & up".
+  /// Returns a display-ready price string, e.g. "$45" or "$18 & up".
   static String _priceDisplay(dynamic rawPrice, dynamic suffix) {
     if (rawPrice == null) return '';
     final s = rawPrice.toString().trim();
     if (s.isEmpty || s == '0' || s == '0.0') return '';
     final leading = s.startsWith(r'$') ? s : '\$$s';
     final sfx = (suffix?.toString().trim() ?? '');
-    return sfx.isNotEmpty ? '$leading$sfx' : leading;
+    if (sfx.isEmpty) return leading;
+    // Multi-tier size breakdown like "small / $18 medium / $22 large" means price varies by pet size -> "& up"
+    if (sfx.contains('/') || sfx.toLowerCase().contains('medium') || sfx.toLowerCase().contains('large')) {
+      return '$leading & up';
+    }
+    return sfx.startsWith(' ') ? '$leading$sfx' : '$leading $sfx';
   }
 
   /// Returns resolved imageUrl from the map (checks several casing variants).
@@ -725,7 +766,8 @@ class ServiceRepository {
               String subType, Map<dynamic, dynamic> m, int catalogId) {
             final price = _parseDouble(m['Price'] ?? m['price']);
             final dur = _parseDuration(m['TimeinMinutes'] ?? m['timeInMinutes']);
-            final img = _imageUrl(m) ?? breedImg;
+            final rawImg = _imageUrl(m) ?? breedImg;
+            final itemImg = liveServiceImageUrl(subType, rawUrl: rawImg, id: catalogId);
             breeds.add(ServiceItem(
               id: catalogId,
               isPackage: false,
@@ -735,7 +777,7 @@ class ServiceRepository {
               price: price,
               priceDisplay: _priceDisplay(m['Price'] ?? m['price'], null),
               durationMinutes: dur > 0 ? dur : 60,
-              imageUrl: img,
+              imageUrl: itemImg,
               includes: [
                 '$subType tailored to $breedName coat',
                 'Nail trim and ear cleanse included',
@@ -785,6 +827,9 @@ class ServiceRepository {
                   .toList()
               : <String>[];
 
+          final rawImg = _imageUrl(m);
+          final serviceImg = liveServiceImageUrl(name, rawUrl: rawImg, id: currentSvcId);
+
           breeds.add(ServiceItem(
             id: currentSvcId,
             code: code,
@@ -795,7 +840,7 @@ class ServiceRepository {
             price: price,
             priceDisplay: _priceDisplay(m['Price'] ?? m['price'], null),
             durationMinutes: dur > 0 ? dur : 60,
-            imageUrl: _imageUrl(m),
+            imageUrl: serviceImg,
             includes: includes.isNotEmpty
                 ? includes
                 : [
@@ -961,6 +1006,9 @@ class ServiceRepository {
             desc = _defaultAddOnDescription(name);
           }
 
+          final rawImg = _imageUrl(a);
+          final addOnImg = liveServiceImageUrl(name, rawUrl: rawImg, id: currentAddonId);
+
           addOns.add(ServiceItem(
             id: currentAddonId,
             code: code,
@@ -971,7 +1019,7 @@ class ServiceRepository {
             price: price,
             priceDisplay: _priceDisplay(a['Price'] ?? a['price'], suffix),
             durationMinutes: dur,
-            imageUrl: _imageUrl(a),
+            imageUrl: addOnImg,
             includes: includes.isNotEmpty ? includes : [name],
           ));
         }

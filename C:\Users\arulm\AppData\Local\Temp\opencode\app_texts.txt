@@ -112,9 +112,9 @@
   "1" fs=14.0 fw=ww400 fam=Poppins_regular pos=(?,?) lh=null ls=null
   "2" fs=14.0 fw=ww400 fam=Poppins_regular pos=(?,?) lh=null ls=null
   "3" fs=14.0 fw=ww400 fam=Poppins_regular pos=(?,?) lh=null ls=null
-  "4" fs=14.0 fw=ww600 fam=Poppins_600 pos=(?,?) lh=null ls=null
+  "4" fs=14.0 fw=ww400 fam=Poppins_regular pos=(?,?) lh=null ls=null
   "5" fs=14.0 fw=ww400 fam=Poppins_regular pos=(?,?) lh=null ls=null
-  "6" fs=14.0 fw=ww400 fam=Poppins_regular pos=(285,260) lh=null ls=null
+  "6" fs=14.0 fw=ww600 fam=Poppins_600 pos=(285,260) lh=null ls=null
   "7" fs=14.0 fw=ww400 fam=Poppins_regular pos=(332,260) lh=null ls=null
   "8" fs=14.0 fw=ww400 fam=Poppins_regular pos=(49,288) lh=null ls=null
   "9" fs=14.0 fw=ww400 fam=Poppins_regular pos=(96,288) lh=null ls=null
@@ -160,15 +160,20 @@
   "View available offers" fs=13.0 fw=ww500 fam=Poppins_500 pos=(38,232) lh=null ls=null
   "Selected Pet" fs=16.0 fw=ww600 fam=Poppins_600 pos=(17,292) lh=null ls=null
   "Edit" fs=15.0 fw=ww400 fam=Poppins_regular pos=(?,?) lh=null ls=null
-  "My Pet" fs=18.0 fw=ww700 fam=Poppins_700 pos=(127,346) lh=null ls=null
-  "Selected Service" fs=16.0 fw=ww600 fam=Poppins_600 pos=(17,460) lh=null ls=null
-  "Full Grooming" fs=17.0 fw=ww600 fam=Poppins_600 pos=(127,517) lh=null ls=null
-  "Bath, trim, nails, and ears — the complete pampering session." fs=13.0 fw=ww300 fam=Poppins_300 pos=(127,545) lh=null ls=null
-  "Selected Date & Time" fs=16.0 fw=ww600 fam=Poppins_600 pos=(17,628) lh=null ls=null
-  "Nov 4, 2026 · " fs=17.0 fw=ww600 fam=Poppins_600 pos=(127,694) lh=null ls=null
-  "No groomer preference" fs=13.0 fw=ww300 fam=Poppins_300 pos=(127,722) lh=null ls=null
-  "Notes for the groomer (optional)" fs=16.0 fw=ww600 fam=Poppins pos=(17,796) lh=null ls=null
-  "Eg: Teddy gets a little anxious with dryers..." fs=14.0 fw=ww300 fam=Poppins pos=(32,870) lh=1.1428571428571428 ls=0.0
+  "My Pet" fs=18.0 fw=ww700 fam=Poppins_700 pos=(119,341) lh=null ls=null
+  "Selected Service" fs=16.0 fw=ww600 fam=Poppins_600 pos=(17,451) lh=null ls=null
+  "Full Grooming" fs=17.0 fw=ww600 fam=Poppins_600 pos=(?,?) lh=null ls=null
+  "Bath, trim, nails, and ears — the complete pampering session." fs=13.0 fw=ww300 fam=Poppins_300 pos=(119,531) lh=null ls=null
+  "Selected Date & Time" fs=16.0 fw=ww600 fam=Poppins_600 pos=(17,610) lh=null ls=null
+  "Nov 6, 2026 · " fs=17.0 fw=ww600 fam=Poppins_600 pos=(119,672) lh=null ls=null
+  "No groomer preference" fs=13.0 fw=ww300 fam=Poppins_300 pos=(119,700) lh=null ls=null
+  "Notes for the groomer (optional)" fs=16.0 fw=ww600 fam=Poppins pos=(17,769) lh=null ls=null
+  "Eg: Teddy gets a little anxious with dryers..." fs=14.0 fw=ww300 fam=Poppins pos=(32,843) lh=1.1428571428571428 ls=0.0
+  "Amount Details" fs=16.0 fw=ww600 fam=Poppins_600 pos=(17,945) lh=null ls=null
+  "$0.00" fs=13.5 fw=ww500 fam=Poppins_500 pos=(?,?) lh=null ls=null
+  "Subtotal" fs=13.5 fw=ww600 fam=Poppins_600 pos=(34,1037) lh=null ls=null
+  "Appointment total" fs=15.0 fw=ww700 fam=Poppins_700 pos=(34,1081) lh=null ls=null
+  "Pay at salon" fs=11.5 fw=ww400 fam=Poppins_regular pos=(34,1104) lh=null ls=null
   "Payment is handled at the salon. No online payment required to confirm." fs=13.0 fw=ww400 fam=Poppins pos=(66,664) lh=null ls=null
   "Confirm Booking" fs=18.0 fw=ww700 fam=Parkinsans_700 pos=(116,779) lh=null ls=null
 
