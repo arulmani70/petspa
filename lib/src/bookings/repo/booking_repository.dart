@@ -90,12 +90,13 @@ class BookingRepository {
     List<int>? addOnIds,
     int? groomerId,
     int? petId,
+    String? petSizeKey,
   }) async {
     try {
       // Enforce 14-day booking window restriction
       BookingDateUtils.validateDateString(date);
 
-      log.d('BookingRepository::getAvailability::Fetching slot availability for $date serviceId=$serviceId packageId=$packageId petId=$petId');
+      log.d('BookingRepository::getAvailability::Fetching slot availability for $date serviceId=$serviceId packageId=$packageId petId=$petId groomerId=$groomerId petSizeKey=$petSizeKey');
       final session = ServicesLocator.sessionService;
       final clientId = session.clientId ?? 'SHEAR-001';
       final regionId = session.regionId ?? 'DWG-001';
@@ -104,15 +105,19 @@ class BookingRepository {
       final canonicalGroomId = BookingDateUtils.resolveCanonicalGroomerId(groomerId);
 
       final payload = <String, dynamic>{
-        'ClientId' : clientId,
-        'RegionId' : regionId,
-        'StoreId'  : storeId,
-        'date'     : date,
-        if (serviceId != null && serviceId > 0) 'serviceId': serviceId,
-        if (packageId != null && packageId > 0) 'packageId': packageId,
-        if (addOnIds != null && addOnIds.isNotEmpty) 'addOnIds': addOnIds,
-        if (canonicalGroomId != null && canonicalGroomId > 0) 'groomerId': canonicalGroomId,
+        'ClientId'      : clientId,
+        'RegionId'      : regionId,
+        'StoreId'       : storeId,
+        'date'          : date,
+        'serviceId'     : (serviceId != null && serviceId > 0) ? serviceId : null,
+        'extraServiceId': null,
+        'packageId'     : (packageId != null && packageId > 0) ? packageId : null,
+        'addOnIds'      : addOnIds ?? <int>[],
+        'groomerId'     : (canonicalGroomId != null && canonicalGroomId > 0) ? canonicalGroomId : 0,
         if (petId != null && petId > 0) 'petId': petId,
+        'petSizeKey'    : (petSizeKey != null && petSizeKey.isNotEmpty)
+            ? petSizeKey.toLowerCase()
+            : 'small',
       };
 
       Map<String, dynamic>? response;
@@ -124,7 +129,7 @@ class BookingRepository {
         // safely fallback to salon-wide availability to keep booking functional
         if (canonicalGroomId != null && canonicalGroomId > 0) {
           log.w('BookingRepository::getAvailability::Failed with groomerId=$canonicalGroomId, retrying salon-wide: $postError');
-          final fallbackPayload = Map<String, dynamic>.from(payload)..remove('groomerId');
+          final fallbackPayload = Map<String, dynamic>.from(payload)..['groomerId'] = 0;
           response = await ServicesLocator.apiRepository
               .post('/api/availability', fallbackPayload);
         } else {

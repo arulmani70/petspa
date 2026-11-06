@@ -38,6 +38,8 @@ class ServiceItem {
     Constants.database.COLUMN_ID          : id,
     'serviceId'                           : (isPackage || isAddOn) ? null : id,
     'packageId'                           : isPackage ? id   : null,
+    'packageMasterId'                     : isPackage ? id   : null,
+    'serviceMasterId'                     : (!isPackage && !isAddOn) ? id : null,
     'package_id'                          : isPackage ? (code ?? id.toString()) : null,
     'addOnId'                             : isAddOn   ? id   : null,
     'id'                                  : id,
@@ -898,7 +900,9 @@ class ServiceRepository {
       if (data['Packages'] is List) {
         for (final p in data['Packages'] as List) {
           if (p is! Map) continue;
-          final currentPkgId = pkgCounter++;
+          final rawMasterId = p['PackageMasterId'] ?? p['packageMasterId'];
+          final masterIdInt = int.tryParse(rawMasterId?.toString() ?? '');
+          final currentPkgId = masterIdInt ?? pkgCounter++;
           final code = (p['PackageId'] ?? p['id'] ?? 'P000$currentPkgId').toString().trim();
 
           String name = (p['PackageName'] ?? p['packageName'] ?? p['name'] ?? '')

@@ -15,7 +15,7 @@ void main() {
       expect(serviceAssetFor('Royal VIP Spa Package 4144'), 'assets/images/common/svc_spa.png');
       expect(serviceAssetFor('Unknown Custom Package'), 'assets/images/home/promo_dog.png');
     });
-
+  
     testWidgets('Renders image widget for Special Package and Heaven Scent Package', (tester) async {
       const specialPkg = ServiceItem(
         id: 1,

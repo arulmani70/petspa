@@ -175,12 +175,19 @@ class BookingDraft extends ChangeNotifier {
     int? serviceId;
 
     if (serviceMap != null) {
-      final rawPkgId = serviceMap['packageId'] ?? serviceMap['PackageId'];
+      final rawPkgId = serviceMap['packageMasterId'] ??
+          serviceMap['PackageMasterId'] ??
+          serviceMap['packageId'] ??
+          serviceMap['PackageId'];
       if (rawPkgId != null) {
         packageId = int.tryParse(rawPkgId.toString());
       }
 
-      final rawSvcId = serviceMap['serviceId'] ?? serviceMap['service_id'] ?? serviceMap['ServiceId'];
+      final rawSvcId = serviceMap['serviceMasterId'] ??
+          serviceMap['ServiceMasterId'] ??
+          serviceMap['serviceId'] ??
+          serviceMap['service_id'] ??
+          serviceMap['ServiceId'];
       if (rawSvcId != null) {
         serviceId = int.tryParse(rawSvcId.toString());
       }
@@ -216,6 +223,21 @@ class BookingDraft extends ChangeNotifier {
         .map((a) => int.tryParse((a['addOnId'] ?? a['id'] ?? a['service_id'])?.toString() ?? '0') ?? 0)
         .where((id) => id > 0)
         .toList();
+  }
+
+  /// Returns normalized pet size key matching backend API enum:
+  /// 'small', 'medium', 'large', 'extralarge'
+  String get petSizeKey {
+    final w = (pet?['weight'] ?? pet?['weightClass'] ?? pet?['size'])
+        ?.toString()
+        .trim()
+        .toLowerCase() ?? '';
+    if (w.isEmpty) return 'small';
+    if (w.contains('extra large') || w.contains('xlarge') || w.contains('xl')) return 'extralarge';
+    if (w.contains('extra small') || w.contains('xsmall') || w.contains('xs') || w.contains('small')) return 'small';
+    if (w.contains('large')) return 'large';
+    if (w.contains('medium')) return 'medium';
+    return 'small';
   }
 
   /// Clears the selected time slot. Called when service / add-ons / groomer /

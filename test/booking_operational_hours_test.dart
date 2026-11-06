@@ -58,6 +58,8 @@ class MockBookingRepository extends BookingRepository {
     int? packageId,
     List<int>? addOnIds,
     int? groomerId,
+    int? petId,
+    String? petSizeKey,
   }) async {
     return {
       'success': true,

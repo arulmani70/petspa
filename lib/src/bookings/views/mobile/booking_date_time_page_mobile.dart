@@ -48,6 +48,24 @@ class _Slot {
     required this.status,
     required this.capacity,
   });
+
+  _Slot copyWith({
+    String? startTime,
+    String? endTime,
+    int? groomerId,
+    String? groomerName,
+    _SlotStatus? status,
+    SlotCapacity? capacity,
+  }) {
+    return _Slot(
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+      groomerId: groomerId ?? this.groomerId,
+      groomerName: groomerName ?? this.groomerName,
+      status: status ?? this.status,
+      capacity: capacity ?? this.capacity,
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -80,21 +98,28 @@ class _BookingDateTimePageMobileState
   final Logger _log = Logger();
 
   // Loading flags
-  bool _loadingStep1 = false;   // POST /api/availability (duration + price)
-  bool _loadingStep2 = false;   // GET  /api/groomer-availability
+  bool _loadingStep1 = false;   // POST /api/availability
+  bool _loadingStep2 = false;   // Fallback / legacy
 
-  // Store state from Step 2 response
+  // Store state from availability response
   bool _storeClosed    = false;
   String? _holidayName;
   String? _storeOpenTime;   // e.g. "08:00"
   String? _storeCloseTime;  // e.g. "17:30"
+  Map<String, dynamic>? _groomerWorkingHours;
+  String? _scheduleStatus;
+  String? _scheduleReason;
+  List<Map<String, dynamic>> _slotTimeline = [];
+  Map<String, dynamic> _slotColors = {};
 
   // Error state
   bool _slotsError = false;
   String? _slotsErrorMessage;
 
   // Groomer list (includes synthetic "No Preference" at index 0)
-  List<Map<String, dynamic>> _groomerList = [];
+  List<Map<String, dynamic>> _groomerList = [
+    {'id': 'any', 'initial': 'ANY', 'name': 'No Pref', 'available': true},
+  ];
 
   // Currently selected groomer ID ("any" = no preference)
   String _selectedGroomerId = 'any';
@@ -109,9 +134,9 @@ class _BookingDateTimePageMobileState
   List<dynamic> _rawGroomers = [];
 
   // Multi-booking slot capacity data from Step 1 POST /api/availability
-  Map<String, Map<String, dynamic>> _step1SlotDataByStartTime = {};
-  Map<String, int> _step1BookingCounts = {};
-  Map<String, int> _dynamicGroomerMap = {};
+  final Map<String, Map<String, dynamic>> _step1SlotDataByStartTime = {};
+  final Map<String, int> _step1BookingCounts = {};
+  final Map<String, int> _dynamicGroomerMap = {};
 
   // Active bookings for current authenticated customer (used strictly for duplicate booking validation)
   List<Map<String, dynamic>> _userActiveBookings = [];
@@ -203,12 +228,16 @@ class _BookingDateTimePageMobileState
 
   Future<void> _loadSchedule() async {
     try {
-      await Future.wait([
+      final results = await Future.wait([
         ServicesLocator.storeRepository.getStoreSchedule(),
         ServicesLocator.storeRepository.getHolidays(),
         ServicesLocator.storeRepository.getGroomers(),
       ]);
+      final groomers = (results[2] as List<dynamic>?) ?? ServicesLocator.storeRepository.cachedGroomers;
       if (mounted) {
+        if (_rawGroomers.isEmpty && groomers.isNotEmpty) {
+          _updateGroomerChips(groomers);
+        }
         if (_draft.date == null || _isDateUnavailable(_draft.date!)) {
           final firstOpen = BookingDateUtils.findFirstAvailableDate(
             isDateUnavailable: _isDateUnavailable,
@@ -253,7 +282,7 @@ class _BookingDateTimePageMobileState
     return '$displayH:${m.toString().padLeft(2, '0')} $period';
   }
 
-  // ── two-step availability load ─────────────────────────────────────────────
+  // ── Web-aligned availability load ──────────────────────────────────────────
 
   Future<void> _loadAvailability() async {
     if (_draft.date == null || _draft.service == null) return;
@@ -271,26 +300,17 @@ class _BookingDateTimePageMobileState
       _loadingStep2 = false;
       _slotsError = false;
       _slotsErrorMessage = null;
-      _slots = [];
-      _bookedSlots = [];
-      _rawGroomers = [];
-      _storeClosed = false;
-      _holidayName = null;
-      _storeOpenTime = null;
-      _storeCloseTime = null;
-      _groomerList = [
-        {'id': 'any', 'initial': 'ANY', 'name': 'No Pref', 'available': true},
-      ];
     });
 
     final dateStr = DateFormat('yyyy-MM-dd').format(_draft.date!);
-    final ids       = _draft.extractServiceIds();
+    final ids = _draft.extractServiceIds();
     final serviceId = ids['serviceId'] as int?;
     final packageId = ids['packageId'] as int?;
-    final addOnIds  = _draft.extractAddOnIds();
-    final petId     = BookingDateUtils.parsePetIdFromPet(_draft.pet);
+    final addOnIds = _draft.extractAddOnIds();
+    final petId = BookingDateUtils.parsePetIdFromPet(_draft.pet);
+    final petSizeKey = _draft.petSizeKey;
 
-    // Resolve current groomer ID (0 = no preference)
+    // Resolve current groomer ID (0 = any / no preference)
     int groomerId = 0;
     final gId = _selectedGroomerId;
     if (gId != 'any') {
@@ -309,10 +329,9 @@ class _BookingDateTimePageMobileState
     }
     _userActiveBookings = userBookings;
 
-    // ── Step 1: POST /api/availability ─────────────────────────────────────
-    _log.d('BookingDateTimePageMobile::_loadAvailability::Step1 POST /api/availability'
+    _log.d('BookingDateTimePageMobile::_loadAvailability::Calling POST /api/availability'
         ' date=$dateStr serviceId=$serviceId packageId=$packageId'
-        ' addOnIds=$addOnIds groomerId=${groomerId > 0 ? groomerId : "any"}');
+        ' addOnIds=$addOnIds groomerId=$groomerId petId=$petId petSizeKey=$petSizeKey');
 
     int durationMinutes = 60; // safe fallback
     try {
@@ -321,18 +340,20 @@ class _BookingDateTimePageMobileState
         serviceId: serviceId,
         packageId: packageId,
         addOnIds: addOnIds.isEmpty ? null : addOnIds,
-        groomerId: groomerId > 0 ? groomerId : null,
+        groomerId: groomerId > 0 ? groomerId : 0,
         petId: (petId != null && petId > 0) ? petId : null,
+        petSizeKey: petSizeKey,
       );
 
-      _log.d('BookingDateTimePageMobile::_loadAvailability::Step1 response='
-          '${availResp?.toString().substring(0, (availResp.toString().length > 200) ? 200 : availResp.toString().length)}');
+      _log.d('BookingDateTimePageMobile::_loadAvailability::Response received: ${availResp?["success"]}');
+
+      if (!mounted) return;
 
       if (availResp != null &&
           availResp['success'] == true &&
           availResp['data'] != null) {
         final d = availResp['data'] as Map<String, dynamic>;
-        final apiDur   = d['totalDurationMinutes'];
+        final apiDur = d['totalDurationMinutes'];
         final apiPrice = d['totalPrice'];
 
         if (apiDur is num && apiDur > 0) {
@@ -363,83 +384,78 @@ class _BookingDateTimePageMobileState
               double.tryParse(pSub.replaceAll(RegExp(r'[^0-9.]'), ''));
         }
 
-        final rawAvailSlots = d['availableSlots'] as List<dynamic>? ?? [];
-        final slotMap = <String, Map<String, dynamic>>{};
-        final countMap = <String, int>{};
-        for (final s in rawAvailSlots) {
-          if (s is Map) {
-            final st = s['startTime']?.toString() ?? '';
-            final normSt = BookingDateUtils.normalizeTimeString(st);
-            if (normSt != null && normSt.isNotEmpty) {
-              final map = Map<String, dynamic>.from(s);
-              map['startTime'] = normSt;
-              if (map['endTime'] != null) {
-                map['endTime'] = BookingDateUtils.normalizeTimeString(map['endTime']) ?? map['endTime'];
-              }
-              final bCount = map['bookingCount'];
-              if (bCount is num) {
-                countMap[normSt] = bCount.toInt();
-              }
-              if (!slotMap.containsKey(normSt)) {
-                slotMap[normSt] = map;
-              } else {
-                final existing = slotMap[normSt]!;
-                final existingAvail = existing['isAvailable'] != false;
-                final newAvail = map['isAvailable'] != false;
-                if (!existingAvail && newAvail) {
-                  slotMap[normSt] = map;
-                }
-              }
-            }
-          }
-        }
-        final rawApiGroomers = d['groomers'] as List<dynamic>? ?? [];
+        final isClosed = d['closed'] == true;
+        final holiday = d['holiday'];
+        final storeHours = d['storeWorkingHours'] as Map<String, dynamic>?;
+        final groomerHours = d['groomerWorkingHours'] as Map<String, dynamic>?;
+        final scheduleStatus = d['scheduleStatus']?.toString();
+        final scheduleReason = d['scheduleReason']?.toString();
+        final slotTimeline = (d['slotTimeline'] as List<dynamic>?)
+            ?.whereType<Map>()
+            .map((m) => Map<String, dynamic>.from(m))
+            .toList() ?? [];
+        final slotColors = d['slotColors'] as Map<String, dynamic>? ?? {};
 
-        final dynGroomerMap = <String, int>{};
-        for (final ag in rawApiGroomers.whereType<Map>()) {
-          final aId = int.tryParse(ag['id']?.toString() ?? '');
-          final aName = ag['name']?.toString().toLowerCase().trim() ?? '';
-          if (aId != null && aId > 0 && aName.isNotEmpty) {
-            dynGroomerMap[aName] = aId;
-          }
-        }
-        for (final s in rawAvailSlots.whereType<Map>()) {
-          final sId = int.tryParse(s['groomerId']?.toString() ?? '');
-          final sName = s['groomerName']?.toString().toLowerCase().trim() ?? '';
-          if (sId != null && sId > 0 && sName.isNotEmpty) {
-            dynGroomerMap[sName] = sId;
-          }
-        }
-        _dynamicGroomerMap = dynGroomerMap;
+        final apiGroomers = (d['groomers'] as List<dynamic>?) ?? [];
+        _rawGroomers = apiGroomers;
 
-        _step1SlotDataByStartTime = slotMap;
-        _step1BookingCounts = countMap;
+        _updateGroomerChips(apiGroomers);
 
-        _log.d('BookingDateTimePageMobile::_loadAvailability::Step1 result'
-            ' totalDurationMinutes=$durationMinutes totalPrice=${_draft.apiTotalPrice}'
-            ' availableSlotsCount=${rawAvailSlots.length}'
-            ' apiGroomersCount=${rawApiGroomers.length}');
-      } else {
-        _draft.apiDurationMinutes = durationMinutes;
-        _log.w('BookingDateTimePageMobile::_loadAvailability::Step1 failed or empty'
-            ' — falling back to durationMinutes=$durationMinutes');
+        final hasSlotChoices = (d['timeSlotChoices'] is List && (d['timeSlotChoices'] as List).isNotEmpty) ||
+            (d['availableSlots'] is List && (d['availableSlots'] as List).isNotEmpty);
+
+        if (!hasSlotChoices && !isClosed && holiday == null) {
+          await _fallbackLoadGroomerAvailability(dateStr, groomerId, durationMinutes);
+          return;
+        }
+
+        final slots = _buildSlotsFromAvailability(
+          data: d,
+          selectedId: _selectedGroomerId,
+          dateStr: dateStr,
+        );
+
+        final booked = _extractBookedSlots(d);
+
+        setState(() {
+          _loadingStep1 = false;
+          _loadingStep2 = false;
+          _storeClosed = isClosed;
+          _holidayName = (holiday is Map ? holiday['name'] : holiday)?.toString();
+          _storeOpenTime = storeHours?['open']?.toString();
+          _storeCloseTime = storeHours?['close']?.toString();
+          _groomerWorkingHours = groomerHours;
+          _scheduleStatus = scheduleStatus;
+          _scheduleReason = scheduleReason;
+          _slotTimeline = slotTimeline;
+          _slotColors = slotColors;
+          _slots = slots;
+          _bookedSlots = booked;
+          _slotsError = false;
+          _slotsErrorMessage = null;
+        });
+
+        _validateSelectedSlot();
+        return;
       }
     } catch (e) {
-      _draft.apiDurationMinutes = durationMinutes;
-      _log.w('BookingDateTimePageMobile::_loadAvailability::Step1 exception=$e'
-          ' — falling back to durationMinutes=$durationMinutes');
+      _log.w('BookingDateTimePageMobile::_loadAvailability::POST /api/availability error=$e');
     }
 
+    // Graceful fallback to GET /api/groomer-availability if POST failed or returned empty
+    await _fallbackLoadGroomerAvailability(dateStr, groomerId, durationMinutes);
+  }
+
+  Future<void> _fallbackLoadGroomerAvailability(
+    String dateStr,
+    int groomerId,
+    int durationMinutes,
+  ) async {
     if (!mounted) return;
     setState(() {
       _loadingStep1 = false;
       _loadingStep2 = true;
     });
-
-    // ── Step 2: GET /api/groomer-availability ─────────────────────────────
-    _log.d('BookingDateTimePageMobile::_loadAvailability::Step2 GET /api/groomer-availability'
-        ' date=$dateStr durationMinutes=$durationMinutes'
-        ' groomerId=${groomerId > 0 ? groomerId : "all"}');
 
     try {
       final resp = await ServicesLocator.bookingRepository.getGroomerAvailability(
@@ -447,9 +463,6 @@ class _BookingDateTimePageMobileState
         durationMinutes: durationMinutes,
         groomerId: groomerId > 0 ? groomerId : null,
       );
-
-      _log.d('BookingDateTimePageMobile::_loadAvailability::Step2 response success='
-          '${resp?["success"]}');
 
       if (!mounted) return;
 
@@ -463,86 +476,462 @@ class _BookingDateTimePageMobileState
         return;
       }
 
-      final data       = resp['data'] as Map<String, dynamic>;
-      final storeData  = data['store']  as Map<String, dynamic>?;
+      final data = resp['data'] as Map<String, dynamic>;
+      final storeData = data['store'] as Map<String, dynamic>?;
       final rawGroomers = data['groomers'] as List<dynamic>? ?? [];
 
-      // Store hours
       final opHours = storeData?['operationalHours'] as Map<String, dynamic>?;
-      final isClosed  = storeData?['closed'] == true;
-      final holiday   = storeData?['holiday'];
+      final isClosed = storeData?['closed'] == true;
+      final holiday = storeData?['holiday'];
 
       _rawGroomers = rawGroomers;
+      _updateGroomerChips(rawGroomers);
 
-      // Build groomer chip list
-      final chips = <Map<String, dynamic>>[
-        {'id': 'any', 'initial': 'ANY', 'name': 'No Pref', 'available': true},
-      ];
-      for (final g in rawGroomers.whereType<Map>()) {
-        final firstName = g['firstName']?.toString() ?? g['name']?.toString() ?? '';
-        final lastName  = g['lastName']?.toString() ?? '';
-        final fullName  = lastName.isNotEmpty ? '$firstName $lastName' : firstName;
-        final rawId     = g['id'];
-        final gCode     = g['groomerCode']?.toString();
-        final canonId   = BookingDateUtils.resolveCanonicalGroomerId(
-          g['groomerId'] ?? rawId,
-          groomerCode: gCode,
-          groomerName: fullName,
-          dynamicGroomerMap: _dynamicGroomerMap,
-        ) ?? rawId;
-        g['id'] = canonId;
-        chips.add(<String, dynamic>{
-          'id'          : (canonId ?? '').toString(),
-          'groomerCode' : gCode ?? '',
-          'initial'     : fullName.isNotEmpty ? fullName[0].toUpperCase() : 'G',
-          'name'        : fullName,
-          'role'        : g['role']?.toString() ?? '',
-          'type'        : g['type']?.toString() ?? '',
-          'available'   : g['available'] ?? false,
-          'reason'      : g['reason']?.toString(),
-          // raw lists for slot computation
-          'availableSlots'  : g['availableSlots']  ?? [],
-          'bookedSlots'     : g['bookedSlots']     ?? [],
-          'unavailable'     : g['unavailable']     ?? [],
-          'workingHours'    : g['workingHours'],
-          'availableWindows': g['availableWindows'] ?? [],
-        });
-      }
-
-      // Compute slots for current groomer selection
-      final slots    = _buildSlots(
+      final slots = _buildSlots(
         rawGroomers,
         _selectedGroomerId,
         bookingCountsByStartTime: _step1BookingCounts,
         slotDataByStartTime: _step1SlotDataByStartTime,
       );
-      final booked   = _buildBookedSlots(rawGroomers, _selectedGroomerId);
+      final booked = _buildBookedSlots(rawGroomers, _selectedGroomerId);
 
       setState(() {
-        _loadingStep2    = false;
-        _storeClosed     = isClosed;
-        _holidayName     = holiday?.toString();
-        _storeOpenTime   = opHours?['startTime']?.toString();
-        _storeCloseTime  = opHours?['endTime']?.toString();
-        _groomerList     = chips;
-        _slots           = slots;
-        _bookedSlots     = booked;
-        _slotsError      = false;
+        _loadingStep2 = false;
+        _storeClosed = isClosed;
+        _holidayName = holiday?.toString();
+        _storeOpenTime = opHours?['startTime']?.toString();
+        _storeCloseTime = opHours?['endTime']?.toString();
+        _slots = slots;
+        _bookedSlots = booked;
+        _slotsError = false;
         _slotsErrorMessage = null;
       });
 
       _validateSelectedSlot();
     } catch (e) {
-      _log.e('BookingDateTimePageMobile::_loadAvailability::Step2 exception=$e');
+      _log.e('BookingDateTimePageMobile::_fallbackLoadGroomerAvailability::Exception: $e');
       if (mounted) {
         setState(() {
           _loadingStep2 = false;
-          _slotsError   = true;
+          _slotsError = true;
           _slotsErrorMessage =
               'Unable to load time slots. Please try again.';
         });
       }
     }
+  }
+
+  void _updateGroomerChips(List<dynamic> apiGroomers) {
+    final chips = <Map<String, dynamic>>[
+      {'id': 'any', 'initial': 'ANY', 'name': 'No Pref', 'available': true},
+    ];
+
+    final groomerSource = apiGroomers.isNotEmpty
+        ? apiGroomers
+        : ServicesLocator.storeRepository.cachedGroomers;
+
+    final seenIds = <String>{};
+    for (final g in groomerSource.whereType<Map>()) {
+      final rawId = g['id'] ?? g['groomerId'] ?? g['GroomerId'] ?? g['batherId'] ?? g['BatherId'];
+      final gIdStr = (rawId ?? '').toString();
+      if (gIdStr.isEmpty || seenIds.contains(gIdStr)) continue;
+      seenIds.add(gIdStr);
+
+      final firstName = g['firstName']?.toString() ?? g['FirstName']?.toString() ?? '';
+      final lastName = g['lastName']?.toString() ?? g['LastName']?.toString() ?? '';
+      final fullName = (g['name'] ?? (lastName.isNotEmpty ? '$firstName $lastName' : firstName)).toString().trim();
+      final role = (g['role'] ?? g['Role'] ?? 'Groomer').toString().trim();
+      final gCode = (g['groomerCode'] ?? g['GroomerId'] ?? g['BatherId'] ?? '').toString();
+      final schedStatus = g['scheduleStatus']?.toString();
+      final isAvail = g['available'] != false && g['isAvailable'] != false && schedStatus != 'time_off' && schedStatus != 'week_off';
+
+      chips.add({
+        'id': gIdStr,
+        'groomerCode': gCode,
+        'initial': fullName.isNotEmpty ? fullName[0].toUpperCase() : 'G',
+        'name': fullName.isNotEmpty ? fullName : 'Groomer $gIdStr',
+        'role': role,
+        'available': isAvail,
+        'scheduleStatus': schedStatus,
+        'scheduleReason': g['scheduleReason']?.toString(),
+      });
+    }
+
+    _groomerList = chips;
+  }
+
+  List<Map<String, dynamic>> _extractBookedSlots(Map<String, dynamic> d) {
+    final rawBooked = d['bookedSlots'] as List<dynamic>?;
+    if (rawBooked != null && rawBooked.isNotEmpty) {
+      return rawBooked
+          .whereType<Map>()
+          .map((m) => Map<String, dynamic>.from(m))
+          .toList();
+    }
+    final choices = d['timeSlotChoices'] as List<dynamic>?;
+    if (choices != null) {
+      return choices
+          .whereType<Map>()
+          .where((m) => m['status'] == 'booked' || m['isAvailable'] == false)
+          .map((m) => Map<String, dynamic>.from(m))
+          .toList();
+    }
+    return [];
+  }
+
+  List<_Slot> _buildSlotsFromAvailability({
+    required Map<String, dynamic> data,
+    required String selectedId,
+    required String dateStr,
+  }) {
+    final rawChoices = data['timeSlotChoices'] as List<dynamic>? ?? [];
+    final rawAvail = data['availableSlots'] as List<dynamic>? ?? [];
+    final selectedStartTime = _draft.timeSlot;
+
+    final isToday = _draft.date != null && _isSameDay(_draft.date!, DateTime.now());
+    final nowMinutes = DateTime.now().hour * 60 + DateTime.now().minute;
+
+    bool isPast(String st) {
+      if (!isToday) return false;
+      return _toMinutes(st) <= nowMinutes;
+    }
+
+    final int groomerIdInt = selectedId != 'any' ? (int.tryParse(selectedId) ?? 0) : 0;
+    List<Map<String, dynamic>> candidateSlots = [];
+
+    if (rawChoices.isNotEmpty) {
+      for (final c in rawChoices.whereType<Map>()) {
+        final st = BookingDateUtils.normalizeTimeString(c['startTime']?.toString() ?? '') ?? '';
+        final et = BookingDateUtils.normalizeTimeString(c['endTime']?.toString() ?? '') ?? '';
+        if (st.isEmpty || isPast(st)) continue;
+
+        candidateSlots.add({
+          'startTime': st,
+          'endTime': et,
+          'status': c['status']?.toString() ?? (c['isAvailable'] == true ? 'available' : 'booked'),
+          'isAvailable': c['isAvailable'] == true,
+          'groomerId': c['groomerId'],
+          'groomerName': c['groomerName']?.toString() ?? '',
+          'bookingCount': c['bookingCount'] ?? (c['isAvailable'] == true ? 0 : 1),
+          'maxBookings': c['maxBookings'] ?? 1,
+          'remaining': c['remaining'] ?? (c['isAvailable'] == true ? 1 : 0),
+        });
+      }
+    } else {
+      // Fallback to availableSlots
+      final seenTimes = <String>{};
+      for (final a in rawAvail.whereType<Map>()) {
+        final st = BookingDateUtils.normalizeTimeString(a['startTime']?.toString() ?? '') ?? '';
+        final et = BookingDateUtils.normalizeTimeString(a['endTime']?.toString() ?? '') ?? '';
+        if (st.isEmpty || isPast(st)) continue;
+        if (groomerIdInt == 0) {
+          if (seenTimes.contains(st)) continue;
+          seenTimes.add(st);
+        } else {
+          final sGId = (a['groomerId'] ?? '').toString();
+          if (sGId.isNotEmpty && sGId != selectedId) continue;
+        }
+
+        candidateSlots.add({
+          'startTime': st,
+          'endTime': et,
+          'status': 'available',
+          'isAvailable': a['isAvailable'] != false,
+          'groomerId': a['groomerId'],
+          'groomerName': a['groomerName']?.toString() ?? '',
+          'bookingCount': a['bookingCount'] ?? 0,
+          'maxBookings': a['maxBookings'] ?? 1,
+          'remaining': a['remaining'] ?? 1,
+        });
+      }
+    }
+
+    // Apply web HD filter:
+    // Available slots are always kept.
+    // Non-available slots (booked, break, unavailable) are only kept if they do not overlap with any available slot.
+    final availTimes = candidateSlots.where((s) => s['isAvailable'] == true).toList();
+    final filtered = candidateSlots.where((s) {
+      if (s['isAvailable'] == true) return true;
+      if (availTimes.isEmpty) return true;
+      final sStart = _toMinutes(s['startTime']);
+      final sEnd = _toMinutes(s['endTime']);
+      return !availTimes.any((a) {
+        final aStart = _toMinutes(a['startTime']);
+        final aEnd = _toMinutes(a['endTime']);
+        return sStart < aEnd && sEnd > aStart;
+      });
+    }).toList();
+
+    filtered.sort((a, b) => _toMinutes(a['startTime']).compareTo(_toMinutes(b['startTime'])));
+
+    final petId = BookingDateUtils.parsePetIdFromPet(_draft.pet);
+    final petName = BookingDateUtils.parsePetNameFromPet(_draft.pet);
+
+    return filtered.map((s) {
+      final st = s['startTime'] as String;
+      final et = s['endTime'] as String;
+      final isAvail = s['isAvailable'] == true;
+      final statusStr = s['status'] as String? ?? 'available';
+      final isSelected = BookingDateUtils.isSameTimeSlot(st, selectedStartTime);
+      final rawGroomId = s['groomerId'];
+      final int? gId = rawGroomId is int ? rawGroomId : int.tryParse(rawGroomId?.toString() ?? '');
+
+      final isCustomerDuplicate = BookingDateUtils.isSlotAlreadyBookedByUser(
+        slotDate: dateStr,
+        slotStartTime: st,
+        slotEndTime: et,
+        slotDurationMinutes: _draft.apiDurationMinutes,
+        slotGroomerId: gId,
+        targetPetId: petId,
+        targetPetName: petName,
+        userBookings: _userActiveBookings,
+      );
+
+      _SlotStatus status;
+      if (isCustomerDuplicate) {
+        status = _SlotStatus.alreadyBooked;
+      } else if (isSelected) {
+        status = _SlotStatus.selected;
+      } else if (!isAvail || statusStr == 'booked' || statusStr == 'break' || statusStr == 'unavailable') {
+        status = _SlotStatus.booked;
+      } else {
+        status = _SlotStatus.available;
+      }
+
+      final cap = SlotCapacity(
+        isMultiBookingEnabled: s['maxBookings'] != null && (s['maxBookings'] as int) > 1,
+        maxBookings: s['maxBookings'] as int? ?? 1,
+        bookingCount: isAvail ? (s['bookingCount'] as int? ?? 0) : 1,
+        isAlreadyBookedByCurrentUser: isCustomerDuplicate,
+        remaining: isAvail ? (s['remaining'] as int? ?? 1) : 0,
+        isAvailable: isAvail && !isCustomerDuplicate,
+      );
+
+      return _Slot(
+        startTime: st,
+        endTime: et,
+        groomerId: gId,
+        groomerName: s['groomerName']?.toString(),
+        status: status,
+        capacity: cap,
+      );
+    }).toList();
+  }
+
+  String get _selectedGroomerName {
+    if (_selectedGroomerId == 'any') return 'Any available';
+    final match = _groomerList.firstWhere(
+      (g) => g['id']?.toString() == _selectedGroomerId,
+      orElse: () => <String, dynamic>{},
+    );
+    return match['name']?.toString() ?? 'Groomer';
+  }
+
+  Widget _buildGroomerStatusAndTimeline() {
+    if (_selectedGroomerId == 'any') {
+      if (_storeOpenTime != null && _storeCloseTime != null) {
+        return Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.storefront_outlined, size: 16, color: _kTeal),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Store hours: ${_fmt12(_storeOpenTime!)} – ${_fmt12(_storeCloseTime!)}. Times depend on each groomer\'s schedule.',
+                  style: AppFonts.poppins(size: 12, weight: FontWeight.w400, color: _kSubText),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+      return const SizedBox.shrink();
+    }
+
+    final isClosed = _groomerWorkingHours?['closed'] == true ||
+        _scheduleStatus == 'time_off' ||
+        _scheduleStatus == 'week_off';
+    final reason = _groomerWorkingHours?['reason']?.toString() ?? _scheduleReason;
+    final open = _groomerWorkingHours?['open']?.toString();
+    final close = _groomerWorkingHours?['close']?.toString();
+
+    if (isClosed) {
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF3C7),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFFDE68A)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, size: 18, color: _kAmber),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '$_selectedGroomerName is not available on this date',
+                    style: AppFonts.poppins(size: 13, weight: FontWeight.w600, color: const Color(0xFF92400E)),
+                  ),
+                ),
+              ],
+            ),
+            if (reason != null && reason.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                reason,
+                style: AppFonts.poppins(size: 12, weight: FontWeight.w400, color: const Color(0xFF92400E)),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (open != null && close != null && open.isNotEmpty && close.isNotEmpty)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFECFDF5),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFF6EE7B7)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.schedule, size: 16, color: _kTeal),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '$_selectedGroomerName works ${_fmt12(open)} – ${_fmt12(close)} on this day.',
+                    style: AppFonts.poppins(size: 12, weight: FontWeight.w500, color: _kTeal),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (_slotTimeline.isNotEmpty) ...[
+          _buildDayTimeline(),
+          const SizedBox(height: 16),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildDayTimeline() {
+    if (_slotTimeline.isEmpty) return const SizedBox.shrink();
+
+    int totalDuration = 0;
+    for (final seg in _slotTimeline) {
+      final s = _toMinutes(seg['startTime']?.toString() ?? '');
+      final e = _toMinutes(seg['endTime']?.toString() ?? '');
+      if (e > s) totalDuration += (e - s);
+    }
+    if (totalDuration <= 0) return const SizedBox.shrink();
+
+    Color getSegmentColor(String status) {
+      final hex = _slotColors[status.toLowerCase()]?.toString();
+      if (hex != null && hex.isNotEmpty) {
+        final clean = hex.replaceAll('#', '');
+        if (clean.length == 6) {
+          final val = int.tryParse('FF$clean', radix: 16);
+          if (val != null) return Color(val);
+        }
+      }
+      switch (status.toLowerCase()) {
+        case 'available':
+          return const Color(0xFF0D9488); // Teal
+        case 'break':
+          return const Color(0xFFFBBF24); // Amber
+        case 'booked':
+          return const Color(0xFF64748B); // Slate
+        case 'unavailable':
+        default:
+          return const Color(0xFFCBD5E1); // Slate light
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Groomer day schedule timeline',
+          style: AppFonts.poppins(size: 12, weight: FontWeight.w500, color: _kSubText),
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            height: 18,
+            width: double.infinity,
+            color: const Color(0xFFE2E8F0),
+            child: Row(
+              children: _slotTimeline.map((seg) {
+                final s = _toMinutes(seg['startTime']?.toString() ?? '');
+                final e = _toMinutes(seg['endTime']?.toString() ?? '');
+                final dur = (e - s).clamp(1, totalDuration);
+                final color = getSegmentColor(seg['status']?.toString() ?? '');
+                return Flexible(
+                  flex: dur,
+                  child: Container(
+                    color: color,
+                    margin: const EdgeInsets.symmetric(horizontal: 0.5),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 12,
+          runSpacing: 4,
+          children: [
+            _buildTimelineLegendItem(const Color(0xFF0D9488), 'Open'),
+            _buildTimelineLegendItem(const Color(0xFF64748B), 'Booked'),
+            _buildTimelineLegendItem(const Color(0xFFFBBF24), 'Break'),
+            _buildTimelineLegendItem(const Color(0xFFCBD5E1), 'Unavailable'),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTimelineLegendItem(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 9,
+          height: 9,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: AppFonts.poppins(size: 11, weight: FontWeight.w400, color: _kSubText),
+        ),
+      ],
+    );
   }
 
   // ── slot building ──────────────────────────────────────────────────────────
@@ -1122,14 +1511,19 @@ class _BookingDateTimePageMobileState
       });
     }
 
-    // Rebuild slots so the selected chip re-renders
+    // Update slots so the selected button re-renders
     setState(() {
-      _slots = _buildSlots(
-        _rawGroomers,
-        _selectedGroomerId,
-        bookingCountsByStartTime: _step1BookingCounts,
-        slotDataByStartTime: _step1SlotDataByStartTime,
-      );
+      _slots = _slots.map((s) {
+        if (s.status == _SlotStatus.booked ||
+            s.status == _SlotStatus.atCapacity ||
+            s.status == _SlotStatus.alreadyBooked) {
+          return s;
+        }
+        final isSelected = BookingDateUtils.isSameTimeSlot(s.startTime, slot.startTime);
+        return s.copyWith(
+          status: isSelected ? _SlotStatus.selected : _SlotStatus.available,
+        );
+      }).toList();
     });
   }
 
@@ -1146,12 +1540,12 @@ class _BookingDateTimePageMobileState
       _log.d('BookingDateTimePage::_validateSelectedSlot::Selected slot is no longer available — clearing.');
       _draft.clearSelectedSlot();
       setState(() {
-        _slots = _buildSlots(
-          _rawGroomers,
-          _selectedGroomerId,
-          bookingCountsByStartTime: _step1BookingCounts,
-          slotDataByStartTime: _step1SlotDataByStartTime,
-        );
+        _slots = _slots.map((s) {
+          if (s.status == _SlotStatus.selected) {
+            return s.copyWith(status: _SlotStatus.available);
+          }
+          return s;
+        }).toList();
       });
     }
   }
@@ -1171,17 +1565,6 @@ class _BookingDateTimePageMobileState
       _draft.setGroomer(chip);
     }
     _draft.clearSelectedSlot();
-
-    // Rebuild slots from cached raw groomers (no network call needed for chip switch)
-    setState(() {
-      _slots      = _buildSlots(
-        _rawGroomers,
-        newId,
-        bookingCountsByStartTime: _step1BookingCounts,
-        slotDataByStartTime: _step1SlotDataByStartTime,
-      );
-      _bookedSlots = _buildBookedSlots(_rawGroomers, newId);
-    });
 
     // Reload with the groomer filter so the backend can scope availability
     _loadAvailability();
@@ -1279,7 +1662,10 @@ class _BookingDateTimePageMobileState
       return 'No date & time selected';
     }
     final dateLabel    = DateFormat('EEE, MMM d').format(date);
-    final slotLabel    = _fmt12(slot);
+    final endSlot      = _draft.endTime;
+    final slotLabel    = (endSlot != null && endSlot.isNotEmpty)
+        ? '${_fmt12(slot)} – ${_fmt12(endSlot)}'
+        : _fmt12(slot);
     final groomerName  = _draft.groomer?['name']?.toString() ?? '';
     final groomerLabel =
         (groomerName.isEmpty || groomerName == 'No Pref') ? '' : ' · $groomerName';
@@ -1365,7 +1751,12 @@ class _BookingDateTimePageMobileState
                           ),
                           const SizedBox(height: 12),
                           _buildGroomerChips(),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 16),
+
+                          // ── Groomer schedule info & timeline ──────────
+                          if (!_storeClosed && _holidayName == null) ...[
+                            _buildGroomerStatusAndTimeline(),
+                          ],
 
                           // ── Store-level banners ────────────────────────
                           if (_storeClosed) ...[
@@ -1888,26 +2279,36 @@ class _BookingDateTimePageMobileState
             const Divider(color: _kBorderLight, height: 1),
             const SizedBox(height: 12),
           ],
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _slots.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 8,
-              mainAxisExtent: 40,
-            ),
-            itemBuilder: (context, index) {
-              final slot = _slots[index];
-              return _SlotButton(
-                slot: slot,
-                onTap: (slot.status != _SlotStatus.booked &&
-                        slot.status != _SlotStatus.atCapacity &&
-                        slot.status != _SlotStatus.alreadyBooked)
-                    ? () => _selectSlot(slot)
-                    : null,
-                fmt12: _fmt12,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final crossAxisCount = constraints.maxWidth > 560 ? 3 : 2;
+              final isAny = _selectedGroomerId == 'any';
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _slots.length,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  mainAxisExtent: isAny ? 52 : 46,
+                ),
+                itemBuilder: (context, index) {
+                  final slot = _slots[index];
+                  return _SlotButton(
+                    slot: slot,
+                    onTap: (slot.status != _SlotStatus.booked &&
+                            slot.status != _SlotStatus.atCapacity &&
+                            slot.status != _SlotStatus.alreadyBooked)
+                        ? () => _selectSlot(slot)
+                        : null,
+                    fmt12: _fmt12,
+                    toMinutes: _toMinutes,
+                    fromMinutes: _fromMinutes,
+                    durationMinutes: _draft.apiDurationMinutes ?? 60,
+                    showGroomerSubtitle: isAny,
+                  );
+                },
               );
             },
           ),
@@ -2050,11 +2451,19 @@ class _SlotButton extends StatelessWidget {
   final _Slot slot;
   final VoidCallback? onTap;
   final String Function(String) fmt12;
+  final int Function(String)? toMinutes;
+  final String Function(int)? fromMinutes;
+  final int durationMinutes;
+  final bool showGroomerSubtitle;
 
   const _SlotButton({
     required this.slot,
     required this.onTap,
     required this.fmt12,
+    this.toMinutes,
+    this.fromMinutes,
+    this.durationMinutes = 60,
+    this.showGroomerSubtitle = false,
   });
 
   @override
@@ -2081,6 +2490,19 @@ class _SlotButton extends StatelessWidget {
       borderColor = Colors.black;
     }
 
+    String endHhmm = slot.endTime;
+    if (endHhmm.isEmpty && toMinutes != null && fromMinutes != null) {
+      final startMin = toMinutes!(slot.startTime);
+      endHhmm = fromMinutes!(startMin + (durationMinutes > 0 ? durationMinutes : 60));
+    }
+    final endStr = endHhmm.isNotEmpty ? fmt12(endHhmm) : '';
+
+    final hasGroomer = showGroomerSubtitle &&
+        slot.groomerName != null &&
+        slot.groomerName!.isNotEmpty &&
+        slot.groomerName != 'No Pref' &&
+        !isUnavailable;
+
     return GestureDetector(
       onTap: isUnavailable
           ? () {
@@ -2103,24 +2525,90 @@ class _SlotButton extends StatelessWidget {
           : onTap,
       child: AnimatedContainer(
         duration    : const Duration(milliseconds: 150),
-        height      : 40,
         alignment   : Alignment.center,
+        padding     : const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
         decoration  : BoxDecoration(
           color       : bg,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(14),
           border      : Border.all(color: borderColor, width: 1.4),
         ),
-        child: Text(
-          fmt12(slot.startTime),
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontFamily     : 'Poppins',
-            fontSize       : 13,
-            fontWeight     : (isSelected || !isUnavailable) ? FontWeight.w600 : FontWeight.w400,
-            color          : fg,
-            decoration     : isUnavailable ? TextDecoration.lineThrough : null,
-            decorationColor: fg,
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.access_time_rounded,
+                    size: 13,
+                    color: fg.withValues(alpha: 0.75),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    fmt12(slot.startTime),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily     : 'Poppins',
+                      fontSize       : 12,
+                      fontWeight     : (isSelected || !isUnavailable) ? FontWeight.w600 : FontWeight.w400,
+                      color          : fg,
+                      decoration     : isUnavailable ? TextDecoration.lineThrough : null,
+                      decorationColor: fg,
+                    ),
+                  ),
+                  if (endStr.isNotEmpty)
+                    Text(
+                      ' – $endStr',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily     : 'Poppins',
+                        fontSize       : 12,
+                        fontWeight     : (isSelected || !isUnavailable) ? FontWeight.w600 : FontWeight.w400,
+                        color          : fg,
+                        decoration     : isUnavailable ? TextDecoration.lineThrough : null,
+                        decorationColor: fg,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            if (hasGroomer) ...[
+              const SizedBox(height: 2),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '· ',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w600,
+                      color: isSelected ? Colors.white.withValues(alpha: 0.9) : const Color(0xFF6B7280),
+                    ),
+                  ),
+                  Flexible(
+                    child: Text(
+                      slot.groomerName!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w500,
+                        color: isSelected ? Colors.white.withValues(alpha: 0.9) : const Color(0xFF6B7280),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
         ),
       ),
     );

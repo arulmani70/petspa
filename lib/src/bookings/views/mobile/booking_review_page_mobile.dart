@@ -772,6 +772,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
         addOnIds: addOnIds.isEmpty ? null : addOnIds,
         groomerId: groomerId > 0 ? groomerId : null,
         petId: petId > 0 ? petId : null,
+        petSizeKey: _draft.petSizeKey,
       );
 
       if (!mounted) return;

@@ -85,6 +85,8 @@ class MockApiIntegrationGroomerRepository extends GroomerHomeRepository {
     int? packageId,
     List<int>? addOnIds,
     int? groomerId,
+    int? petId,
+    String? petSizeKey,
   }) async {
     lastAvailabilityGroomerId = groomerId;
     lastAvailabilityQuery = {
