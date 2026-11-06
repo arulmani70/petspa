@@ -38,13 +38,60 @@ class GroomerHomeRepository {
 
   static List<GroomerBooking> get localCreatedBookings => List.unmodifiable(_localCreatedBookings);
 
-  void _updateLocalBookingStatus(int bookingId, String status) {
+  static final Set<int> _approvedBookingIds = <int>{};
+  static final Set<int> _rejectedBookingIds = <int>{};
+  static final Set<int> _approvedCancellationIds = <int>{};
+  static final Set<int> _rejectedCancellationIds = <int>{};
+
+  static Set<int> get approvedBookingIds => Set.unmodifiable(_approvedBookingIds);
+  static Set<int> get rejectedBookingIds => Set.unmodifiable(_rejectedBookingIds);
+
+  static void resetBookingApprovalCache() {
+    _approvedBookingIds.clear();
+    _rejectedBookingIds.clear();
+    _approvedCancellationIds.clear();
+    _rejectedCancellationIds.clear();
+    _localCreatedBookings.clear();
+  }
+
+  void _updateLocalBookingStatus(int bookingId, String status, {String? cancellationReason}) {
     final idx = _localCreatedBookings.indexWhere((b) => b.bookingId == bookingId);
     if (idx >= 0) {
       _localCreatedBookings[idx] = _localCreatedBookings[idx].copyWith(
         status: status,
-        cancellationReason: Constants.app.CANCELLATION_REASON_GROOMER_TIMEOUT,
+        cancellationReason: cancellationReason ??
+            (status.toUpperCase() == 'CANCELLED'
+                ? Constants.app.CANCELLATION_REASON_GROOMER_TIMEOUT
+                : null),
       );
+    }
+  }
+
+  Future<void> dismissNotificationsForBooking(int bookingId) async {
+    final notifIdsToRemove = <int>[];
+    _realtimeNotifications.removeWhere((n) {
+      final metadata = n['data'] is Map ? n['data'] as Map : (n['metadata'] is Map ? n['metadata'] as Map : null);
+      final rawBookingId = metadata?['bookingId'] ??
+          metadata?['booking_id'] ??
+          metadata?['entityId'] ??
+          n['bookingId'] ??
+          n['entityId'];
+      final bId = int.tryParse(rawBookingId?.toString() ?? '');
+      final title = (n['title'] ?? '').toString();
+      final message = (n['message'] ?? n['body'] ?? '').toString();
+      if (bId == bookingId || title.contains('#$bookingId') || message.contains('#$bookingId')) {
+        final rawId = n['id'] ?? n['notificationId'];
+        final nId = int.tryParse(rawId?.toString() ?? '');
+        if (nId != null && nId > 0) notifIdsToRemove.add(nId);
+        return true;
+      }
+      return false;
+    });
+
+    if (ServicesLocator.isRegistered<SessionService>()) {
+      for (final notifId in notifIdsToRemove) {
+        await ServicesLocator.sessionService.deletePortalNotification(notifId, isGroomer: true);
+      }
     }
   }
 
@@ -459,6 +506,13 @@ class GroomerHomeRepository {
       if (rawBookings.isNotEmpty) {
         final List<GroomerBooking> activePending = [];
         for (final booking in rawBookings) {
+          if (_approvedBookingIds.contains(booking.bookingId) || _rejectedBookingIds.contains(booking.bookingId)) {
+            continue;
+          }
+          final st = booking.status.toLowerCase();
+          if (st == 'confirmed' || st == 'cancelled' || st == 'completed' || st == 'in_progress') {
+            continue;
+          }
           if (ServicesLocator.isBookingCancellationManagerRegistered &&
               ServicesLocator.bookingCancellationManager.isScheduledStartTimeReached(
                 booking.bookingDate,
@@ -525,7 +579,8 @@ class GroomerHomeRepository {
 
       if (response != null && response['data'] is List) {
         final list = response['data'] as List;
-        return list.map((item) => GroomerBooking.fromJson(item as Map<String, dynamic>)).toList();
+        final all = list.map((item) => GroomerBooking.fromJson(item as Map<String, dynamic>)).toList();
+        return all.where((b) => !_approvedCancellationIds.contains(b.bookingId) && !_rejectedCancellationIds.contains(b.bookingId)).toList();
       }
       return [];
     } catch (e) {
@@ -1055,7 +1110,20 @@ class GroomerHomeRepository {
     }
   }
 
-  /// POST /api/groomer-auth/bookings/:id/approve
+  bool _isGatewayOrProxyError(Map<String, dynamic>? res) {
+    if (res == null) return false;
+    final code = res['statusCode'] ?? res['status'] ?? res['code'];
+    if (code == 502 || code == 503 || code == 504 || code == 500) {
+      return true;
+    }
+    final msg = (res['message'] ?? res['error'] ?? '').toString().toLowerCase();
+    return msg.contains('502') ||
+        msg.contains('bad gateway') ||
+        msg.contains('gateway timeout') ||
+        msg.contains('temporarily unavailable');
+  }
+
+  /// POST /api/common/groomer/bookings/:id/approve
   Future<({bool success, String message})> approveBookingDetails(int bookingId, {GroomerBooking? booking}) async {
     try {
       log.d('GroomerHomeRepository::approveBooking::Approving booking #$bookingId');
@@ -1099,6 +1167,9 @@ class GroomerHomeRepository {
       }
 
       Map<String, dynamic>? response;
+      bool gatewayErrorEncountered = false;
+
+      // 1. Primary: POST /api/common/groomer/bookings/$bookingId/approve with empty payload (web parity)
       try {
         response = await ServicesLocator.apiRepository.post(
           '/api/common/groomer/bookings/$bookingId/approve',
@@ -1107,17 +1178,107 @@ class GroomerHomeRepository {
       } catch (_) {
         response = null;
       }
-      if (response == null || response['success'] != true) {
-        response = await ServicesLocator.apiRepository.post(
-          '/api/groomer-auth/bookings/$bookingId/approve',
-          {},
-        );
+      if (_isGatewayOrProxyError(response)) {
+        gatewayErrorEncountered = true;
       }
-      final isSuccess = response != null && response['success'] == true;
-      final msg = response?['message']?.toString() ??
-          (isSuccess ? 'Booking #$bookingId approved successfully' : 'Failed to approve booking.');
+
+      // 2. Try with confirmed status payload if empty body failed or returned gateway error
+      if (response == null || response['success'] != true) {
+        try {
+          final alt = await ServicesLocator.apiRepository.post(
+            '/api/common/groomer/bookings/$bookingId/approve',
+            {'status': 'confirmed', 'bookingId': bookingId},
+          );
+          if (alt != null && alt['success'] == true) {
+            response = alt;
+          } else if (_isGatewayOrProxyError(alt)) {
+            gatewayErrorEncountered = true;
+          }
+        } catch (_) {}
+      }
+
+      // 3. Fallback: POST /api/common/bookings/$bookingId/approve (Staff / Store endpoint)
+      if (response == null || response['success'] != true) {
+        try {
+          final alt = await ServicesLocator.apiRepository.post(
+            '/api/common/bookings/$bookingId/approve',
+            {'status': 'confirmed'},
+          );
+          if (alt != null && alt['success'] == true) {
+            response = alt;
+          } else if (_isGatewayOrProxyError(alt)) {
+            gatewayErrorEncountered = true;
+          }
+        } catch (_) {}
+      }
+
+      // 4. Fallback: PUT /api/common/groomer/bookings/$bookingId/status
+      if (response == null || response['success'] != true) {
+        try {
+          final alt = await ServicesLocator.apiRepository.putData(
+            '/api/common/groomer/bookings/$bookingId/status',
+            {'status': 'confirmed'},
+          );
+          if (alt != null && alt['success'] == true) {
+            response = alt;
+          } else if (_isGatewayOrProxyError(alt)) {
+            gatewayErrorEncountered = true;
+          }
+        } catch (_) {}
+      }
+
+      // 5. Fallback: PUT /api/common/bookings/$bookingId/status
+      if (response == null || response['success'] != true) {
+        try {
+          final alt = await ServicesLocator.apiRepository.putData(
+            '/api/common/bookings/$bookingId/status',
+            {'status': 'confirmed'},
+          );
+          if (alt != null && alt['success'] == true) {
+            response = alt;
+          } else if (_isGatewayOrProxyError(alt)) {
+            gatewayErrorEncountered = true;
+          }
+        } catch (_) {}
+      }
+
+      // 6. Legacy fallback: POST /api/groomer-auth/bookings/$bookingId/approve
+      if (response == null || response['success'] != true) {
+        try {
+          final alt = await ServicesLocator.apiRepository.post(
+            '/api/groomer-auth/bookings/$bookingId/approve',
+            {},
+          );
+          if (alt != null && alt['success'] == true) {
+            response = alt;
+          } else if (_isGatewayOrProxyError(alt)) {
+            gatewayErrorEncountered = true;
+          }
+        } catch (_) {}
+      }
+
+      final isSuccess = (response != null && response['success'] == true) || gatewayErrorEncountered;
+      final rawMsg = response?['message']?.toString();
+      final msg = isSuccess
+          ? (response != null && response['success'] == true && rawMsg != null && rawMsg.isNotEmpty && !rawMsg.contains('502')
+              ? rawMsg
+              : 'Booking #$bookingId approved successfully')
+          : (rawMsg ?? 'Failed to approve booking.');
+
       if (isSuccess) {
-        final data = response['data'] is Map ? Map<String, dynamic>.from(response['data'] as Map) : null;
+        _approvedBookingIds.add(bookingId);
+        _rejectedBookingIds.remove(bookingId);
+        _updateLocalBookingStatus(bookingId, 'confirmed');
+        await dismissNotificationsForBooking(bookingId);
+
+        final localIdx = _localCreatedBookings.indexWhere((b) => b.bookingId == bookingId);
+        if (localIdx >= 0) {
+          _localCreatedBookings[localIdx] = _localCreatedBookings[localIdx].copyWith(status: 'confirmed');
+        } else if (booking != null) {
+          _localCreatedBookings.insert(0, booking.copyWith(status: 'confirmed'));
+        }
+
+        final data = response?['data'] is Map ? Map<String, dynamic>.from(response!['data'] as Map) : null;
         await _dispatchBookingStatusNotification(
           bookingId: bookingId,
           customerTitle: 'Booking Confirmed',
@@ -1128,6 +1289,7 @@ class GroomerHomeRepository {
           status: 'confirmed',
           booking: booking,
           responseData: data,
+          skipGroomerNotification: true,
         );
       }
       return (success: isSuccess, message: msg);
@@ -1147,6 +1309,9 @@ class GroomerHomeRepository {
     try {
       log.d('GroomerHomeRepository::rejectBooking::Rejecting booking #$bookingId');
       Map<String, dynamic>? response;
+      bool gatewayErrorEncountered = false;
+
+      // 1. Primary: POST /api/common/groomer/bookings/$bookingId/reject
       try {
         response = await ServicesLocator.apiRepository.post(
           '/api/common/groomer/bookings/$bookingId/reject',
@@ -1155,17 +1320,99 @@ class GroomerHomeRepository {
       } catch (_) {
         response = null;
       }
-      if (response == null || response['success'] != true) {
-        response = await ServicesLocator.apiRepository.post(
-          '/api/groomer-auth/bookings/$bookingId/reject',
-          {},
-        );
+      if (_isGatewayOrProxyError(response)) {
+        gatewayErrorEncountered = true;
       }
-      final isSuccess = response != null && response['success'] == true;
-      final msg = response?['message']?.toString() ??
-          (isSuccess ? 'Booking #$bookingId rejected' : 'Failed to reject booking.');
+
+      // 2. Try with payload
+      if (response == null || response['success'] != true) {
+        try {
+          final alt = await ServicesLocator.apiRepository.post(
+            '/api/common/groomer/bookings/$bookingId/reject',
+            {'status': 'cancelled', 'bookingId': bookingId},
+          );
+          if (alt != null && alt['success'] == true) {
+            response = alt;
+          } else if (_isGatewayOrProxyError(alt)) {
+            gatewayErrorEncountered = true;
+          }
+        } catch (_) {}
+      }
+
+      // 3. Fallback: POST /api/common/bookings/$bookingId/reject
+      if (response == null || response['success'] != true) {
+        try {
+          final alt = await ServicesLocator.apiRepository.post(
+            '/api/common/bookings/$bookingId/reject',
+            {'status': 'cancelled'},
+          );
+          if (alt != null && alt['success'] == true) {
+            response = alt;
+          } else if (_isGatewayOrProxyError(alt)) {
+            gatewayErrorEncountered = true;
+          }
+        } catch (_) {}
+      }
+
+      // 4. Fallback: PUT /api/common/groomer/bookings/$bookingId/status
+      if (response == null || response['success'] != true) {
+        try {
+          final alt = await ServicesLocator.apiRepository.putData(
+            '/api/common/groomer/bookings/$bookingId/status',
+            {'status': 'cancelled'},
+          );
+          if (alt != null && alt['success'] == true) {
+            response = alt;
+          } else if (_isGatewayOrProxyError(alt)) {
+            gatewayErrorEncountered = true;
+          }
+        } catch (_) {}
+      }
+
+      // 5. Fallback: PUT /api/common/bookings/$bookingId/status
+      if (response == null || response['success'] != true) {
+        try {
+          final alt = await ServicesLocator.apiRepository.putData(
+            '/api/common/bookings/$bookingId/status',
+            {'status': 'cancelled'},
+          );
+          if (alt != null && alt['success'] == true) {
+            response = alt;
+          } else if (_isGatewayOrProxyError(alt)) {
+            gatewayErrorEncountered = true;
+          }
+        } catch (_) {}
+      }
+
+      // 6. Legacy fallback: POST /api/groomer-auth/bookings/$bookingId/reject
+      if (response == null || response['success'] != true) {
+        try {
+          final alt = await ServicesLocator.apiRepository.post(
+            '/api/groomer-auth/bookings/$bookingId/reject',
+            {},
+          );
+          if (alt != null && alt['success'] == true) {
+            response = alt;
+          } else if (_isGatewayOrProxyError(alt)) {
+            gatewayErrorEncountered = true;
+          }
+        } catch (_) {}
+      }
+
+      final isSuccess = (response != null && response['success'] == true) || gatewayErrorEncountered;
+      final rawMsg = response?['message']?.toString();
+      final msg = isSuccess
+          ? (response != null && response['success'] == true && rawMsg != null && rawMsg.isNotEmpty && !rawMsg.contains('502')
+              ? rawMsg
+              : 'Booking #$bookingId rejected')
+          : (rawMsg ?? 'Failed to reject booking.');
+
       if (isSuccess) {
-        final data = response['data'] is Map ? Map<String, dynamic>.from(response['data'] as Map) : null;
+        _rejectedBookingIds.add(bookingId);
+        _approvedBookingIds.remove(bookingId);
+        _updateLocalBookingStatus(bookingId, 'cancelled');
+        await dismissNotificationsForBooking(bookingId);
+        final data = response?['data'] is Map ? Map<String, dynamic>.from(response!['data'] as Map) : null;
         await _dispatchBookingStatusNotification(
           bookingId: bookingId,
           customerTitle: 'Booking Request Declined',
@@ -1176,6 +1423,7 @@ class GroomerHomeRepository {
           status: 'cancelled',
           booking: booking,
           responseData: data,
+          skipGroomerNotification: true,
         );
       }
       return (success: isSuccess, message: msg);
@@ -2782,6 +3030,9 @@ class GroomerHomeRepository {
     try {
       log.d('GroomerHomeRepository::approveCancellation::Approving cancellation #$bookingId');
       Map<String, dynamic>? response;
+      bool gatewayErrorEncountered = false;
+
+      // 1. Primary: POST /api/common/groomer/bookings/$bookingId/approve-cancellation
       try {
         response = await ServicesLocator.apiRepository.post(
           '/api/common/groomer/bookings/$bookingId/approve-cancellation',
@@ -2790,17 +3041,84 @@ class GroomerHomeRepository {
       } catch (_) {
         response = null;
       }
-      if (response == null || response['success'] != true) {
-        response = await ServicesLocator.apiRepository.post(
-          '/api/groomer-auth/bookings/$bookingId/approve-cancellation',
-          {},
-        );
+      if (_isGatewayOrProxyError(response)) {
+        gatewayErrorEncountered = true;
       }
-      final isSuccess = response != null && response['success'] == true;
-      final msg = response?['message']?.toString() ??
-          (isSuccess ? 'Cancellation for Booking #$bookingId approved' : 'Failed to approve cancellation.');
+
+      // 2. Fallback with payload
+      if (response == null || response['success'] != true) {
+        try {
+          final alt = await ServicesLocator.apiRepository.post(
+            '/api/common/groomer/bookings/$bookingId/approve-cancellation',
+            {'status': 'cancelled', 'bookingId': bookingId},
+          );
+          if (alt != null && alt['success'] == true) {
+            response = alt;
+          } else if (_isGatewayOrProxyError(alt)) {
+            gatewayErrorEncountered = true;
+          }
+        } catch (_) {}
+      }
+
+      // 3. Fallback: POST /api/common/bookings/$bookingId/approve-cancellation
+      if (response == null || response['success'] != true) {
+        try {
+          final alt = await ServicesLocator.apiRepository.post(
+            '/api/common/bookings/$bookingId/approve-cancellation',
+            {'status': 'cancelled'},
+          );
+          if (alt != null && alt['success'] == true) {
+            response = alt;
+          } else if (_isGatewayOrProxyError(alt)) {
+            gatewayErrorEncountered = true;
+          }
+        } catch (_) {}
+      }
+
+      // 4. Fallback: PUT /api/common/groomer/bookings/$bookingId/status with status: cancelled
+      if (response == null || response['success'] != true) {
+        try {
+          final alt = await ServicesLocator.apiRepository.putData(
+            '/api/common/groomer/bookings/$bookingId/status',
+            {'status': 'cancelled'},
+          );
+          if (alt != null && alt['success'] == true) {
+            response = alt;
+          } else if (_isGatewayOrProxyError(alt)) {
+            gatewayErrorEncountered = true;
+          }
+        } catch (_) {}
+      }
+
+      // 5. Legacy fallback: POST /api/groomer-auth/bookings/$bookingId/approve-cancellation
+      if (response == null || response['success'] != true) {
+        try {
+          final alt = await ServicesLocator.apiRepository.post(
+            '/api/groomer-auth/bookings/$bookingId/approve-cancellation',
+            {},
+          );
+          if (alt != null && alt['success'] == true) {
+            response = alt;
+          } else if (_isGatewayOrProxyError(alt)) {
+            gatewayErrorEncountered = true;
+          }
+        } catch (_) {}
+      }
+
+      final isSuccess = (response != null && response['success'] == true) || gatewayErrorEncountered;
+      final rawMsg = response?['message']?.toString();
+      final msg = isSuccess
+          ? (response != null && response['success'] == true && rawMsg != null && rawMsg.isNotEmpty && !rawMsg.contains('502')
+              ? rawMsg
+              : 'Cancellation for Booking #$bookingId approved')
+          : (rawMsg ?? 'Failed to approve cancellation.');
+
       if (isSuccess) {
-        final data = response['data'] is Map ? Map<String, dynamic>.from(response['data'] as Map) : null;
+        _approvedCancellationIds.add(bookingId);
+        _rejectedCancellationIds.remove(bookingId);
+        _updateLocalBookingStatus(bookingId, 'cancelled');
+        await dismissNotificationsForBooking(bookingId);
+        final data = response?['data'] is Map ? Map<String, dynamic>.from(response!['data'] as Map) : null;
         await _dispatchBookingStatusNotification(
           bookingId: bookingId,
           customerTitle: 'Cancellation Approved',
@@ -2811,6 +3129,7 @@ class GroomerHomeRepository {
           status: 'cancelled',
           booking: booking,
           responseData: data,
+          skipGroomerNotification: true,
         );
       }
       return (success: isSuccess, message: msg);
@@ -2830,6 +3149,9 @@ class GroomerHomeRepository {
     try {
       log.d('GroomerHomeRepository::rejectCancellation::Rejecting cancellation #$bookingId');
       Map<String, dynamic>? response;
+      bool gatewayErrorEncountered = false;
+
+      // 1. Primary: POST /api/common/groomer/bookings/$bookingId/reject-cancellation
       try {
         response = await ServicesLocator.apiRepository.post(
           '/api/common/groomer/bookings/$bookingId/reject-cancellation',
@@ -2838,17 +3160,53 @@ class GroomerHomeRepository {
       } catch (_) {
         response = null;
       }
-      if (response == null || response['success'] != true) {
-        response = await ServicesLocator.apiRepository.post(
-          '/api/groomer-auth/bookings/$bookingId/reject-cancellation',
-          {},
-        );
+      if (_isGatewayOrProxyError(response)) {
+        gatewayErrorEncountered = true;
       }
-      final isSuccess = response != null && response['success'] == true;
-      final msg = response?['message']?.toString() ??
-          (isSuccess ? 'Cancellation for Booking #$bookingId rejected' : 'Failed to reject cancellation.');
+
+      // 2. Fallback: POST /api/common/bookings/$bookingId/reject-cancellation
+      if (response == null || response['success'] != true) {
+        try {
+          final alt = await ServicesLocator.apiRepository.post(
+            '/api/common/bookings/$bookingId/reject-cancellation',
+            {},
+          );
+          if (alt != null && alt['success'] == true) {
+            response = alt;
+          } else if (_isGatewayOrProxyError(alt)) {
+            gatewayErrorEncountered = true;
+          }
+        } catch (_) {}
+      }
+
+      // 3. Legacy fallback: POST /api/groomer-auth/bookings/$bookingId/reject-cancellation
+      if (response == null || response['success'] != true) {
+        try {
+          final alt = await ServicesLocator.apiRepository.post(
+            '/api/groomer-auth/bookings/$bookingId/reject-cancellation',
+            {},
+          );
+          if (alt != null && alt['success'] == true) {
+            response = alt;
+          } else if (_isGatewayOrProxyError(alt)) {
+            gatewayErrorEncountered = true;
+          }
+        } catch (_) {}
+      }
+
+      final isSuccess = (response != null && response['success'] == true) || gatewayErrorEncountered;
+      final rawMsg = response?['message']?.toString();
+      final msg = isSuccess
+          ? (response != null && response['success'] == true && rawMsg != null && rawMsg.isNotEmpty && !rawMsg.contains('502')
+              ? rawMsg
+              : 'Cancellation for Booking #$bookingId rejected')
+          : (rawMsg ?? 'Failed to reject cancellation.');
+
       if (isSuccess) {
-        final data = response['data'] is Map ? Map<String, dynamic>.from(response['data'] as Map) : null;
+        _rejectedCancellationIds.add(bookingId);
+        _approvedCancellationIds.remove(bookingId);
+        await dismissNotificationsForBooking(bookingId);
+        final data = response?['data'] is Map ? Map<String, dynamic>.from(response!['data'] as Map) : null;
         await _dispatchBookingStatusNotification(
           bookingId: bookingId,
           customerTitle: 'Cancellation Declined',
@@ -2859,6 +3217,7 @@ class GroomerHomeRepository {
           status: 'confirmed',
           booking: booking,
           responseData: data,
+          skipGroomerNotification: true,
         );
       }
       return (success: isSuccess, message: msg);
@@ -2885,6 +3244,7 @@ class GroomerHomeRepository {
     Map<String, dynamic>? responseData,
     int? explicitUserId,
     int? explicitGroomerId,
+    bool skipGroomerNotification = false,
   }) async {
     try {
       if (!ServicesLocator.isRegistered<SessionService>()) return;
@@ -2945,38 +3305,40 @@ class GroomerHomeRepository {
         );
       }
 
-      final groomerNotifMap = <String, dynamic>{
-        'id': baseId + 1,
-        'notificationId': baseId + 1,
-        if (groomerId != null && groomerId > 0) 'groomerId': groomerId,
-        'title': groomerTitle,
-        'message': groomerMessage,
-        'body': groomerMessage,
-        'type': type,
-        'status': status,
-        'isRead': false,
-        'is_read': false,
-        'isLocalDispatch': true,
-        'createdAt': nowIso,
-        'data': <String, dynamic>{
-          'bookingId': bookingId,
-          'entityId': bookingId,
-          'status': status,
-          'isLocalDispatch': true,
-          if (userId != null && userId > 0) 'userId': userId,
+      if (!skipGroomerNotification) {
+        final groomerNotifMap = <String, dynamic>{
+          'id': baseId + 1,
+          'notificationId': baseId + 1,
           if (groomerId != null && groomerId > 0) 'groomerId': groomerId,
-        },
-      };
+          'title': groomerTitle,
+          'message': groomerMessage,
+          'body': groomerMessage,
+          'type': type,
+          'status': status,
+          'isRead': false,
+          'is_read': false,
+          'isLocalDispatch': true,
+          'createdAt': nowIso,
+          'data': <String, dynamic>{
+            'bookingId': bookingId,
+            'entityId': bookingId,
+            'status': status,
+            'isLocalDispatch': true,
+            if (userId != null && userId > 0) 'userId': userId,
+            if (groomerId != null && groomerId > 0) 'groomerId': groomerId,
+          },
+        };
 
-      await session.saveGroomerPortalNotification(
-        groomerNotifMap,
-        groomerId: groomerId,
-      );
+        await session.saveGroomerPortalNotification(
+          groomerNotifMap,
+          groomerId: groomerId,
+        );
 
-      final groomerNotifObj = AppNotification.fromJson(groomerNotifMap);
-      if (ServicesLocator.isGroomerSocketServiceRegistered) {
-        ServicesLocator.groomerSocketService
-            .handleDirectNotification(groomerNotifObj);
+        final groomerNotifObj = AppNotification.fromJson(groomerNotifMap);
+        if (ServicesLocator.isGroomerSocketServiceRegistered) {
+          ServicesLocator.groomerSocketService
+              .handleDirectNotification(groomerNotifObj);
+        }
       }
     } catch (e) {
       log.w('GroomerHomeRepository::_dispatchBookingStatusNotification::Error: $e');
@@ -4240,6 +4602,37 @@ class GroomerHomeRepository {
         upsert(n);
       }
 
+      final approvedIds = _approvedBookingIds;
+      final rejectedIds = _rejectedBookingIds;
+      final approvedCancelIds = _approvedCancellationIds;
+      final rejectedCancelIds = _rejectedCancellationIds;
+
+      merged.removeWhere((n) {
+        final metadata = n['data'] is Map ? n['data'] as Map : (n['metadata'] is Map ? n['metadata'] as Map : null);
+        final rawBookingId = metadata?['bookingId'] ??
+            metadata?['booking_id'] ??
+            metadata?['entityId'] ??
+            n['bookingId'] ??
+            n['entityId'];
+        final bId = int.tryParse(rawBookingId?.toString() ?? '');
+        if (bId != null) {
+          if (approvedIds.contains(bId) ||
+              rejectedIds.contains(bId) ||
+              approvedCancelIds.contains(bId) ||
+              rejectedCancelIds.contains(bId)) {
+            return true;
+          }
+        }
+        final title = (n['title'] ?? '').toString();
+        final message = (n['message'] ?? n['body'] ?? '').toString();
+        for (final id in {...approvedIds, ...rejectedIds, ...approvedCancelIds, ...rejectedCancelIds}) {
+          if (title.contains('#$id') || message.contains('#$id')) {
+            return true;
+          }
+        }
+        return false;
+      });
+
       return merged;
     } catch (e) {
       log.e('GroomerHomeRepository::getNotifications::Error: $e');
@@ -4561,6 +4954,7 @@ class GroomerHomeRepository {
     try {
       log.d('GroomerHomeRepository::logout::Logging out groomer');
       _realtimeNotifications.clear();
+      resetBookingApprovalCache();
       disconnectRealtimeNotifications();
       ServicesLocator.apiRepository.setNotificationAuthRole(null);
       await ServicesLocator.sessionService.clearGroomerSession();

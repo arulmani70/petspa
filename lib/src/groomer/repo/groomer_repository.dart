@@ -622,22 +622,11 @@ class GroomerRepository {
   Future<bool> approveBooking(int bookingId) async {
     try {
       log.d('GroomerRepository::approveBooking::Approving booking #$bookingId');
-      Map<String, dynamic>? response;
-      try {
-        response = await ServicesLocator.apiRepository.post(
-          '/api/common/groomer/bookings/$bookingId/approve',
-          {},
-        );
-      } catch (_) {
-        response = null;
+      final res = await ServicesLocator.groomerHomeRepository.approveBookingDetails(bookingId);
+      if (res.success) {
+        await ServicesLocator.groomerHomeRepository.dismissNotificationsForBooking(bookingId);
       }
-      if (response == null || response['success'] != true) {
-        response = await ServicesLocator.apiRepository.post(
-          '/api/groomer-auth/bookings/$bookingId/approve',
-          {},
-        );
-      }
-      return response != null && response['success'] == true;
+      return res.success;
     } catch (e) {
       log.e('GroomerRepository::approveBooking::Error: $e');
       return false;
@@ -650,22 +639,11 @@ class GroomerRepository {
   Future<bool> rejectBooking(int bookingId) async {
     try {
       log.d('GroomerRepository::rejectBooking::Rejecting booking #$bookingId');
-      Map<String, dynamic>? response;
-      try {
-        response = await ServicesLocator.apiRepository.post(
-          '/api/common/groomer/bookings/$bookingId/reject',
-          {},
-        );
-      } catch (_) {
-        response = null;
+      final res = await ServicesLocator.groomerHomeRepository.rejectBookingDetails(bookingId);
+      if (res.success) {
+        await ServicesLocator.groomerHomeRepository.dismissNotificationsForBooking(bookingId);
       }
-      if (response == null || response['success'] != true) {
-        response = await ServicesLocator.apiRepository.post(
-          '/api/groomer-auth/bookings/$bookingId/reject',
-          {},
-        );
-      }
-      return response != null && response['success'] == true;
+      return res.success;
     } catch (e) {
       log.e('GroomerRepository::rejectBooking::Error: $e');
       return false;
@@ -743,22 +721,11 @@ class GroomerRepository {
   Future<bool> approveCancellation(int bookingId) async {
     try {
       log.d('GroomerRepository::approveCancellation::Approving cancellation #$bookingId');
-      Map<String, dynamic>? response;
-      try {
-        response = await ServicesLocator.apiRepository.post(
-          '/api/common/groomer/bookings/$bookingId/approve-cancellation',
-          {},
-        );
-      } catch (_) {
-        response = null;
+      final res = await ServicesLocator.groomerHomeRepository.approveCancellationDetails(bookingId);
+      if (res.success) {
+        await ServicesLocator.groomerHomeRepository.dismissNotificationsForBooking(bookingId);
       }
-      if (response == null || response['success'] != true) {
-        response = await ServicesLocator.apiRepository.post(
-          '/api/groomer-auth/bookings/$bookingId/approve-cancellation',
-          {},
-        );
-      }
-      return response != null && response['success'] == true;
+      return res.success;
     } catch (e) {
       log.e('GroomerRepository::approveCancellation::Error: $e');
       return false;
@@ -771,22 +738,11 @@ class GroomerRepository {
   Future<bool> rejectCancellation(int bookingId) async {
     try {
       log.d('GroomerRepository::rejectCancellation::Rejecting cancellation #$bookingId');
-      Map<String, dynamic>? response;
-      try {
-        response = await ServicesLocator.apiRepository.post(
-          '/api/common/groomer/bookings/$bookingId/reject-cancellation',
-          {},
-        );
-      } catch (_) {
-        response = null;
+      final res = await ServicesLocator.groomerHomeRepository.rejectCancellationDetails(bookingId);
+      if (res.success) {
+        await ServicesLocator.groomerHomeRepository.dismissNotificationsForBooking(bookingId);
       }
-      if (response == null || response['success'] != true) {
-        response = await ServicesLocator.apiRepository.post(
-          '/api/groomer-auth/bookings/$bookingId/reject-cancellation',
-          {},
-        );
-      }
-      return response != null && response['success'] == true;
+      return res.success;
     } catch (e) {
       log.e('GroomerRepository::rejectCancellation::Error: $e');
       return false;

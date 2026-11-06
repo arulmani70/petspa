@@ -498,6 +498,7 @@ class ApiRepository {
         receiveTimeout: const Duration(seconds: 10),
         sendTimeout: const Duration(seconds: 10),
         headers: {
+          'Accept': 'application/json',
           'Content-Type': 'application/json',
           'User-Agent': 'PostmanRuntime/7.39.0',
         },
@@ -822,6 +823,28 @@ class ApiRepository {
     }
   }
 
+  String _formatHttpErrorMessage(int? statusCode, dynamic data, {String? defaultMessage}) {
+    if (data is Map && data['message'] != null) {
+      final msg = data['message'].toString().trim();
+      if (msg.isNotEmpty && !msg.contains('<html>')) {
+        return msg;
+      }
+    }
+    if (statusCode == 502 || statusCode == 503 || statusCode == 504) {
+      return 'Server gateway temporarily unavailable. Please try again.';
+    }
+    if (statusCode != null && statusCode >= 500) {
+      return 'Something went wrong on our side. Please try again in a moment.';
+    }
+    if (defaultMessage != null && defaultMessage.isNotEmpty && !defaultMessage.contains('<html>')) {
+      return defaultMessage;
+    }
+    if (statusCode != null) {
+      return 'HTTP $statusCode';
+    }
+    return 'An unexpected network error occurred.';
+  }
+
   Future<Map<String, dynamic>?> post(
     String path,
     Map<String, dynamic> data,
@@ -859,7 +882,8 @@ class ApiRepository {
         return {
           'statusCode': response.statusCode,
           'success': false,
-          'message': 'HTTP ${response.statusCode}',
+          'message': _formatHttpErrorMessage(response.statusCode, response.data),
+          if (response.data != null) 'data': response.data,
         };
       }
 
@@ -877,7 +901,11 @@ class ApiRepository {
         return {
           'statusCode': error.response?.statusCode,
           'success': false,
-          'message': error.response?.statusMessage ?? 'HTTP ${error.response?.statusCode}',
+          'message': _formatHttpErrorMessage(
+            error.response?.statusCode,
+            error.response?.data,
+            defaultMessage: error.response?.statusMessage,
+          ),
           'data': error.response?.data,
         };
       }
@@ -942,18 +970,41 @@ class ApiRepository {
           "ApiRepository::putData::Unexpected status: ${response.statusCode} body: ${response.data}",
         );
         if (response.data is Map<String, dynamic>) {
-          return response.data as Map<String, dynamic>;
+          final resMap = Map<String, dynamic>.from(response.data as Map);
+          if (!resMap.containsKey('statusCode') && response.statusCode != null) {
+            resMap['statusCode'] = response.statusCode;
+          }
+          return resMap;
         }
-        return null;
+        return {
+          'statusCode': response.statusCode,
+          'success': false,
+          'message': _formatHttpErrorMessage(response.statusCode, response.data),
+          if (response.data != null) 'data': response.data,
+        };
       }
 
       log.d("ApiRepository::putData::Updated successfully");
       return response.data as Map<String, dynamic>;
     } catch (error) {
-      if (error is DioException &&
-          error.response != null &&
-          error.response?.data is Map<String, dynamic>) {
-        return error.response?.data as Map<String, dynamic>;
+      if (error is DioException && error.response != null) {
+        if (error.response?.data is Map<String, dynamic>) {
+          final resMap = Map<String, dynamic>.from(error.response!.data as Map);
+          if (!resMap.containsKey('statusCode') && error.response?.statusCode != null) {
+            resMap['statusCode'] = error.response!.statusCode;
+          }
+          return resMap;
+        }
+        return {
+          'statusCode': error.response?.statusCode,
+          'success': false,
+          'message': _formatHttpErrorMessage(
+            error.response?.statusCode,
+            error.response?.data,
+            defaultMessage: error.response?.statusMessage,
+          ),
+          'data': error.response?.data,
+        };
       }
       log.w("ApiRepository::putData::Error: $error");
       return null;

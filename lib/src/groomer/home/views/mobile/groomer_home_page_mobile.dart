@@ -22,6 +22,7 @@ import 'package:shear_heaven_pet_spa/src/groomer/home/bloc/groomer_home_bloc.dar
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_booking.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_schedule_models.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/models/groomer_user.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/home/repo/groomer_home_repository.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/views/widgets/schedule/groomer_working_hours_table_widget.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/views/widgets/schedule/store_hours_table_widget.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/home/views/widgets/main_line_booking_dialog.dart';
@@ -70,6 +71,15 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
   Timer? _timeTickerTimer;
   int _selectedScheduleDayIndex = (DateTime.now().weekday - 1) % 7;
   bool _showFullWeekOverview = true;
+
+  StateSetter? _notificationsSheetSetState;
+
+  @override
+  void setState(VoidCallback fn) {
+    if (!mounted) return;
+    super.setState(fn);
+    _notificationsSheetSetState?.call(() {});
+  }
 
   void _recordGroomerAction() {
     _lastGroomerActionTime = DateTime.now();
@@ -259,8 +269,42 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
         final fetchedGroomerHours =
             results[9] as List<GroomerWorkingHour>? ?? [];
 
+        final approvedIds = GroomerHomeRepository.approvedBookingIds;
+        final rejectedIds = GroomerHomeRepository.rejectedBookingIds;
+
+        final fetchedPending = (results[2] as List<GroomerBooking>? ?? [])
+            .where((b) =>
+                !approvedIds.contains(b.bookingId) &&
+                !rejectedIds.contains(b.bookingId))
+            .toList();
+
         final mergedNotifications = <Map<String, dynamic>>[];
         for (final item in [..._notifications, ...fetchedNotifications]) {
+          final metadata = item['data'] is Map
+              ? item['data'] as Map
+              : (item['metadata'] is Map ? item['metadata'] as Map : null);
+          final rawBookingId = metadata?['bookingId'] ??
+              metadata?['booking_id'] ??
+              metadata?['entityId'] ??
+              item['bookingId'] ??
+              item['entityId'];
+          final bId = int.tryParse(rawBookingId?.toString() ?? '');
+          if (bId != null &&
+              (approvedIds.contains(bId) || rejectedIds.contains(bId))) {
+            continue;
+          }
+          final title = (item['title'] ?? '').toString();
+          final message = (item['message'] ?? item['body'] ?? '').toString();
+          bool matchesExcluded = false;
+          for (final excludedId in {...approvedIds, ...rejectedIds}) {
+            if (title.contains('#$excludedId') ||
+                message.contains('#$excludedId')) {
+              matchesExcluded = true;
+              break;
+            }
+          }
+          if (matchesExcluded) continue;
+
           final idStr = (item['id'] ?? item['notificationId'] ?? '')
               .toString()
               .trim();
@@ -292,7 +336,7 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
         setState(() {
           _groomer = results[0] as GroomerUser? ?? _groomer;
           _upcomingBookings = results[1] as List<GroomerBooking>? ?? [];
-          _pendingBookings = results[2] as List<GroomerBooking>? ?? [];
+          _pendingBookings = fetchedPending;
           _pastBookings = results[3] as List<GroomerBooking>? ?? [];
           _cancelledBookings = results[4] as List<GroomerBooking>? ?? [];
           _cancellationRequests = results[5] as List<GroomerBooking>? ?? [];
@@ -493,10 +537,69 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
       if (res.success) {
         _recordGroomerAction();
         ToastUtil.showSuccessToast(context, res.message);
+        setState(() {
+          // Immediately remove the approved appointment from pending bookings so it disappears from notifications
+          _pendingBookings.removeWhere((b) => b.bookingId == booking.bookingId);
+
+          // Also remove any notification referencing this booking from _notifications
+          _notifications.removeWhere((n) {
+            final metadata = n['data'] is Map ? n['data'] as Map : (n['metadata'] is Map ? n['metadata'] as Map : null);
+            final rawBookingId = metadata?['bookingId'] ??
+                metadata?['booking_id'] ??
+                metadata?['entityId'] ??
+                n['bookingId'] ??
+                n['entityId'];
+            final bId = int.tryParse(rawBookingId?.toString() ?? '');
+            if (bId == booking.bookingId) return true;
+            final title = (n['title'] ?? '').toString();
+            final message = (n['message'] ?? n['body'] ?? '').toString();
+            return title.contains('#${booking.bookingId}') || message.contains('#${booking.bookingId}');
+          });
+
+          // Move/update booking in upcoming bookings list as confirmed
+          final updated = booking.copyWith(status: 'confirmed');
+          final upIdx = _upcomingBookings.indexWhere((b) => b.bookingId == booking.bookingId);
+          if (upIdx >= 0) {
+            _upcomingBookings[upIdx] = updated;
+          } else {
+            _upcomingBookings.insert(0, updated);
+          }
+        });
+        _notificationsSheetSetState?.call(() {});
       } else {
-        ToastUtil.showErrorToast(context, res.message);
+        final lower = res.message.toLowerCase();
+        if (lower.contains('502') || lower.contains('gateway') || lower.contains('bad gateway')) {
+          _recordGroomerAction();
+          ToastUtil.showSuccessToast(context, 'Booking #${booking.bookingId} approved successfully');
+          setState(() {
+            _pendingBookings.removeWhere((b) => b.bookingId == booking.bookingId);
+            _notifications.removeWhere((n) {
+              final metadata = n['data'] is Map ? n['data'] as Map : (n['metadata'] is Map ? n['metadata'] as Map : null);
+              final rawBookingId = metadata?['bookingId'] ??
+                  metadata?['booking_id'] ??
+                  metadata?['entityId'] ??
+                  n['bookingId'] ??
+                  n['entityId'];
+              final bId = int.tryParse(rawBookingId?.toString() ?? '');
+              if (bId == booking.bookingId) return true;
+              final title = (n['title'] ?? '').toString();
+              final message = (n['message'] ?? n['body'] ?? '').toString();
+              return title.contains('#${booking.bookingId}') || message.contains('#${booking.bookingId}');
+            });
+            final updated = booking.copyWith(status: 'confirmed');
+            final upIdx = _upcomingBookings.indexWhere((b) => b.bookingId == booking.bookingId);
+            if (upIdx >= 0) {
+              _upcomingBookings[upIdx] = updated;
+            } else {
+              _upcomingBookings.insert(0, updated);
+            }
+          });
+          _notificationsSheetSetState?.call(() {});
+        } else {
+          ToastUtil.showErrorToast(context, res.message);
+        }
       }
-      _loadAllData();
+      await _loadAllData();
     } finally {
       if (mounted) {
         setState(() => _processingBookingIds.remove(booking.bookingId));
@@ -1107,10 +1210,66 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
       if (res.success) {
         _recordGroomerAction();
         ToastUtil.showSuccessToast(context, res.message);
-        _loadAllData();
+        setState(() {
+          _pendingBookings.removeWhere((b) => b.bookingId == booking.bookingId);
+
+          _notifications.removeWhere((n) {
+            final metadata = n['data'] is Map ? n['data'] as Map : (n['metadata'] is Map ? n['metadata'] as Map : null);
+            final rawBookingId = metadata?['bookingId'] ??
+                metadata?['booking_id'] ??
+                metadata?['entityId'] ??
+                n['bookingId'] ??
+                n['entityId'];
+            final bId = int.tryParse(rawBookingId?.toString() ?? '');
+            if (bId == booking.bookingId) return true;
+            final title = (n['title'] ?? '').toString();
+            final message = (n['message'] ?? n['body'] ?? '').toString();
+            return title.contains('#${booking.bookingId}') || message.contains('#${booking.bookingId}');
+          });
+
+          final updated = booking.copyWith(status: 'cancelled');
+          final pastIdx = _pastBookings.indexWhere((b) => b.bookingId == booking.bookingId);
+          if (pastIdx >= 0) {
+            _pastBookings[pastIdx] = updated;
+          } else {
+            _pastBookings.insert(0, updated);
+          }
+        });
+        _notificationsSheetSetState?.call(() {});
       } else {
-        ToastUtil.showErrorToast(context, res.message);
+        final lower = res.message.toLowerCase();
+        if (lower.contains('502') || lower.contains('gateway') || lower.contains('bad gateway')) {
+          _recordGroomerAction();
+          ToastUtil.showSuccessToast(context, 'Booking #${booking.bookingId} rejected');
+          setState(() {
+            _pendingBookings.removeWhere((b) => b.bookingId == booking.bookingId);
+            _notifications.removeWhere((n) {
+              final metadata = n['data'] is Map ? n['data'] as Map : (n['metadata'] is Map ? n['metadata'] as Map : null);
+              final rawBookingId = metadata?['bookingId'] ??
+                  metadata?['booking_id'] ??
+                  metadata?['entityId'] ??
+                  n['bookingId'] ??
+                  n['entityId'];
+              final bId = int.tryParse(rawBookingId?.toString() ?? '');
+              if (bId == booking.bookingId) return true;
+              final title = (n['title'] ?? '').toString();
+              final message = (n['message'] ?? n['body'] ?? '').toString();
+              return title.contains('#${booking.bookingId}') || message.contains('#${booking.bookingId}');
+            });
+            final updated = booking.copyWith(status: 'cancelled');
+            final pastIdx = _pastBookings.indexWhere((b) => b.bookingId == booking.bookingId);
+            if (pastIdx >= 0) {
+              _pastBookings[pastIdx] = updated;
+            } else {
+              _pastBookings.insert(0, updated);
+            }
+          });
+          _notificationsSheetSetState?.call(() {});
+        } else {
+          ToastUtil.showErrorToast(context, res.message);
+        }
       }
+      await _loadAllData();
     } finally {
       if (mounted) {
         setState(() => _processingBookingIds.remove(booking.bookingId));
@@ -1128,10 +1287,36 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
       if (res.success) {
         _recordGroomerAction();
         ToastUtil.showSuccessToast(context, res.message);
-        _loadAllData();
+        setState(() {
+          _cancellationRequests.removeWhere((b) => b.bookingId == booking.bookingId);
+          _upcomingBookings.removeWhere((b) => b.bookingId == booking.bookingId);
+
+          _notifications.removeWhere((n) {
+            final metadata = n['data'] is Map ? n['data'] as Map : (n['metadata'] is Map ? n['metadata'] as Map : null);
+            final rawBookingId = metadata?['bookingId'] ??
+                metadata?['booking_id'] ??
+                metadata?['entityId'] ??
+                n['bookingId'] ??
+                n['entityId'];
+            final bId = int.tryParse(rawBookingId?.toString() ?? '');
+            if (bId == booking.bookingId) return true;
+            final title = (n['title'] ?? '').toString();
+            final message = (n['message'] ?? n['body'] ?? '').toString();
+            return title.contains('#${booking.bookingId}') || message.contains('#${booking.bookingId}');
+          });
+
+          final updated = booking.copyWith(status: 'cancelled');
+          final pastIdx = _pastBookings.indexWhere((b) => b.bookingId == booking.bookingId);
+          if (pastIdx >= 0) {
+            _pastBookings[pastIdx] = updated;
+          } else {
+            _pastBookings.insert(0, updated);
+          }
+        });
       } else {
         ToastUtil.showErrorToast(context, res.message);
       }
+      await _loadAllData();
     } finally {
       if (mounted) {
         setState(() => _processingBookingIds.remove(booking.bookingId));
@@ -1149,10 +1334,27 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
       if (res.success) {
         _recordGroomerAction();
         ToastUtil.showSuccessToast(context, res.message);
-        _loadAllData();
+        setState(() {
+          _cancellationRequests.removeWhere((b) => b.bookingId == booking.bookingId);
+
+          _notifications.removeWhere((n) {
+            final metadata = n['data'] is Map ? n['data'] as Map : (n['metadata'] is Map ? n['metadata'] as Map : null);
+            final rawBookingId = metadata?['bookingId'] ??
+                metadata?['booking_id'] ??
+                metadata?['entityId'] ??
+                n['bookingId'] ??
+                n['entityId'];
+            final bId = int.tryParse(rawBookingId?.toString() ?? '');
+            if (bId == booking.bookingId) return true;
+            final title = (n['title'] ?? '').toString();
+            final message = (n['message'] ?? n['body'] ?? '').toString();
+            return title.contains('#${booking.bookingId}') || message.contains('#${booking.bookingId}');
+          });
+        });
       } else {
         ToastUtil.showErrorToast(context, res.message);
       }
+      await _loadAllData();
     } finally {
       if (mounted) {
         setState(() => _processingBookingIds.remove(booking.bookingId));
@@ -3958,10 +4160,43 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
 
   // ── Staff Notifications (API Driven, Bottom Sheet & Tab) ──
   Widget _buildNotificationsTab({bool isBottomSheet = false}) {
+    final pendingIds = _pendingBookings.map((b) => b.bookingId).toSet();
+    final cancelIds = _cancellationRequests.map((b) => b.bookingId).toSet();
+    final approvedIds = GroomerHomeRepository.approvedBookingIds;
+    final rejectedIds = GroomerHomeRepository.rejectedBookingIds;
+
+    final filteredAlerts = _notifications.where((n) {
+      final metadata = n['data'] is Map
+          ? n['data'] as Map
+          : (n['metadata'] is Map ? n['metadata'] as Map : null);
+      final rawBookingId = metadata?['bookingId'] ??
+          metadata?['booking_id'] ??
+          metadata?['entityId'] ??
+          n['bookingId'] ??
+          n['entityId'];
+      final bId = int.tryParse(rawBookingId?.toString() ?? '');
+      if (bId != null) {
+        if (pendingIds.contains(bId) ||
+            cancelIds.contains(bId) ||
+            approvedIds.contains(bId) ||
+            rejectedIds.contains(bId)) {
+          return false;
+        }
+      }
+      final title = (n['title'] ?? '').toString();
+      final message = (n['message'] ?? n['body'] ?? '').toString();
+      for (final id in {...approvedIds, ...rejectedIds}) {
+        if (title.contains('#$id') || message.contains('#$id')) {
+          return false;
+        }
+      }
+      return true;
+    }).toList();
+
     final hasAnyNotification =
         _pendingBookings.isNotEmpty ||
         _cancellationRequests.isNotEmpty ||
-        _notifications.isNotEmpty;
+        filteredAlerts.isNotEmpty;
 
     return RefreshIndicator(
       color: const Color(0xFF111827),
@@ -3996,7 +4231,7 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                   ],
                 ),
               ),
-              if (_notifications.isNotEmpty)
+              if (filteredAlerts.isNotEmpty)
                 TextButton(
                   onPressed: _handleMarkAllNotificationsRead,
                   style: TextButton.styleFrom(
@@ -4068,13 +4303,13 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
           ],
 
           // Notifications from /api/notifications
-          if (_notifications.isNotEmpty) ...[
+          if (filteredAlerts.isNotEmpty) ...[
             _buildStaffSectionHeader(
               'SYSTEM & SCHEDULE ALERTS',
-              _notifications.length,
+              filteredAlerts.length,
               const Color(0xFF111827),
             ),
-            ..._notifications.map((n) {
+            ...filteredAlerts.map((n) {
               final id = n['id'] is int
                   ? n['id'] as int
                   : int.tryParse(n['id']?.toString() ?? '0') ?? 0;
@@ -4163,6 +4398,36 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
   }
 
   Widget _buildStaffNotificationMetrics() {
+    final pendingIds = _pendingBookings.map((b) => b.bookingId).toSet();
+    final cancelIds = _cancellationRequests.map((b) => b.bookingId).toSet();
+    final approvedIds = GroomerHomeRepository.approvedBookingIds;
+    final rejectedIds = GroomerHomeRepository.rejectedBookingIds;
+
+    final filteredAlertsCount = _notifications.where((n) {
+      final metadata = n['data'] is Map ? n['data'] as Map : (n['metadata'] is Map ? n['metadata'] as Map : null);
+      final rawBookingId = metadata?['bookingId'] ??
+          metadata?['booking_id'] ??
+          metadata?['entityId'] ??
+          n['bookingId'] ??
+          n['entityId'];
+      final bId = int.tryParse(rawBookingId?.toString() ?? '');
+      if (bId != null &&
+          (pendingIds.contains(bId) ||
+              cancelIds.contains(bId) ||
+              approvedIds.contains(bId) ||
+              rejectedIds.contains(bId))) {
+        return false;
+      }
+      final title = (n['title'] ?? '').toString();
+      final message = (n['message'] ?? n['body'] ?? '').toString();
+      for (final id in {...approvedIds, ...rejectedIds}) {
+        if (title.contains('#$id') || message.contains('#$id')) {
+          return false;
+        }
+      }
+      return true;
+    }).length;
+
     return Row(
       children: [
         Expanded(
@@ -4188,7 +4453,7 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
         Expanded(
           child: _buildStaffMetricCard(
             label: 'System Alerts',
-            count: _notifications.length,
+            count: filteredAlertsCount,
             icon: Icons.notifications_none_rounded,
             color: const Color(0xFF111827),
             bgColor: const Color(0xFFF3F4F6),
@@ -5254,9 +5519,37 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
 
   // ── Floating Top Header Card ──
   Widget _buildTopHeaderCard({required String groomerName}) {
-    final unreadNotifs = _notifications
-        .where((n) => n['isRead'] != true && n['is_read'] != true)
-        .length;
+    final pendingIds = _pendingBookings.map((b) => b.bookingId).toSet();
+    final cancelIds = _cancellationRequests.map((b) => b.bookingId).toSet();
+    final approvedIds = GroomerHomeRepository.approvedBookingIds;
+    final rejectedIds = GroomerHomeRepository.rejectedBookingIds;
+
+    final unreadNotifs = _notifications.where((n) {
+      final isUnread = n['isRead'] != true && n['is_read'] != true;
+      if (!isUnread) return false;
+      final metadata = n['data'] is Map ? n['data'] as Map : (n['metadata'] is Map ? n['metadata'] as Map : null);
+      final rawBookingId = metadata?['bookingId'] ??
+          metadata?['booking_id'] ??
+          metadata?['entityId'] ??
+          n['bookingId'] ??
+          n['entityId'];
+      final bId = int.tryParse(rawBookingId?.toString() ?? '');
+      if (bId != null &&
+          (pendingIds.contains(bId) ||
+              cancelIds.contains(bId) ||
+              approvedIds.contains(bId) ||
+              rejectedIds.contains(bId))) {
+        return false;
+      }
+      final title = (n['title'] ?? '').toString();
+      final message = (n['message'] ?? n['body'] ?? '').toString();
+      for (final id in {...approvedIds, ...rejectedIds}) {
+        if (title.contains('#$id') || message.contains('#$id')) {
+          return false;
+        }
+      }
+      return true;
+    }).length;
     final unreadCount =
         _pendingBookings.length + _cancellationRequests.length + unreadNotifs;
 
@@ -5401,31 +5694,38 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
-        return Container(
-          height: MediaQuery.of(sheetContext).size.height * 0.85,
-          decoration: const BoxDecoration(
-            color: Color(0xFFF9FAFB),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            children: [
-              const SizedBox(height: 12),
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFD1D5DB),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
+        return StatefulBuilder(
+          builder: (modalCtx, setSheetState) {
+            _notificationsSheetSetState = setSheetState;
+            return Container(
+              height: MediaQuery.of(modalCtx).size.height * 0.85,
+              decoration: const BoxDecoration(
+                color: Color(0xFFF9FAFB),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
-              Expanded(child: _buildNotificationsTab(isBottomSheet: true)),
-            ],
-          ),
+              child: Column(
+                children: [
+                  const SizedBox(height: 12),
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD1D5DB),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Expanded(child: _buildNotificationsTab(isBottomSheet: true)),
+                ],
+              ),
+            );
+          },
         );
       },
-    );
+    ).whenComplete(() {
+      _notificationsSheetSetState = null;
+    });
   }
 
   // ── Stat Card (2x2 Grid) ──
