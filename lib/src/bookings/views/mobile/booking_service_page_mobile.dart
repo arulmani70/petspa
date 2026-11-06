@@ -48,28 +48,32 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
     // Pre-select a service if passed via GoRouter extra
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final extra = GoRouterState.of(context).extra;
-      if (extra is Map) {
-        if (extra['from_popular'] == true || extra['service'] != null) {
-          setState(() {
-            _isFromPopular = true;
-          });
-        }
-        if (extra['service'] != null) {
-          final svc = extra['service'] as Map<String, dynamic>;
-          _draft.setService(svc);
-          final existingPetId = BookingDateUtils.parsePetIdFromPet(_draft.pet);
-          if (_draft.pet == null || existingPetId == null || existingPetId == 0) {
-            final svcName = svc['service_name']?.toString() ?? svc['name']?.toString() ?? '';
-            final breedName = svcName.contains(' — ') ? svcName.split(' — ').first.trim() : 'My Pet';
-            _draft.setPet({
-              'pet_name': breedName,
-              'breed': breedName != 'My Pet' ? breedName : 'All Breeds',
-              'weight': 'Standard',
-              'photo_url': svc['imageUrl'] ?? svc['photo_url'],
+      try {
+        final extra = GoRouterState.of(context).extra;
+        if (extra is Map) {
+          if (extra['from_popular'] == true || extra['service'] != null) {
+            setState(() {
+              _isFromPopular = true;
             });
           }
+          if (extra['service'] != null) {
+            final svc = extra['service'] as Map<String, dynamic>;
+            _draft.setService(svc);
+            final existingPetId = BookingDateUtils.parsePetIdFromPet(_draft.pet);
+            if (_draft.pet == null || existingPetId == null || existingPetId == 0) {
+              final svcName = svc['service_name']?.toString() ?? svc['name']?.toString() ?? '';
+              final breedName = svcName.contains(' — ') ? svcName.split(' — ').first.trim() : 'My Pet';
+              _draft.setPet({
+                'pet_name': breedName,
+                'breed': breedName != 'My Pet' ? breedName : 'All Breeds',
+                'weight': 'Standard',
+                'photo_url': svc['imageUrl'] ?? svc['photo_url'],
+              });
+            }
+          }
         }
+      } catch (_) {
+        // GoRouterState not available in some contexts/tests
       }
     });
   }
@@ -174,8 +178,6 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
           listenable: _draft,
           builder: (ctx, _) {
             final bs      = state.bookingServices;
-            final extra   = GoRouterState.of(context).extra;
-            final isFromPopular = (extra is Map && (extra['from_popular'] == true || extra['service'] != null)) || _isFromPopular;
             final hasRealPet = _draft.pet != null &&
                 (BookingDateUtils.parsePetIdFromPet(_draft.pet) != null &&
                     BookingDateUtils.parsePetIdFromPet(_draft.pet)! > 0);
@@ -205,24 +207,28 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
               );
             }
 
-            // Show Breed tab ONLY when coming via Popular Services or when no real pet was selected in Step 1
-            final showBreedTab = isFromPopular || !hasRealPet;
-
             final tabs     = <_TabDef>[];
             final tabViews = <Widget>[];
 
-            if (showBreedTab && bs.breeds.isNotEmpty) {
-              tabs.add(const _TabDef(label: 'Breed', icon: Icons.pets));
-              tabViews.add(_BreedTab(breeds: bs.breeds, draft: _draft));
-            }
+            // 1. Packages tab
             if (bs.packages.isNotEmpty) {
               tabs.add(const _TabDef(label: 'Packages', icon: Icons.auto_awesome));
               tabViews.add(_PackageTab(packages: bs.packages, draft: _draft));
             }
+
+            // 2. Services tab (shown after Packages)
+            if (bs.breeds.isNotEmpty) {
+              tabs.add(const _TabDef(label: 'Services', icon: Icons.content_cut));
+              tabViews.add(_BreedTab(breeds: bs.breeds, draft: _draft));
+            }
+
+            // 3. Add-Ons tab
             if (bs.addOns.isNotEmpty) {
               tabs.add(const _TabDef(label: 'Add-Ons', icon: Icons.add_circle_outline));
               tabViews.add(_AddOnTab(addOns: bs.addOns, draft: _draft));
             }
+
+            // 4. Walk-In tab
             if (bs.walkIn.isNotEmpty) {
               tabs.add(const _TabDef(label: 'Walk-In', icon: Icons.directions_walk));
               tabViews.add(_WalkInTab(items: bs.walkIn, draft: _draft));
@@ -249,7 +255,7 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
             }
 
             return DefaultTabController(
-              key: ValueKey('tabs_${tabs.length}_${showBreedTab}_$hasRealPet'),
+              key: ValueKey('tabs_${tabs.length}_$hasRealPet'),
               length: tabs.length,
               child: PopScope(
                 canPop: canPop,
@@ -481,6 +487,44 @@ class _BreedTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasBreedGroups = breeds.any((b) => b.name.contains(' — '));
+    if (!hasBreedGroups) {
+      return ListenableBuilder(
+        listenable: draft,
+        builder: (ctx, _) => ListView(
+          padding: const EdgeInsets.fromLTRB(17, 16, 17, 120),
+          children: [
+            const _InfoTip(
+              icon   : Icons.info_outline,
+              text   : "Select a grooming service for your pet's appointment.",
+              bgColor: _kLightGrey,
+              fgColor: _kBlack,
+            ),
+            const SizedBox(height: 4),
+            ...breeds.map((item) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _ServiceCard(
+                item      : item,
+                isSelected: draft.service?['serviceId'] == item.id,
+                isAddOn   : false,
+                onTap     : () {
+                  draft.setService(item.toMap());
+                  if (draft.pet == null) {
+                    draft.setPet({
+                      'pet_name': 'My Pet',
+                      'breed': 'All Breeds',
+                      'weight': 'Standard',
+                      'photo_url': item.imageUrl,
+                    });
+                  }
+                },
+              ),
+            )),
+          ],
+        ),
+      );
+    }
+
     // Group by breed name (part before " — ")
     final grouped = <String, List<ServiceItem>>{};
     for (final b in breeds) {
@@ -925,8 +969,8 @@ class _ServiceImage extends StatelessWidget {
         serviceAssetFor(item.name) ??
         (item.isPackage
             ? (item.name.toLowerCase().contains('scent') || item.id == 2
-                ? 'assets/images/home/package_banner_2.png'
-                : 'assets/images/home/package_banner_1.png')
+                ? 'assets/images/common/svc_spa.png'
+                : 'assets/images/home/promo_dog.png')
             : null) ??
         (item.name.toLowerCase().contains('breed')
             ? 'assets/images/common/svc_breed_style.png'

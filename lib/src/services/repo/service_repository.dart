@@ -570,6 +570,11 @@ class ServiceRepository {
 
     final baseUrl = Constants.app.BASE_URL;
 
+    // Static web portal assets (e.g. /assets/images/...) live on the web portal host
+    if (s.startsWith('/assets/')) {
+      return 'https://pcmdev.shearheavenpetspa.com$s';
+    }
+
     final uri = Uri.tryParse(s);
     if (uri == null) {
       final clean = s.startsWith('/') ? s : '/$s';
@@ -589,6 +594,9 @@ class ServiceRepository {
 
     final path = uri.path.startsWith('/') ? uri.path : '/${uri.path}';
     final query = uri.hasQuery ? '?${uri.query}' : '';
+    if (path.startsWith('/assets/')) {
+      return 'https://pcmdev.shearheavenpetspa.com$path$query';
+    }
     return '$baseUrl$path$query';
   }
 
@@ -749,6 +757,56 @@ class ServiceRepository {
         }
       }
 
+      // ── Main Services (catalog service_master items) ─────────────────────
+      final rawMain = data['Main Services'] ??
+          data['MainServices'] ??
+          data['mainServices'] ??
+          data['main'];
+      if (rawMain is List) {
+        for (final m in rawMain) {
+          if (m is! Map) continue;
+          final rawId = m['ServiceMasterId'] ?? m['id'] ?? m['MainServiceId'];
+          int? intId;
+          if (rawId is int) {
+            intId = rawId;
+          } else if (rawId != null) {
+            intId = int.tryParse(rawId.toString().replaceAll(RegExp(r'[^0-9]'), ''));
+          }
+          final currentSvcId = (intId != null && intId > 0) ? intId : breedServiceCounter++;
+          final code = (m['MainServiceId'] ?? m['id'] ?? 'SRV-$currentSvcId').toString().trim();
+          final name = (m['Name'] ?? m['name'] ?? 'Grooming Service').toString().trim();
+          final price = _parseDouble(m['Price'] ?? m['price']);
+          final dur = _parseDuration(m['TimeinMinutes'] ?? m['timeInMinutes']);
+          final desc = (m['Description'] ?? m['description'] ?? '$name at our pet spa salon.').toString().trim();
+          final includes = (m['IncludedSubSteps'] is List)
+              ? (m['IncludedSubSteps'] as List)
+                  .map((e) => e?.toString().trim() ?? '')
+                  .where((s) => s.isNotEmpty)
+                  .toList()
+              : <String>[];
+
+          breeds.add(ServiceItem(
+            id: currentSvcId,
+            code: code,
+            isPackage: false,
+            isAddOn: false,
+            name: name,
+            description: desc,
+            price: price,
+            priceDisplay: _priceDisplay(m['Price'] ?? m['price'], null),
+            durationMinutes: dur > 0 ? dur : 60,
+            imageUrl: _imageUrl(m),
+            includes: includes.isNotEmpty
+                ? includes
+                : [
+                    name,
+                    'Certified professional stylist',
+                    'Coat assessment and gentle handling included',
+                  ],
+          ));
+        }
+      }
+
       // ── Walk-In Services ─────────────────────────────────────────────────
       final walkIn = <ServiceItem>[];
       int walkInCounter = breedServiceCounter; // e.g. 10 after 9 breed services
@@ -843,13 +901,13 @@ class ServiceRepository {
           if (pkgImg == null || pkgImg.isEmpty) {
             final clean = name.toLowerCase();
             if (clean.contains('special') || currentPkgId == 1) {
-              pkgImg = 'https://pcmdev.shearheavenpetspa.com/assets/images/home/package_banner_1.png';
+              pkgImg = 'https://pcmdev.shearheavenpetspa.com/assets/images/home/promo_dog.png';
             } else if (clean.contains('scent') || clean.contains('heaven') || currentPkgId == 2) {
-              pkgImg = 'https://pcmdev.shearheavenpetspa.com/assets/images/home/package_banner_2.png';
+              pkgImg = 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_spa.png';
             } else if (clean.contains('spa') || clean.contains('vip')) {
               pkgImg = 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_spa.png';
             } else {
-              pkgImg = 'https://pcmdev.shearheavenpetspa.com/assets/images/packages/package_banner.png';
+              pkgImg = 'https://pcmdev.shearheavenpetspa.com/assets/images/home/promo_dog.png';
             }
           }
 

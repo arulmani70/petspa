@@ -468,11 +468,9 @@ class PackageDetailPageMobile extends StatelessWidget {
     String fallbackAsset;
     final intId = id is int ? id : int.tryParse(id.toString()) ?? 1;
     if (intId == 2) {
-      fallbackAsset = 'assets/images/home/package_banner_1.png';
-    } else if (intId == 3) {
-      fallbackAsset = 'assets/images/home/package_banner_2.png';
+      fallbackAsset = 'assets/images/common/svc_spa.png';
     } else {
-      fallbackAsset = 'assets/images/packages/package_banner.png';
+      fallbackAsset = 'assets/images/home/promo_dog.png';
     }
 
     Widget fallbackWidget() => Image.asset(

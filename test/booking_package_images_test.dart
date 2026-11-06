@@ -6,14 +6,14 @@ import 'package:shear_heaven_pet_spa/src/services/repo/service_repository.dart';
 void main() {
   group('Package Image Resolution Tests', () {
     test('serviceAssetFor maps Special Package and Heaven Scent Package correctly', () {
-      expect(serviceAssetFor('Special Package'), 'assets/images/home/package_banner_1.png');
-      expect(serviceAssetFor('special package'), 'assets/images/home/package_banner_1.png');
-      expect(serviceAssetFor('Heaven Scent Package'), 'assets/images/home/package_banner_2.png');
-      expect(serviceAssetFor('heaven scent package'), 'assets/images/home/package_banner_2.png');
-      expect(serviceAssetFor('Heaven Scent'), 'assets/images/home/package_banner_2.png');
+      expect(serviceAssetFor('Special Package'), 'assets/images/home/promo_dog.png');
+      expect(serviceAssetFor('special package'), 'assets/images/home/promo_dog.png');
+      expect(serviceAssetFor('Heaven Scent Package'), 'assets/images/common/svc_spa.png');
+      expect(serviceAssetFor('heaven scent package'), 'assets/images/common/svc_spa.png');
+      expect(serviceAssetFor('Heaven Scent'), 'assets/images/common/svc_spa.png');
       expect(serviceAssetFor('Spa Package'), 'assets/images/common/svc_spa.png');
       expect(serviceAssetFor('Royal VIP Spa Package 4144'), 'assets/images/common/svc_spa.png');
-      expect(serviceAssetFor('Unknown Custom Package'), 'assets/images/packages/package_banner.png');
+      expect(serviceAssetFor('Unknown Custom Package'), 'assets/images/home/promo_dog.png');
     });
 
     testWidgets('Renders image widget for Special Package and Heaven Scent Package', (tester) async {
@@ -69,12 +69,16 @@ void main() {
         'https://api.shearheavenpetspa.com/uploads/packages/pkg1.png',
       );
       expect(
-        ServiceRepository.resolveImageUrl('https://pcmdev.shearheavenpetspa.com/assets/images/home/package_banner_1.png'),
-        'https://pcmdev.shearheavenpetspa.com/assets/images/home/package_banner_1.png',
+        ServiceRepository.resolveImageUrl('/assets/images/home/promo_dog.png'),
+        'https://pcmdev.shearheavenpetspa.com/assets/images/home/promo_dog.png',
       );
       expect(
-        ServiceRepository.resolveImageUrl('assets/images/home/package_banner_1.png'),
-        'assets/images/home/package_banner_1.png',
+        ServiceRepository.resolveImageUrl('https://pcmdev.shearheavenpetspa.com/assets/images/home/promo_dog.png'),
+        'https://pcmdev.shearheavenpetspa.com/assets/images/home/promo_dog.png',
+      );
+      expect(
+        ServiceRepository.resolveImageUrl('assets/images/home/promo_dog.png'),
+        'assets/images/home/promo_dog.png',
       );
     });
   });

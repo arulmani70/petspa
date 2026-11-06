@@ -13,6 +13,7 @@ import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/app_fonts.dart';
 import 'package:shear_heaven_pet_spa/src/common/utils/toast_util.dart';
 import 'package:shear_heaven_pet_spa/src/common/widgets/app_assets.dart';
+import 'package:shear_heaven_pet_spa/src/services/repo/service_repository.dart';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shear_heaven_pet_spa/src/offers/bloc/offer_bloc.dart';
@@ -1556,34 +1557,25 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
 
     if (photo != null && photo.toString().isNotEmpty) {
       final photoStr = photo.toString();
-      if (photoStr.startsWith('http')) {
+      final resolved = ServiceRepository.resolveImageUrl(photoStr);
+      if (resolved != null && resolved.isNotEmpty) {
+        if (resolved.startsWith('assets/')) {
+          return Image.asset(
+            resolved,
+            width: double.infinity,
+            height: double.infinity,
+            fit: effectiveFit,
+            errorBuilder: (c, e, s) => _defaultServiceIcon(),
+          );
+        }
         return Image.network(
-          photoStr,
+          resolved,
           width: double.infinity,
           height: double.infinity,
           fit: effectiveFit,
           headers: const {
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
           },
-          errorBuilder: (c, e, s) => _defaultServiceIcon(),
-        );
-      } else if (photoStr.startsWith('/')) {
-        return Image.network(
-          '${Constants.app.BASE_URL}$photoStr',
-          width: double.infinity,
-          height: double.infinity,
-          fit: effectiveFit,
-          headers: const {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
-          },
-          errorBuilder: (c, e, s) => _defaultServiceIcon(),
-        );
-      } else {
-        return Image.asset(
-          photoStr,
-          width: double.infinity,
-          height: double.infinity,
-          fit: effectiveFit,
           errorBuilder: (c, e, s) => _defaultServiceIcon(),
         );
       }
@@ -1595,7 +1587,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
         service?['packageName']?.toString() ??
         service?['package_name']?.toString();
     final fallback = serviceAssetFor(name) ??
-        (isPkg ? 'assets/images/packages/package_banner.png' : null);
+        (isPkg ? 'assets/images/home/promo_dog.png' : null);
     if (fallback != null) {
       return Image.asset(
         fallback,
