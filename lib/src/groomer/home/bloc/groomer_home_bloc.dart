@@ -742,8 +742,15 @@ class GroomerHomeBloc extends Bloc<GroomerHomeEvent, GroomerHomeState> {
 
       if (resp != null && resp['success'] == true && resp['data'] != null) {
         final data = resp['data'] as Map<String, dynamic>;
-        final rawSlots = data['availableSlots'] as List<dynamic>? ?? [];
-        final rawBooked = data['bookedSlots'] as List<dynamic>? ?? [];
+        final rawChoices = data['timeSlotChoices'] as List<dynamic>? ?? [];
+        final rawAvail = data['availableSlots'] as List<dynamic>? ?? [];
+        final rawSlots = rawChoices.isNotEmpty ? rawChoices : rawAvail;
+        final rawBookedData = data['bookedSlots'] as List<dynamic>?;
+        final rawBooked = (rawBookedData != null && rawBookedData.isNotEmpty)
+            ? rawBookedData
+            : (rawChoices.isNotEmpty
+                ? rawChoices.whereType<Map>().where((m) => m['status'] == 'booked' || m['isAvailable'] == false).toList()
+                : []);
 
         final apiDur = data['totalDurationMinutes'];
         final int? durationMinutes = (apiDur is num && apiDur > 0) ? apiDur.toInt() : null;
@@ -758,6 +765,22 @@ class GroomerHomeBloc extends Bloc<GroomerHomeEvent, GroomerHomeState> {
           rawSlots,
           specificGroomerId: event.groomerId,
         );
+
+        // Ensure every slot has valid normalized start and calculated end times
+        for (final s in parsedSlots) {
+          final st = s['startTime']?.toString() ?? '';
+          final et = s['endTime']?.toString() ?? '';
+          if (et.isEmpty && st.isNotEmpty) {
+            final startMin = BookingDateUtils.timeToMinutes(st);
+            if (startMin != null) {
+              final dur = (durationMinutes != null && durationMinutes > 0) ? durationMinutes : 60;
+              final endMin = startMin + dur;
+              final h = (endMin ~/ 60) % 24;
+              final min = endMin % 60;
+              s['endTime'] = '${h.toString().padLeft(2, '0')}:${min.toString().padLeft(2, '0')}';
+            }
+          }
+        }
 
         // Deduplicate booked slots
         final parsedBooked = <Map<String, dynamic>>[];

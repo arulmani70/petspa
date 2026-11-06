@@ -137,6 +137,9 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
       _bloc.add(const GroomerHomeGetBookingServicesEvent());
     }
     _loadSchedule();
+    if (_bloc.state.availableTimeSlots.isEmpty) {
+      _triggerAvailabilityCheck();
+    }
   }
 
   @override
@@ -180,6 +183,18 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
     final parts = hhmm.split(':');
     if (parts.length < 2) return 0;
     return (int.tryParse(parts[0]) ?? 0) * 60 + (int.tryParse(parts[1]) ?? 0);
+  }
+
+  String _fromMinutes(int totalMinutes) {
+    final h = (totalMinutes ~/ 60) % 24;
+    final m = totalMinutes % 60;
+    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+  }
+
+  String _calculateEndTime(String startTime, int durationMinutes) {
+    final startMin = _toMinutes(startTime);
+    final dur = durationMinutes > 0 ? durationMinutes : 60;
+    return _fromMinutes(startMin + dur);
   }
 
   bool _isSameDay(DateTime a, DateTime b) =>
@@ -318,7 +333,6 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
 
   void _triggerAvailabilityCheck() {
     if (_bloc.isClosed) return;
-    if (_selectedService == null && _selectedPackage == null) return;
 
     // Immediately clear stale slot selection in local state
     if (_selectedStartTime != null || _selectedEndTime != null) {
@@ -520,7 +534,10 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
               orElse: () => validSlots.first,
             );
             final start = BookingDateUtils.normalizeTimeString(match['startTime']) ?? match['startTime']?.toString();
-            final end = BookingDateUtils.normalizeTimeString(match['endTime']) ?? match['endTime']?.toString();
+            var end = BookingDateUtils.normalizeTimeString(match['endTime']) ?? match['endTime']?.toString();
+            if ((end == null || end.isEmpty) && start != null && start.isNotEmpty) {
+              end = _calculateEndTime(start, state.slotDurationMinutes ?? 60);
+            }
             if (!BookingDateUtils.isSameTimeSlot(_selectedStartTime, start) || _selectedEndTime != end) {
               setState(() {
                 _selectedStartTime = start;
@@ -2257,56 +2274,89 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
                                   const Divider(color: Color(0xFFE5E7EB), height: 1),
                                   const SizedBox(height: 12),
                                 ],
-                                GridView.builder(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  itemCount: slots.length,
-                                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 4,
-                                    mainAxisSpacing: 10,
-                                    crossAxisSpacing: 8,
-                                    mainAxisExtent: 40,
-                                  ),
-                                  itemBuilder: (context, index) {
-                                    final slot = slots[index];
-                                    final start = slot['startTime']?.toString() ?? '';
-                                    final end = slot['endTime']?.toString() ?? '';
-                                    final isToday = _isSameDay(_selectedDate, DateTime.now());
-                                    final nowMinutes = DateTime.now().hour * 60 + DateTime.now().minute;
-                                    const kBuffer = 5;
-                                    final isPast = isToday && _toMinutes(start) <= nowMinutes + kBuffer;
+                                LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final crossAxisCount = constraints.maxWidth > 560 ? 3 : 2;
+                                    final isAny = _selectedGroomerId == 'any';
+                                    return GridView.builder(
+                                      shrinkWrap: true,
+                                      physics: const NeverScrollableScrollPhysics(),
+                                      itemCount: slots.length,
+                                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: crossAxisCount,
+                                        mainAxisSpacing: 10,
+                                        crossAxisSpacing: 10,
+                                        mainAxisExtent: isAny ? 52 : 46,
+                                      ),
+                                      itemBuilder: (context, index) {
+                                        final slot = slots[index];
+                                        final start = slot['startTime']?.toString() ?? '';
+                                        final rawEnd = slot['endTime']?.toString() ?? '';
+                                        final durMin = state.slotDurationMinutes ?? 60;
+                                        final end = rawEnd.isNotEmpty
+                                            ? rawEnd
+                                            : (start.isNotEmpty ? _calculateEndTime(start, durMin) : '');
 
-                                    final isSelected = BookingDateUtils.isSameTimeSlot(_selectedStartTime, start);
-                                    final isAvailable = slot['isAvailable'] != false;
-                                    final remaining = slot['remaining'] is num
-                                        ? (slot['remaining'] as num).toInt()
-                                        : int.tryParse(slot['remaining']?.toString() ?? '1') ?? 1;
-                                    final bookingCount = slot['bookingCount'] is num
-                                        ? (slot['bookingCount'] as num).toInt()
-                                        : int.tryParse(slot['bookingCount']?.toString() ?? '0') ?? 0;
-                                    final maxBookings = slot['maxBookings'] is num
-                                        ? (slot['maxBookings'] as num).toInt()
-                                        : int.tryParse(slot['maxBookings']?.toString() ?? '1') ?? 1;
+                                        final slotGroomId = slot['groomerId']?.toString();
+                                        String? groomerName = slot['groomerName']?.toString();
+                                        if ((groomerName == null || groomerName.isEmpty) && slotGroomId != null && slotGroomId.isNotEmpty) {
+                                          for (final g in state.salonGroomers) {
+                                            if (g.id.toString() == slotGroomId) {
+                                              groomerName = g.name;
+                                              break;
+                                            }
+                                          }
+                                        }
 
-                                    final isAtCapacity = (maxBookings > 1 || (slot['multiBookingEnabled'] == true)) &&
-                                        (bookingCount >= maxBookings || remaining <= 0);
-                                    final isBooked = (!isAvailable || remaining <= 0 || isPast) && !isAtCapacity;
-                                    final isUnavailable = isBooked || isAtCapacity || isPast;
+                                        final isToday = _isSameDay(_selectedDate, DateTime.now());
+                                        final nowMinutes = DateTime.now().hour * 60 + DateTime.now().minute;
+                                        const kBuffer = 5;
+                                        final isPast = isToday && _toMinutes(start) <= nowMinutes + kBuffer;
 
-                                    return _GroomerSlotButton(
-                                      startTime: start,
-                                      isSelected: isSelected,
-                                      isUnavailable: isUnavailable,
-                                      isPast: isPast,
-                                      isAtCapacity: isAtCapacity,
-                                      bookingCount: bookingCount,
-                                      maxBookings: maxBookings,
-                                      fmt12: _fmt12,
-                                      onTap: () {
-                                        setState(() {
-                                          _selectedStartTime = BookingDateUtils.normalizeTimeString(start) ?? start;
-                                          _selectedEndTime = BookingDateUtils.normalizeTimeString(end) ?? end;
-                                        });
+                                        final isSelected = BookingDateUtils.isSameTimeSlot(_selectedStartTime, start);
+                                        final isAvailable = slot['isAvailable'] != false;
+                                        final remaining = slot['remaining'] is num
+                                            ? (slot['remaining'] as num).toInt()
+                                            : int.tryParse(slot['remaining']?.toString() ?? '1') ?? 1;
+                                        final bookingCount = slot['bookingCount'] is num
+                                            ? (slot['bookingCount'] as num).toInt()
+                                            : int.tryParse(slot['bookingCount']?.toString() ?? '0') ?? 0;
+                                        final maxBookings = slot['maxBookings'] is num
+                                            ? (slot['maxBookings'] as num).toInt()
+                                            : int.tryParse(slot['maxBookings']?.toString() ?? '1') ?? 1;
+
+                                        final isAtCapacity = (maxBookings > 1 || (slot['multiBookingEnabled'] == true)) &&
+                                            (bookingCount >= maxBookings || remaining <= 0);
+                                        final isBooked = (!isAvailable || remaining <= 0 || isPast) && !isAtCapacity;
+                                        final isUnavailable = isBooked || isAtCapacity || isPast;
+
+                                        return _GroomerSlotButton(
+                                          startTime: start,
+                                          endTime: end,
+                                          groomerName: groomerName,
+                                          showGroomerSubtitle: isAny,
+                                          durationMinutes: durMin,
+                                          isSelected: isSelected,
+                                          isUnavailable: isUnavailable,
+                                          isPast: isPast,
+                                          isAtCapacity: isAtCapacity,
+                                          bookingCount: bookingCount,
+                                          maxBookings: maxBookings,
+                                          fmt12: _fmt12,
+                                          toMinutes: _toMinutes,
+                                          fromMinutes: _fromMinutes,
+                                          onTap: () {
+                                            final normStart = BookingDateUtils.normalizeTimeString(start) ?? start;
+                                            var normEnd = BookingDateUtils.normalizeTimeString(end) ?? end;
+                                            if (normEnd.isEmpty && normStart.isNotEmpty) {
+                                              normEnd = _calculateEndTime(normStart, durMin);
+                                            }
+                                            setState(() {
+                                              _selectedStartTime = normStart;
+                                              _selectedEndTime = normEnd;
+                                            });
+                                          },
+                                        );
                                       },
                                     );
                                   },
@@ -2538,17 +2588,27 @@ class _MainLineBookingDialogState extends State<MainLineBookingDialog> {
 // ─────────────────────────────────────────────────────────────────────────────
 class _GroomerSlotButton extends StatelessWidget {
   final String startTime;
+  final String? endTime;
+  final String? groomerName;
   final bool isSelected;
   final bool isUnavailable;
   final bool isPast;
   final bool isAtCapacity;
   final int bookingCount;
   final int maxBookings;
+  final bool showGroomerSubtitle;
+  final int durationMinutes;
   final String Function(String) fmt12;
+  final int Function(String)? toMinutes;
+  final String Function(int)? fromMinutes;
   final VoidCallback onTap;
 
   const _GroomerSlotButton({
     required this.startTime,
+    this.endTime,
+    this.groomerName,
+    this.showGroomerSubtitle = false,
+    this.durationMinutes = 60,
     required this.isSelected,
     required this.isUnavailable,
     required this.isPast,
@@ -2556,6 +2616,8 @@ class _GroomerSlotButton extends StatelessWidget {
     required this.bookingCount,
     required this.maxBookings,
     required this.fmt12,
+    this.toMinutes,
+    this.fromMinutes,
     required this.onTap,
   });
 
@@ -2576,6 +2638,19 @@ class _GroomerSlotButton extends StatelessWidget {
       fg = Colors.black;
       borderColor = Colors.black;
     }
+
+    String endHhmm = endTime ?? '';
+    if (endHhmm.isEmpty && toMinutes != null && fromMinutes != null && startTime.isNotEmpty) {
+      final startMin = toMinutes!(startTime);
+      endHhmm = fromMinutes!(startMin + (durationMinutes > 0 ? durationMinutes : 60));
+    }
+    final endStr = endHhmm.isNotEmpty ? fmt12(endHhmm) : '';
+
+    final hasGroomer = showGroomerSubtitle &&
+        groomerName != null &&
+        groomerName!.isNotEmpty &&
+        groomerName != 'No Pref' &&
+        !isUnavailable;
 
     return GestureDetector(
       onTap: isUnavailable
@@ -2600,22 +2675,90 @@ class _GroomerSlotButton extends StatelessWidget {
           : onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        height: 40,
         alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
         decoration: BoxDecoration(
           color: bg,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: borderColor, width: 1.4),
         ),
-        child: Text(
-          fmt12(startTime),
-          textAlign: TextAlign.center,
-          style: AppFonts.poppins(
-            size: 13,
-            weight: (isSelected || !isUnavailable) ? FontWeight.w600 : FontWeight.w400,
-            color: fg,
-            decoration: isUnavailable ? TextDecoration.lineThrough : null,
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.access_time_rounded,
+                    size: 13,
+                    color: fg.withValues(alpha: 0.75),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    fmt12(startTime),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 12,
+                      fontWeight: (isSelected || !isUnavailable) ? FontWeight.w600 : FontWeight.w400,
+                      color: fg,
+                      decoration: isUnavailable ? TextDecoration.lineThrough : null,
+                      decorationColor: fg,
+                    ),
+                  ),
+                  if (endStr.isNotEmpty)
+                    Text(
+                      ' – $endStr',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 12,
+                        fontWeight: (isSelected || !isUnavailable) ? FontWeight.w600 : FontWeight.w400,
+                        color: fg,
+                        decoration: isUnavailable ? TextDecoration.lineThrough : null,
+                        decorationColor: fg,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            if (hasGroomer) ...[
+              const SizedBox(height: 2),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '· ',
+                    style: TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w600,
+                      color: isSelected ? Colors.white.withValues(alpha: 0.9) : const Color(0xFF6B7280),
+                    ),
+                  ),
+                  Flexible(
+                    child: Text(
+                      groomerName!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'Poppins',
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w500,
+                        color: isSelected ? Colors.white.withValues(alpha: 0.9) : const Color(0xFF6B7280),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
         ),
       ),
     );

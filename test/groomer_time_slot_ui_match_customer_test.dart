@@ -201,7 +201,7 @@ void main() {
       expect(find.byType(SharedCalendar), findsOneWidget);
     });
 
-    testWidgets('2. Section 6 renders 4-column GridView, exact legend and slot items matching Customer Portal', (tester) async {
+    testWidgets('2. Section 6 renders 2-column GridView, exact legend and slot items matching Customer Portal', (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
@@ -249,15 +249,22 @@ void main() {
       expect(find.text('Selected'), findsOneWidget);
       expect(find.text('Already Booked'), findsOneWidget);
 
-      // Verify GridView with crossAxisCount: 4 and mainAxisExtent: 40
+      // Verify GridView matching Customer Portal (crossAxisCount: 2, mainAxisExtent: 52 for isAny)
       final gridFinder = find.byType(GridView);
       expect(gridFinder, findsOneWidget);
       final grid = tester.widget<GridView>(gridFinder);
       final delegate = grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
-      expect(delegate.crossAxisCount, 4);
-      expect(delegate.mainAxisExtent, 40);
-      expect(delegate.crossAxisSpacing, 8);
+      expect(delegate.crossAxisCount, 2);
+      expect(delegate.mainAxisExtent, 52);
+      expect(delegate.crossAxisSpacing, 10);
       expect(delegate.mainAxisSpacing, 10);
+
+      // Verify slot format with start and end time texts and clock icon
+      expect(find.text('10:00 AM'), findsWidgets);
+      expect(find.text(' – 10:45 AM'), findsOneWidget);
+      expect(find.text('11:00 AM'), findsWidgets);
+      expect(find.text(' – 11:45 AM'), findsOneWidget);
+      expect(find.byIcon(Icons.access_time_rounded), findsWidgets);
 
       // Verify duration subtitle
       expect(find.text('Service duration: 45 min  ·  Est. \$60'), findsOneWidget);
@@ -349,6 +356,88 @@ void main() {
         await tester.tap(closeBtn);
       }
       await tester.pumpAndSettle();
+    });
+
+    testWidgets('5. Groomer subtitle displayed for Any Groomer and slot tap selection works', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      bloc.emit(bloc.state.copyWith(
+        searchedCustomers: () => [mockCustomer],
+        customerPets: () => [mockPet],
+        salonGroomers: () => [mockGroomer],
+        bookingServices: () => [mockService],
+        isSlotAvailable: () => true,
+        availableTimeSlots: () => [
+          {
+            'startTime': '09:00:00',
+            'endTime': '10:00:00',
+            'groomerId': 1,
+            'groomerName': 'Marisa Brown',
+            'isAvailable': true,
+            'remaining': 1,
+          },
+          {
+            'startTime': '11:00:00',
+            'endTime': '12:00:00',
+            'groomerId': 1,
+            'groomerName': 'Marisa Brown',
+            'isAvailable': true,
+            'remaining': 1,
+          },
+        ],
+        slotTotalPrice: () => 60.0,
+        slotDurationMinutes: () => 60,
+      ));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () {
+                  MainLineBookingDialog.show(
+                    context,
+                    loggedInGroomer: mockUser,
+                    bloc: bloc,
+                    onBookingCreated: () {},
+                  );
+                },
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      // In Any Groomer context, groomer subtitle should be visible
+      expect(find.text('Marisa Brown'), findsWidgets);
+      expect(find.text('· '), findsWidgets);
+
+      // Verify slot button border radius 14
+      final containers = tester.widgetList<AnimatedContainer>(find.byType(AnimatedContainer));
+      final slotDecorations = containers
+          .map((c) => c.decoration)
+          .whereType<BoxDecoration>()
+          .where((d) => d.borderRadius == BorderRadius.circular(14))
+          .toList();
+      expect(slotDecorations.isNotEmpty, isTrue);
+
+      // Tap 11:00 AM slot
+      final slotFinder = find.text('11:00 AM');
+      expect(slotFinder, findsOneWidget);
+      await tester.ensureVisible(slotFinder);
+      await tester.tap(slotFinder);
+      await tester.pumpAndSettle();
+
+      // Scroll to summary if needed and verify schedule display
+      final summaryFinder = find.textContaining('11:00 AM – 12:00 PM');
+      await tester.ensureVisible(summaryFinder);
+      expect(summaryFinder, findsOneWidget);
     });
   });
 }

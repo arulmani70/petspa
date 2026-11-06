@@ -5038,23 +5038,63 @@ class GroomerHomeRepository {
       };
 
       // Call GET /api/groomer-auth/groomers/{groomerId}/availability
-      final response = await ServicesLocator.apiRepository.get(
-        '/api/groomer-auth/groomers/$gid/availability',
-        query: queryParams,
-      );
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.get(
+          '/api/groomer-auth/groomers/$gid/availability',
+          query: queryParams,
+        );
+      } catch (_) {
+        response = null;
+      }
 
       if (response != null && response['success'] == true && response['data'] != null) {
-        return response;
+        final d = response['data'];
+        final hasSlots = (d is Map) &&
+            (((d['timeSlotChoices'] is List) && (d['timeSlotChoices'] as List).isNotEmpty) ||
+             ((d['availableSlots'] is List) && (d['availableSlots'] as List).isNotEmpty));
+        if (hasSlots) {
+          return response;
+        }
       }
 
       // Secondary fallback to POST /api/availability
-      return await ServicesLocator.bookingRepository.getAvailability(
-        date: date,
-        serviceId: serviceId,
-        packageId: packageId,
-        addOnIds: addOnIds,
-        groomerId: groomerId,
-      );
+      Map<String, dynamic>? fallbackResp;
+      try {
+        fallbackResp = await ServicesLocator.bookingRepository.getAvailability(
+          date: date,
+          serviceId: serviceId,
+          packageId: packageId,
+          addOnIds: addOnIds,
+          groomerId: groomerId,
+        );
+      } catch (_) {
+        fallbackResp = null;
+      }
+
+      if (fallbackResp != null && fallbackResp['success'] == true && fallbackResp['data'] != null) {
+        final d = fallbackResp['data'];
+        final hasSlots = (d is Map) &&
+            (((d['timeSlotChoices'] is List) && (d['timeSlotChoices'] as List).isNotEmpty) ||
+             ((d['availableSlots'] is List) && (d['availableSlots'] as List).isNotEmpty));
+        if (hasSlots) {
+          return fallbackResp;
+        }
+      }
+
+      // Step 2 fallback matching customer booking
+      try {
+        final step2Resp = await ServicesLocator.bookingRepository.getGroomerAvailability(
+          date: date,
+          durationMinutes: 60,
+          groomerId: groomerId != null && groomerId > 0 ? groomerId : null,
+        );
+        if (step2Resp != null && step2Resp['success'] == true && step2Resp['data'] != null) {
+          return step2Resp;
+        }
+      } catch (_) {}
+
+      return fallbackResp ?? response;
     } catch (error) {
       log.w('GroomerHomeRepository::getAvailability::Primary availability check failed, attempting fallback: $error');
       try {
