@@ -28,8 +28,11 @@ class BookingConfirmedPageMobile extends StatelessWidget {
 
     final rawServiceName = summary['service_name']?.toString().trim() ?? '';
     final serviceName = rawServiceName.isNotEmpty ? rawServiceName : 'Full Grooming';
-    final hasAddOns = summary['has_addons'] == true ||
-        (summary['addons_count'] != null && (summary['addons_count'] as int) > 0);
+    final rawAddOns = summary['addOns'] ?? summary['addons'] ?? summary['add_ons'];
+    final bool hasAddOns = rawAddOns is List
+        ? rawAddOns.isNotEmpty
+        : (summary['has_addons'] == true ||
+            (summary['addons_count'] != null && (summary['addons_count'] as int) > 0));
 
     final dateLabel = summary['date_label']?.toString().trim() ?? '';
     final timeLabel = summary['time_label']?.toString().trim() ?? '';

@@ -51,7 +51,15 @@ class GroomerHomeRepository {
     _rejectedBookingIds.clear();
     _approvedCancellationIds.clear();
     _rejectedCancellationIds.clear();
+    // Intentionally keep _localCreatedBookings so that salon appointments and
+    // service assignments persist across groomer account switches.
+  }
+
+  static void clearLocalCreatedBookings() {
     _localCreatedBookings.clear();
+    if (ServicesLocator.isRegistered<SessionService>()) {
+      ServicesLocator.sessionService.saveLocalBookings(const []);
+    }
   }
 
   void _updateLocalBookingStatus(int bookingId, String status, {String? cancellationReason}) {
@@ -64,6 +72,9 @@ class GroomerHomeRepository {
                 ? Constants.app.CANCELLATION_REASON_GROOMER_TIMEOUT
                 : null),
       );
+      if (ServicesLocator.isRegistered<SessionService>()) {
+        ServicesLocator.sessionService.saveLocalBookings(_localCreatedBookings);
+      }
     }
   }
 
@@ -98,14 +109,34 @@ class GroomerHomeRepository {
   static void addLocalBooking(GroomerBooking booking) {
     _localCreatedBookings.removeWhere((b) => b.bookingId == booking.bookingId);
     _localCreatedBookings.insert(0, booking);
+    if (ServicesLocator.isRegistered<SessionService>()) {
+      ServicesLocator.sessionService.saveLocalBookings(_localCreatedBookings);
+    }
   }
 
-  static GroomerBooking? getLocalBooking(int bookingId) =>
-      _localCreatedBookings.where((b) => b.bookingId == bookingId).firstOrNull;
+  static GroomerBooking? getLocalBooking(int bookingId) {
+    final memory = _localCreatedBookings.where((b) => b.bookingId == bookingId).firstOrNull;
+    if (memory != null) return memory;
+    if (ServicesLocator.isRegistered<SessionService>()) {
+      return ServicesLocator.sessionService
+          .getLocalBookings()
+          .where((b) => b.bookingId == bookingId)
+          .firstOrNull;
+    }
+    return null;
+  }
 
   Future<void> initialize() async {
     log.d('GroomerHomeRepository::initialize::Initialized');
     _initSocketCacheListener();
+    if (ServicesLocator.isRegistered<SessionService>()) {
+      final saved = ServicesLocator.sessionService.getLocalBookings();
+      for (final b in saved) {
+        if (!_localCreatedBookings.any((l) => l.bookingId == b.bookingId)) {
+          _localCreatedBookings.add(b);
+        }
+      }
+    }
   }
 
   void _initSocketCacheListener() {
@@ -334,9 +365,9 @@ class GroomerHomeRepository {
       }
 
       final mergedMap = <String, dynamic>{
-        if (current != null) ...current.toJson(),
-        if (responseData != null) ...responseData,
-        if (adminData != null) ...adminData,
+        ...?current?.toJson(),
+        ...?responseData,
+        ...?adminData,
         'firstName': resolvedFirstName,
         'lastName': resolvedLastName,
         'mobile': resolvedMobile,
@@ -458,19 +489,18 @@ class GroomerHomeRepository {
       final currentGroomer = getCurrentGroomer();
       final isSessionAdmin = ServicesLocator.isRegistered<SessionService>() && ServicesLocator.sessionService.isAdmin;
       if (!isSessionAdmin && currentGroomer != null && currentGroomer.id > 0) {
-        final canonCurrent = BookingDateUtils.resolveCanonicalGroomerId(
-          currentGroomer.id,
-          groomerCode: currentGroomer.groomerCode,
-          groomerName: currentGroomer.fullName,
-        );
         return merged.where((b) {
-          if (b.groomerId == null || b.groomerId! <= 0) return true;
-          final canonB = BookingDateUtils.resolveCanonicalGroomerId(
-            b.groomerId,
-            groomerCode: b.groomerCode,
-            groomerName: b.groomerName,
-          );
-          return canonB == canonCurrent || b.groomerId == currentGroomer.id;
+          if (b.isAssignedToGroomer(
+            currentGroomer.id,
+            targetGroomerCode: currentGroomer.groomerCode,
+            targetGroomerName: currentGroomer.fullName,
+          )) {
+            return true;
+          }
+          final hasAnyAssignedGroomer = (b.groomerId != null && b.groomerId! > 0) ||
+              (b.primaryGroomerId != null && b.primaryGroomerId! > 0) ||
+              b.serviceProgress.any((p) => p.assignedGroomerId != null && p.assignedGroomerId! > 0);
+          return !hasAnyAssignedGroomer;
         }).toList();
       }
 
@@ -528,6 +558,23 @@ class GroomerHomeRepository {
           }
           activePending.add(booking);
         }
+        final currentGroomer = getCurrentGroomer();
+        final isSessionAdmin = ServicesLocator.isRegistered<SessionService>() && ServicesLocator.sessionService.isAdmin;
+        if (!isSessionAdmin && currentGroomer != null && currentGroomer.id > 0) {
+          return activePending.where((b) {
+            if (b.isAssignedToGroomer(
+              currentGroomer.id,
+              targetGroomerCode: currentGroomer.groomerCode,
+              targetGroomerName: currentGroomer.fullName,
+            )) {
+              return true;
+            }
+            final hasAnyAssignedGroomer = (b.groomerId != null && b.groomerId! > 0) ||
+                (b.primaryGroomerId != null && b.primaryGroomerId! > 0) ||
+                b.serviceProgress.any((p) => p.assignedGroomerId != null && p.assignedGroomerId! > 0);
+            return !hasAnyAssignedGroomer;
+          }).toList();
+        }
         return activePending;
       }
       return [];
@@ -543,11 +590,32 @@ class GroomerHomeRepository {
       log.d('GroomerHomeRepository::getPastBookings::Fetching past bookings');
       final response = await _getGroomerBookingEndpoint('past');
 
+      List<GroomerBooking> serverList = [];
       if (response != null && response['data'] is List) {
         final list = response['data'] as List;
-        return list.map((item) => GroomerBooking.fromJson(item as Map<String, dynamic>)).toList();
+        serverList = list.map((item) => GroomerBooking.fromJson(item as Map<String, dynamic>)).toList();
       }
-      return [];
+
+      if (_localCreatedBookings.isNotEmpty) {
+        final serverIds = serverList.map((b) => b.bookingId).toSet();
+        final localPast = _localCreatedBookings.where(
+          (b) => !serverIds.contains(b.bookingId) && (b.isCompleted || b.status.toLowerCase() == 'past' || b.status.toLowerCase() == 'completed'),
+        );
+        serverList.insertAll(0, localPast);
+      }
+
+      final currentGroomer = getCurrentGroomer();
+      final isSessionAdmin = ServicesLocator.isRegistered<SessionService>() && ServicesLocator.sessionService.isAdmin;
+      if (!isSessionAdmin && currentGroomer != null && currentGroomer.id > 0) {
+        return serverList.where((b) {
+          return b.isAssignedToGroomer(
+            currentGroomer.id,
+            targetGroomerCode: currentGroomer.groomerCode,
+            targetGroomerName: currentGroomer.fullName,
+          );
+        }).toList();
+      }
+      return serverList;
     } catch (e) {
       log.e('GroomerHomeRepository::getPastBookings::Error: $e');
       return [];
@@ -560,11 +628,32 @@ class GroomerHomeRepository {
       log.d('GroomerHomeRepository::getCancelledBookings::Fetching cancelled bookings');
       final response = await _getGroomerBookingEndpoint('cancelled');
 
+      List<GroomerBooking> serverList = [];
       if (response != null && response['data'] is List) {
         final list = response['data'] as List;
-        return list.map((item) => GroomerBooking.fromJson(item as Map<String, dynamic>)).toList();
+        serverList = list.map((item) => GroomerBooking.fromJson(item as Map<String, dynamic>)).toList();
       }
-      return [];
+
+      if (_localCreatedBookings.isNotEmpty) {
+        final serverIds = serverList.map((b) => b.bookingId).toSet();
+        final localCancelled = _localCreatedBookings.where(
+          (b) => !serverIds.contains(b.bookingId) && (b.status.toLowerCase() == 'cancelled' || b.status.toLowerCase() == 'rejected'),
+        );
+        serverList.insertAll(0, localCancelled);
+      }
+
+      final currentGroomer = getCurrentGroomer();
+      final isSessionAdmin = ServicesLocator.isRegistered<SessionService>() && ServicesLocator.sessionService.isAdmin;
+      if (!isSessionAdmin && currentGroomer != null && currentGroomer.id > 0) {
+        return serverList.where((b) {
+          return b.isAssignedToGroomer(
+            currentGroomer.id,
+            targetGroomerCode: currentGroomer.groomerCode,
+            targetGroomerName: currentGroomer.fullName,
+          );
+        }).toList();
+      }
+      return serverList;
     } catch (e) {
       log.e('GroomerHomeRepository::getCancelledBookings::Error: $e');
       return [];
@@ -629,7 +718,7 @@ class GroomerHomeRepository {
           if (!existingIds.contains(local.bookingId) &&
               local.status.toLowerCase() != 'cancelled' &&
               local.bookingDate == date &&
-              (local.groomerId == groomerId || groomerId <= 0)) {
+              (local.isAssignedToGroomer(groomerId) || groomerId <= 0)) {
             combined.add(local);
             existingIds.add(local.bookingId);
           }
@@ -2501,9 +2590,9 @@ class GroomerHomeRepository {
                   (response['statusCode'] != null && response['statusCode'] >= 200 && response['statusCode'] < 300) ||
                   (response['data'] != null && response['success'] != false))) ||
           isDateConstraint ||
-          (response == null && currentBooking != null);
+          currentBooking != null;
 
-      final msg = (isDateConstraint || isSuccess)
+      final msg = (isDateConstraint || isSuccess || currentBooking != null)
           ? 'Assigned ${targetGroomer.name}'
           : ((serverMsg != null && serverMsg.trim().isNotEmpty)
               ? serverMsg.trim()
@@ -2572,9 +2661,18 @@ class GroomerHomeRepository {
       }
 
       if (updatedBooking != null) {
+        final allTasksAssignedToTarget = parsedProgress != null &&
+            parsedProgress.isNotEmpty &&
+            parsedProgress.every((p) =>
+                p.assignedGroomerId == targetGroomer.id ||
+                p.assignedGroomerCode == targetGroomer.groomerCode);
+
         final isParentOrOnlyTask = updatedBooking.serviceProgress.length <= 1 ||
             taskKey.contains('parent') ||
-            taskKey == 'svc-${updatedBooking.bookingId}-parent';
+            taskKey == 'svc-${updatedBooking.bookingId}-parent' ||
+            updatedBooking.groomerId == null ||
+            updatedBooking.groomerId! <= 0 ||
+            allTasksAssignedToTarget;
 
         final previousGroomerName = updatedBooking.effectiveGroomerName;
         final nowIso = DateTime.now().toIso8601String();
@@ -2601,11 +2699,35 @@ class GroomerHomeRepository {
           groomerCode: isParentOrOnlyTask ? targetGroomer.groomerCode : updatedBooking.groomerCode,
           primaryGroomerId: isParentOrOnlyTask ? targetGroomer.id : updatedBooking.primaryGroomerId,
           primaryGroomerName: isParentOrOnlyTask ? targetGroomer.name : updatedBooking.primaryGroomerName,
-          reassignmentHistory: isParentOrOnlyTask && updatedBooking.groomerId != targetGroomer.id
+          reassignmentHistory: (isParentOrOnlyTask && updatedBooking.groomerId != targetGroomer.id)
               ? [...updatedBooking.reassignmentHistory, historyEntry]
               : updatedBooking.reassignmentHistory,
         );
         addLocalBooking(updatedBooking);
+
+        // Also dispatch portal notification to target groomer
+        try {
+          await session.saveGroomerPortalNotification(
+            {
+              'id': DateTime.now().millisecondsSinceEpoch.toString(),
+              'title': 'Service Assigned to You',
+              'message': 'Task "${_formatTaskName(taskKey)}" for booking #${updatedBooking.bookingId} (${updatedBooking.petName}) has been assigned to you by $actorName.',
+              'type': 'service_assigned',
+              'groomerId': targetGroomer.id,
+              'isRead': false,
+              'createdAt': nowIso,
+              'data': {
+                'bookingId': updatedBooking.bookingId,
+                'taskKey': taskKey,
+                'petName': updatedBooking.petName,
+                'customerName': updatedBooking.customerName,
+                'assignedBy': actorName,
+              },
+            },
+            groomerId: targetGroomer.id,
+            alsoSaveForAdmin: true,
+          );
+        } catch (_) {}
       }
 
       log.i('GroomerHomeRepository::assignServiceGroomer::Result: $msg (success: $isSuccess)');

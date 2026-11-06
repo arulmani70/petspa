@@ -453,6 +453,14 @@ class SessionService {
         .toLowerCase()
         .trim();
 
+    if (booking.isAssignedToGroomer(
+      gId,
+      targetGroomerCode: gCode,
+      targetGroomerName: gName,
+    )) {
+      return true;
+    }
+
     if (gId != null && gId > 0 && booking.groomerId != null && booking.groomerId! > 0) {
       final canonCur = BookingDateUtils.resolveCanonicalGroomerId(gId, groomerCode: gCode, groomerName: gName);
       final canonBooking = BookingDateUtils.resolveCanonicalGroomerId(booking.groomerId, groomerCode: booking.groomerCode, groomerName: booking.groomerName);
@@ -999,6 +1007,35 @@ class SessionService {
       final key = '$_confirmedTipPrefix$bookingId';
       await _prefs?.remove(key);
     } catch (_) {}
+  }
+
+  // ── Salon / Local Groomer Bookings Persistence ──
+  static const _localBookingsKey = 'SHEAR_LOCAL_GROOMER_BOOKINGS';
+
+  Future<void> saveLocalBookings(List<GroomerBooking> bookings) async {
+    try {
+      final list = bookings.map((b) => b.toJson()).toList();
+      await _prefs?.setString(_localBookingsKey, jsonEncode(list));
+    } catch (e) {
+      log.w('SessionService::saveLocalBookings::Error: $e');
+    }
+  }
+
+  List<GroomerBooking> getLocalBookings() {
+    try {
+      final raw = _prefs?.getString(_localBookingsKey);
+      if (raw == null || raw.isEmpty) return [];
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        return decoded
+            .whereType<Map>()
+            .map((m) => GroomerBooking.fromJson(Map<String, dynamic>.from(m)))
+            .toList();
+      }
+    } catch (e) {
+      log.w('SessionService::getLocalBookings::Error: $e');
+    }
+    return [];
   }
 }
 

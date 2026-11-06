@@ -1086,6 +1086,8 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
             petData?['pet_id'];
         final petPhoto = PetImageHelper.extractPetPhoto(petData);
 
+        final selectedAddOns = List<Map<String, dynamic>>.from(_draft.addOns);
+
         _draft.lastBooking = {
           'booking_id': bookingId,
           'bookingId': bookingId,
@@ -1105,8 +1107,11 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
           'pet_photo_url': petPhoto,
           'photo_url': petPhoto,
           'service_name': _draft.service?['service_name']?.toString() ?? _draft.service?[Constants.database.COLUMN_SERVICE_NAME]?.toString() ?? '',
-          'has_addons': _draft.addOns.isNotEmpty,
-          'addons_count': _draft.addOns.length,
+          'service': _draft.service,
+          'addOns': selectedAddOns,
+          'addons': selectedAddOns,
+          'has_addons': selectedAddOns.isNotEmpty,
+          'addons_count': selectedAddOns.length,
           'date_label': _draft.date != null ? DateFormat('MMM d, yyyy').format(_draft.date!) : '',
           'time_label': _formatSlotTime(_draft.timeSlot ?? ''),
           'booking_date': _draft.date != null ? DateFormat('yyyy-MM-dd').format(_draft.date!) : '',

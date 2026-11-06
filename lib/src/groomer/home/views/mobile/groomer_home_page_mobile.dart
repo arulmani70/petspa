@@ -2690,7 +2690,11 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
               const SizedBox(width: 8),
               PopupMenuButton<String>(
                 tooltip: 'Select Groomer Schedule',
-                offset: const Offset(0, 36),
+                offset: const Offset(0, 38),
+                color: Colors.white,
+                surfaceTintColor: Colors.transparent,
+                elevation: 6,
+                shadowColor: const Color(0xFF111827).withValues(alpha: 0.15),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                   side: const BorderSide(color: Color(0xFFE5E7EB)),
@@ -2707,72 +2711,126 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                     value: 'login_groomer',
                     child: Row(
                       children: [
-                        const Icon(
-                          Icons.check,
-                          size: 16,
-                          color: Color(0xFF111827),
+                        Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.check_rounded,
+                            size: 13,
+                            color: Color(0xFF10B981),
+                          ),
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          '$groomerName (You)',
-                          style: AppFonts.poppins(
-                            size: 13,
-                            weight: FontWeight.w600,
-                            color: const Color(0xFF111827),
+                        Expanded(
+                          child: Text(
+                            '$groomerName (You)',
+                            style: AppFonts.poppins(
+                              size: 13,
+                              weight: FontWeight.w600,
+                              color: const Color(0xFF111827),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'Active',
+                            style: AppFonts.poppins(
+                              size: 10,
+                              weight: FontWeight.w600,
+                              color: const Color(0xFF10B981),
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const PopupMenuDivider(),
+                  const PopupMenuDivider(height: 1),
                   PopupMenuItem<String>(
                     value: 'all',
                     child: Row(
                       children: [
-                        const Icon(
-                          Icons.people_alt_outlined,
-                          size: 16,
-                          color: Color(0xFF111827),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'All Groomers',
-                          style: AppFonts.poppins(
+                        Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF111827).withValues(alpha: 0.08),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.people_alt_outlined,
                             size: 13,
-                            weight: FontWeight.w600,
-                            color: const Color(0xFF111827),
+                            color: Color(0xFF111827),
                           ),
                         ),
-                        const Spacer(),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'All Groomers',
+                            style: AppFonts.poppins(
+                              size: 13,
+                              weight: FontWeight.w600,
+                              color: const Color(0xFF111827),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                         const Icon(
                           Icons.arrow_forward_ios_rounded,
                           size: 12,
-                          color: Color(0xFF111827),
+                          color: Color(0xFF6B7280),
                         ),
                       ],
                     ),
                   ),
                 ],
                 child: Container(
-                  constraints: const BoxConstraints(maxWidth: 180),
+                  constraints: const BoxConstraints(maxWidth: 185),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
-                    vertical: 5,
+                    vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF9FAFB),
+                    color: const Color(0xFF111827),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                    border: Border.all(color: const Color(0xFF111827)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF111827).withValues(alpha: 0.12),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
-                        Icons.person,
-                        size: 14,
-                        color: Color(0xFF111827),
+                      Container(
+                        padding: const EdgeInsets.all(2.5),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF10B981),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.person,
+                          size: 11,
+                          color: Colors.white,
+                        ),
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 6),
                       Flexible(
                         child: Text(
                           '$groomerName (You)',
@@ -2781,15 +2839,15 @@ class _GroomerHomePageMobileState extends State<GroomerHomePageMobile> {
                           style: AppFonts.poppins(
                             size: 12,
                             weight: FontWeight.w600,
-                            color: const Color(0xFF111827),
+                            color: Colors.white,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 2),
+                      const SizedBox(width: 4),
                       const Icon(
                         Icons.keyboard_arrow_down_rounded,
                         size: 16,
-                        color: Color(0xFF111827),
+                        color: Colors.white,
                       ),
                     ],
                   ),

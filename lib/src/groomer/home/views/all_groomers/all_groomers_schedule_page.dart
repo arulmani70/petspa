@@ -283,6 +283,10 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
           final targetCode = targetGroomer?.groomerCode.toLowerCase();
           final targetName = targetGroomer?.name.toLowerCase();
 
+          if (targetId != null &&
+              b.isAssignedToGroomer(targetId, targetGroomerCode: targetCode, targetGroomerName: targetName)) {
+            return true;
+          }
           if (targetId != null && b.groomerId == targetId) return true;
           if (targetCode != null && targetCode.isNotEmpty && b.groomerCode?.toLowerCase() == targetCode) return true;
           if (targetName != null && targetName.isNotEmpty && b.groomerName?.toLowerCase() == targetName) return true;
@@ -564,6 +568,13 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
   }
 
   bool _bookingMatchesGroomer(GroomerBooking b, SalonGroomer g) {
+    if (b.isAssignedToGroomer(
+      g.id,
+      targetGroomerCode: g.groomerCode,
+      targetGroomerName: g.name,
+    )) {
+      return true;
+    }
     if (b.groomerId != null && b.groomerId! > 0 && b.groomerId == g.id) {
       return true;
     }
@@ -629,6 +640,14 @@ class _AllGroomersSchedulePageState extends State<AllGroomersSchedulePage> {
   bool _isOwnBooking(GroomerBooking booking) {
     final currentGroomer = ServicesLocator.groomerHomeRepository.getCurrentGroomer();
     if (currentGroomer == null) return false;
+
+    if (booking.isAssignedToGroomer(
+      currentGroomer.id,
+      targetGroomerCode: currentGroomer.groomerCode,
+      targetGroomerName: currentGroomer.fullName,
+    )) {
+      return true;
+    }
 
     if (booking.groomerId != null && booking.groomerId! > 0) {
       if (booking.groomerId == currentGroomer.id) return true;

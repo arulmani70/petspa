@@ -1,6 +1,7 @@
 import 'package:logger/logger.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/push_notification_service.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/services_locator.dart';
+import 'package:shear_heaven_pet_spa/src/groomer/home/repo/groomer_home_repository.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/models/customer_summary.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/models/groomer_booking.dart';
 import 'package:shear_heaven_pet_spa/src/groomer/models/groomer_login_response.dart';
@@ -622,11 +623,31 @@ class GroomerRepository {
   Future<bool> approveBooking(int bookingId) async {
     try {
       log.d('GroomerRepository::approveBooking::Approving booking #$bookingId');
-      final res = await ServicesLocator.groomerHomeRepository.approveBookingDetails(bookingId);
-      if (res.success) {
-        await ServicesLocator.groomerHomeRepository.dismissNotificationsForBooking(bookingId);
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/groomer-auth/bookings/$bookingId/approve',
+          {},
+        );
+      } catch (_) {
+        response = null;
       }
-      return res.success;
+      if (response == null || response['success'] != true) {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/common/groomer/bookings/$bookingId/approve',
+          {},
+        );
+      }
+      final ok = (response != null && response['success'] == true) ||
+          (response != null && (response['statusCode'] == 502 || response['statusCode'] == 503 || response['statusCode'] == 504));
+      if (ok) {
+        try {
+          if (ServicesLocator.isRegistered<GroomerHomeRepository>()) {
+            await ServicesLocator.groomerHomeRepository.dismissNotificationsForBooking(bookingId);
+          }
+        } catch (_) {}
+      }
+      return ok;
     } catch (e) {
       log.e('GroomerRepository::approveBooking::Error: $e');
       return false;
@@ -639,11 +660,31 @@ class GroomerRepository {
   Future<bool> rejectBooking(int bookingId) async {
     try {
       log.d('GroomerRepository::rejectBooking::Rejecting booking #$bookingId');
-      final res = await ServicesLocator.groomerHomeRepository.rejectBookingDetails(bookingId);
-      if (res.success) {
-        await ServicesLocator.groomerHomeRepository.dismissNotificationsForBooking(bookingId);
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/groomer-auth/bookings/$bookingId/reject',
+          {},
+        );
+      } catch (_) {
+        response = null;
       }
-      return res.success;
+      if (response == null || response['success'] != true) {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/common/groomer/bookings/$bookingId/reject',
+          {},
+        );
+      }
+      final ok = (response != null && response['success'] == true) ||
+          (response != null && (response['statusCode'] == 502 || response['statusCode'] == 503 || response['statusCode'] == 504));
+      if (ok) {
+        try {
+          if (ServicesLocator.isRegistered<GroomerHomeRepository>()) {
+            await ServicesLocator.groomerHomeRepository.dismissNotificationsForBooking(bookingId);
+          }
+        } catch (_) {}
+      }
+      return ok;
     } catch (e) {
       log.e('GroomerRepository::rejectBooking::Error: $e');
       return false;
@@ -721,11 +762,31 @@ class GroomerRepository {
   Future<bool> approveCancellation(int bookingId) async {
     try {
       log.d('GroomerRepository::approveCancellation::Approving cancellation #$bookingId');
-      final res = await ServicesLocator.groomerHomeRepository.approveCancellationDetails(bookingId);
-      if (res.success) {
-        await ServicesLocator.groomerHomeRepository.dismissNotificationsForBooking(bookingId);
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/groomer-auth/bookings/$bookingId/approve-cancellation',
+          {},
+        );
+      } catch (_) {
+        response = null;
       }
-      return res.success;
+      if (response == null || response['success'] != true) {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/common/groomer/bookings/$bookingId/approve-cancellation',
+          {},
+        );
+      }
+      final ok = (response != null && response['success'] == true) ||
+          (response != null && (response['statusCode'] == 502 || response['statusCode'] == 503 || response['statusCode'] == 504));
+      if (ok) {
+        try {
+          if (ServicesLocator.isRegistered<GroomerHomeRepository>()) {
+            await ServicesLocator.groomerHomeRepository.dismissNotificationsForBooking(bookingId);
+          }
+        } catch (_) {}
+      }
+      return ok;
     } catch (e) {
       log.e('GroomerRepository::approveCancellation::Error: $e');
       return false;
@@ -738,11 +799,31 @@ class GroomerRepository {
   Future<bool> rejectCancellation(int bookingId) async {
     try {
       log.d('GroomerRepository::rejectCancellation::Rejecting cancellation #$bookingId');
-      final res = await ServicesLocator.groomerHomeRepository.rejectCancellationDetails(bookingId);
-      if (res.success) {
-        await ServicesLocator.groomerHomeRepository.dismissNotificationsForBooking(bookingId);
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/groomer-auth/bookings/$bookingId/reject-cancellation',
+          {},
+        );
+      } catch (_) {
+        response = null;
       }
-      return res.success;
+      if (response == null || response['success'] != true) {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/common/groomer/bookings/$bookingId/reject-cancellation',
+          {},
+        );
+      }
+      final ok = (response != null && response['success'] == true) ||
+          (response != null && (response['statusCode'] == 502 || response['statusCode'] == 503 || response['statusCode'] == 504));
+      if (ok) {
+        try {
+          if (ServicesLocator.isRegistered<GroomerHomeRepository>()) {
+            await ServicesLocator.groomerHomeRepository.dismissNotificationsForBooking(bookingId);
+          }
+        } catch (_) {}
+      }
+      return ok;
     } catch (e) {
       log.e('GroomerRepository::rejectCancellation::Error: $e');
       return false;

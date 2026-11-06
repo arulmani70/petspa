@@ -360,6 +360,166 @@ class GroomerBooking {
 
   int? get effectivePrimaryGroomerId => primaryGroomerId ?? groomerId;
 
+  /// Whether this booking or any of its individual services/tasks is assigned to the specified groomer.
+  /// Matches canonical groomer ID, groomerCode, groomerName, primary groomer,
+  /// serviceProgress line items, serviceAssignmentActivity, or reassignmentHistory.
+  bool isAssignedToGroomer(
+    int? targetGroomerId, {
+    String? targetGroomerCode,
+    String? targetGroomerName,
+  }) {
+    final hasId = targetGroomerId != null && targetGroomerId > 0;
+    final hasCode = targetGroomerCode != null && targetGroomerCode.trim().isNotEmpty;
+    final hasName = targetGroomerName != null && targetGroomerName.trim().isNotEmpty;
+
+    if (!hasId && !hasCode && !hasName) return false;
+
+    final targetCodeUpper = hasCode ? targetGroomerCode.trim().toUpperCase() : null;
+    final targetNameLower = hasName ? targetGroomerName.trim().toLowerCase() : null;
+
+    final canonTarget = hasId
+        ? (BookingDateUtils.resolveCanonicalGroomerId(
+            targetGroomerId,
+            groomerCode: targetGroomerCode,
+            groomerName: targetGroomerName,
+          ) ?? targetGroomerId)
+        : null;
+
+    // 1. Direct booking groomerId
+    if (hasId && groomerId != null && groomerId! > 0) {
+      if (groomerId == targetGroomerId) return true;
+      final canonG = BookingDateUtils.resolveCanonicalGroomerId(
+        groomerId,
+        groomerCode: groomerCode,
+        groomerName: groomerName,
+      );
+      if (canonTarget != null && canonG != null && canonG == canonTarget) return true;
+    }
+
+    // 2. Primary groomer ID
+    if (hasId && primaryGroomerId != null && primaryGroomerId! > 0) {
+      if (primaryGroomerId == targetGroomerId) return true;
+      final canonPrimary = BookingDateUtils.resolveCanonicalGroomerId(
+        primaryGroomerId,
+        groomerName: primaryGroomerName,
+      );
+      if (canonTarget != null && canonPrimary != null && canonPrimary == canonTarget) return true;
+    }
+
+    // 3. Groomer Code match
+    if (targetCodeUpper != null && groomerCode != null && groomerCode!.trim().isNotEmpty) {
+      if (groomerCode!.trim().toUpperCase() == targetCodeUpper) return true;
+    }
+
+    // 4. Groomer Name match
+    if (targetNameLower != null) {
+      final gName = (groomerName ?? effectiveGroomerName).trim().toLowerCase();
+      if (gName.isNotEmpty &&
+          (gName == targetNameLower ||
+              gName.contains(targetNameLower) ||
+              targetNameLower.contains(gName))) {
+        return true;
+      }
+      final pName = (primaryGroomerName ?? '').trim().toLowerCase();
+      if (pName.isNotEmpty &&
+          (pName == targetNameLower ||
+              pName.contains(targetNameLower) ||
+              targetNameLower.contains(pName))) {
+        return true;
+      }
+    }
+
+    // 5. Individual task assignments in serviceProgress
+    for (final task in serviceProgress) {
+      if (hasId && task.assignedGroomerId != null && task.assignedGroomerId! > 0) {
+        if (task.assignedGroomerId == targetGroomerId) return true;
+        final canonTask = BookingDateUtils.resolveCanonicalGroomerId(
+          task.assignedGroomerId,
+          groomerCode: task.assignedGroomerCode,
+          groomerName: task.assignedGroomerName,
+        );
+        if (canonTarget != null && canonTask != null && canonTask == canonTarget) return true;
+      }
+      if (hasId && task.primaryGroomerId != null && task.primaryGroomerId! > 0) {
+        if (task.primaryGroomerId == targetGroomerId) return true;
+        final canonTaskPrimary = BookingDateUtils.resolveCanonicalGroomerId(
+          task.primaryGroomerId,
+          groomerName: task.primaryGroomerName,
+        );
+        if (canonTarget != null && canonTaskPrimary != null && canonTaskPrimary == canonTarget) return true;
+      }
+      if (targetCodeUpper != null &&
+          task.assignedGroomerCode != null &&
+          task.assignedGroomerCode!.trim().isNotEmpty) {
+        if (task.assignedGroomerCode!.trim().toUpperCase() == targetCodeUpper) return true;
+      }
+      if (targetNameLower != null) {
+        final tName = (task.assignedGroomerName ?? '').trim().toLowerCase();
+        if (tName.isNotEmpty &&
+            (tName == targetNameLower ||
+                tName.contains(targetNameLower) ||
+                targetNameLower.contains(tName))) {
+          return true;
+        }
+        final tpName = (task.primaryGroomerName ?? '').trim().toLowerCase();
+        if (tpName.isNotEmpty &&
+            (tpName == targetNameLower ||
+                tpName.contains(targetNameLower) ||
+                targetNameLower.contains(tpName))) {
+          return true;
+        }
+      }
+    }
+
+    // 6. Service assignment activity
+    for (final act in serviceAssignmentActivity) {
+      final actGid = int.tryParse(act['groomerId']?.toString() ?? '');
+      if (hasId && actGid != null && actGid > 0) {
+        if (actGid == targetGroomerId) return true;
+        final canonAct = BookingDateUtils.resolveCanonicalGroomerId(
+          actGid,
+          groomerCode: act['groomerCode']?.toString(),
+          groomerName: act['groomerName']?.toString(),
+        );
+        if (canonTarget != null && canonAct != null && canonAct == canonTarget) return true;
+      }
+      if (targetNameLower != null && act['groomerName'] != null) {
+        final aName = act['groomerName'].toString().trim().toLowerCase();
+        if (aName.isNotEmpty &&
+            (aName == targetNameLower ||
+                aName.contains(targetNameLower) ||
+                targetNameLower.contains(aName))) {
+          return true;
+        }
+      }
+    }
+
+    // 7. Reassignment history
+    for (final hist in reassignmentHistory) {
+      final toGid = int.tryParse(hist['toGroomerId']?.toString() ?? '');
+      if (hasId && toGid != null && toGid > 0) {
+        if (toGid == targetGroomerId) return true;
+        final canonHist = BookingDateUtils.resolveCanonicalGroomerId(
+          toGid,
+          groomerCode: hist['toGroomerCode']?.toString(),
+          groomerName: hist['toGroomerName']?.toString(),
+        );
+        if (canonTarget != null && canonHist != null && canonHist == canonTarget) return true;
+      }
+      if (targetNameLower != null && hist['toGroomerName'] != null) {
+        final toName = hist['toGroomerName'].toString().trim().toLowerCase();
+        if (toName.isNotEmpty &&
+            (toName == targetNameLower ||
+                toName.contains(targetNameLower) ||
+                targetNameLower.contains(toName))) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
   bool get isGroomerAssignmentLocked =>
       isReadyForCheckout ||
       status.toLowerCase() == 'completed' ||

@@ -232,9 +232,7 @@ class _BookingDetailsPageMobileState extends State<BookingDetailsPageMobile> {
     final serviceName = rawServiceName.isNotEmpty ? rawServiceName : 'Full Grooming';
 
     final addOnsList = _extractAddOns(summary);
-    final hasAddOns = addOnsList.isNotEmpty ||
-        summary['has_addons'] == true ||
-        (summary['addons_count'] != null && (summary['addons_count'] as int) > 0);
+    final hasAddOns = addOnsList.isNotEmpty;
 
     final dateLabel = summary['date_label']?.toString().trim() ??
         summary['booking_date']?.toString().trim() ??
@@ -1019,25 +1017,57 @@ class _BookingDetailsPageMobileState extends State<BookingDetailsPageMobile> {
         booking['addOns'] ??
         booking['add_ons'] ??
         booking['addons_list'] ??
-        booking['services_addons'];
+        booking['services_addons'] ??
+        booking['selected_addons'] ??
+        booking['selectedAddOns'];
     if (rawAddOns is List) {
       for (final item in rawAddOns) {
         if (item is Map) {
           final name = item['name'] ??
               item['service_name'] ??
               item['title'] ??
-              item['addOnName'];
-          if (name != null && name.toString().isNotEmpty) {
-            list.add(name.toString());
+              item['addOnName'] ??
+              item['addon_name'] ??
+              item['description'];
+          if (name != null && name.toString().trim().isNotEmpty) {
+            final str = name.toString().trim();
+            if (!list.contains(str)) {
+              list.add(str);
+            }
           }
-        } else if (item != null && item.toString().isNotEmpty) {
-          list.add(item.toString());
+        } else if (item != null && item.toString().trim().isNotEmpty) {
+          final str = item.toString().trim();
+          if (!list.contains(str)) {
+            list.add(str);
+          }
+        }
+      }
+    } else if (rawAddOns is String && rawAddOns.trim().isNotEmpty) {
+      final parts = rawAddOns.split(',');
+      for (final p in parts) {
+        final trimmed = p.trim();
+        if (trimmed.isNotEmpty && !list.contains(trimmed)) {
+          list.add(trimmed);
         }
       }
     }
+
     if (list.isEmpty) {
-      list.addAll(['Nail Grinding', 'Teeth Brushing', 'Blueberry Facial']);
+      final rawLineItems = booking['lineItems'] ?? booking['line_items'];
+      if (rawLineItems is List) {
+        for (final item in rawLineItems) {
+          if (item is Map) {
+            final type = item['type']?.toString().toLowerCase();
+            final desc = (item['description'] ?? item['name'] ?? item['title'])?.toString().trim() ?? '';
+            if (type == 'addon' && desc.isNotEmpty && !list.contains(desc)) {
+              list.add(desc);
+            }
+          }
+        }
+      }
     }
+
+    // Only return add-ons actually selected by customer; never inject default/mock add-ons
     return list;
   }
 
