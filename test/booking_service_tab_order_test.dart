@@ -6,6 +6,7 @@ import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/services/booking_draft.dart';
 import 'package:shear_heaven_pet_spa/src/bookings/views/mobile/booking_service_page_mobile.dart';
+import 'package:shear_heaven_pet_spa/src/common/common.dart';
 import 'package:shear_heaven_pet_spa/src/common/repos/api_repository.dart';
 import 'package:shear_heaven_pet_spa/src/common/services/session_service.dart';
 import 'package:shear_heaven_pet_spa/src/services/bloc/service_bloc.dart';
@@ -199,17 +200,18 @@ void main() {
     });
 
     test('ServiceRepository.liveServiceImageUrl and resolveImageUrl produce live URLs', () {
+      final base = Constants.app.BASE_URL;
       expect(
         ServiceRepository.liveServiceImageUrl('Grooming'),
-        equals('https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_full_grooming.png'),
+        equals('$base/services_img/svc_full_grooming.png'),
       );
       expect(
         ServiceRepository.liveServiceImageUrl('Bathing'),
-        equals('https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_bath_blowdry.png'),
+        equals('$base/services_img/svc_bath_blowdry.png'),
       );
       expect(
         ServiceRepository.liveServiceImageUrl('Grooming and Bathing'),
-        equals('https://pcmdev.shearheavenpetspa.com/assets/images/home/promo_dog.png'),
+        equals('$base/services_img/svc_full_grooming.png'),
       );
       expect(
         ServiceRepository.resolveImageUrl('assets/images/common/svc_full_grooming.png'),

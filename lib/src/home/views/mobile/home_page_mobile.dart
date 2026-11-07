@@ -994,6 +994,10 @@ class _HomePageMobileState extends State<HomePageMobile> {
       ...(bs?.breeds ?? []).map((s) => s.toMap()),
     ];
 
+    if (allForHome.isEmpty && state.services.isNotEmpty) {
+      allForHome.addAll(state.services);
+    }
+
     if (allForHome.isEmpty) {
       return const SizedBox(
         height: 80,
@@ -1025,6 +1029,7 @@ class _HomePageMobileState extends State<HomePageMobile> {
       final name =
           svc['service_name']?.toString() ??
           svc[Constants.database.COLUMN_SERVICE_NAME]?.toString() ??
+          svc['name']?.toString() ??
           '';
       String desc =
           svc['description']?.toString() ??
@@ -1033,7 +1038,19 @@ class _HomePageMobileState extends State<HomePageMobile> {
       if (desc.trim().isEmpty) {
         desc = _defaultShortDescriptionForService(name);
       }
-      final imageUrl = svc['imageUrl']?.toString();
+      final rawImg = svc['imageUrl'] ??
+          svc['ImageUrl'] ??
+          svc['image_url'] ??
+          svc['ImageURL'] ??
+          svc['image'] ??
+          svc['Image'] ??
+          svc['photo_url'] ??
+          svc['photoUrl'] ??
+          svc['picture'] ??
+          svc['pictureUrl'] ??
+          svc['thumbnail'];
+      final imageUrl = ServiceRepository.resolveImageUrl(rawImg) ??
+          ServiceRepository.liveServiceImageUrl(name, rawUrl: rawImg?.toString());
 
       return _ServiceTile(
         name: name,
@@ -1882,7 +1899,14 @@ class _ServiceImageWidget extends StatelessWidget {
       return _iconPlaceholder();
     }
 
-    final resolved = ServiceRepository.resolveImageUrl(imageUrl);
+    final raw = (imageUrl != null &&
+            imageUrl!.trim().isNotEmpty &&
+            imageUrl != 'null' &&
+            imageUrl != 'undefined')
+        ? imageUrl
+        : ServiceRepository.liveServiceImageUrl(name);
+
+    final resolved = ServiceRepository.resolveImageUrl(raw);
     if (resolved != null && resolved.isNotEmpty) {
       if (resolved.startsWith('assets/')) {
         return FigmaImage(
