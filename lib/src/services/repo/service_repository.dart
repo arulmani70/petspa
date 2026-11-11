@@ -566,28 +566,20 @@ class ServiceRepository {
     final s = rawUrl.toString().trim();
     if (s.isEmpty || s == 'null' || s == 'undefined') return null;
 
-    if (s.startsWith('assets/')) {
-      return s;
-    }
-
-    final baseUrl = Constants.app.BASE_URL;
-
     if (s.startsWith('http://') || s.startsWith('https://')) {
       final uri = Uri.tryParse(s);
-      if (uri != null) {
-        final host = uri.host.toLowerCase();
-        // Rewrite localhost / dev host / emulator IP to the configured BASE_URL
-        if (host == 'localhost' ||
-            host == '127.0.0.1' ||
-            host == '10.0.2.2' ||
-            host.contains('genzcodershub.com')) {
-          final path = uri.path.startsWith('/') ? uri.path : '/${uri.path}';
-          final query = uri.hasQuery ? '?${uri.query}' : '';
-          return '$baseUrl$path$query';
-        }
-        // Valid external or API URL
+      if (uri != null &&
+          uri.host.isNotEmpty &&
+          uri.host != 'localhost' &&
+          uri.host != '127.0.0.1' &&
+          uri.host != '10.0.2.2' &&
+          !uri.host.contains('genzcodershub.com') &&
+          !uri.host.contains('devapi.shearheavenpetspa.com')) {
         return s;
       }
+    }
+
+    if (s.startsWith('assets/')) {
       return s;
     }
 
@@ -596,9 +588,20 @@ class ServiceRepository {
       return 'https://pcmdev.shearheavenpetspa.com$s';
     }
 
-    // Relative path like /services_img/... or services_img/... or /uploads/...
-    final clean = s.startsWith('/') ? s : '/$s';
-    return '$baseUrl$clean';
+    final baseUrl = Constants.app.BASE_URL;
+
+    final uri = Uri.tryParse(s);
+    if (uri == null) {
+      final clean = s.startsWith('/') ? s : '/$s';
+      return '$baseUrl$clean';
+    }
+
+    final path = uri.path.startsWith('/') ? uri.path : '/${uri.path}';
+    final query = uri.hasQuery ? '?${uri.query}' : '';
+    if (path.startsWith('/assets/')) {
+      return 'https://pcmdev.shearheavenpetspa.com$path$query';
+    }
+    return '$baseUrl$path$query';
   }
 
   /// Returns a live network image URL for a service or package by inspecting its API raw image or name.
@@ -608,36 +611,31 @@ class ServiceRepository {
       if (resolved != null && resolved.isNotEmpty) return resolved;
     }
 
-    final baseUrl = Constants.app.BASE_URL;
     final clean = name.toLowerCase();
-    if (clean.contains('puppy')) {
-      return '$baseUrl/services_img/svc_puppy.png';
-    } else if (clean.contains('teeth') || clean.contains('breath') || clean.contains('dental')) {
-      return '$baseUrl/services_img/svc_teeth_brush.png';
-    } else if (clean.contains('nail')) {
-      return '$baseUrl/services_img/svc_nail_trim.png';
-    } else if (clean.contains('ear')) {
-      return '$baseUrl/services_img/svc_ear_clean.png';
-    } else if (clean.contains('flea') || clean.contains('tick')) {
-      return '$baseUrl/services_img/svc_flea_tick.png';
-    } else if (clean.contains('skin') || clean.contains('coat') || clean.contains('allergy') || clean.contains('medic') || clean.contains('facial')) {
-      return '$baseUrl/services_img/svc_skin_care.png';
-    } else if (clean.contains('deshed') || clean.contains('brush') || clean.contains('dematt') || clean.contains('shed')) {
-      return '$baseUrl/services_img/svc_deshed.png';
-    } else if (clean.contains('groom') && clean.contains('bath')) {
-      return '$baseUrl/services_img/svc_full_grooming.png';
-    } else if (clean.contains('hydro') || clean.contains('spa') || clean.contains('4hr') || clean.contains('4-hour')) {
-      return '$baseUrl/services_img/svc_spa.png';
-    } else if (clean.contains('bath') || clean.contains('wash')) {
-      return '$baseUrl/services_img/svc_bath_blowdry.png';
-    } else if (clean.contains('trim') || clean.contains('hygiene') || clean.contains('sanitary') || clean.contains('touch-up') || clean.contains('face') || clean.contains('feet') || clean.contains('anal gland')) {
-      return '$baseUrl/services_img/svc_hair_trim.png';
-    } else if (clean.contains('breed')) {
-      return '$baseUrl/services_img/svc_breed_style.png';
+    if (clean.contains('groom') && clean.contains('bath')) {
+      return 'https://pcmdev.shearheavenpetspa.com/assets/images/home/promo_dog.png';
     } else if (clean.contains('groom') || clean.contains('cut') || clean.contains('style')) {
-      return '$baseUrl/services_img/svc_full_grooming.png';
+      return 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_full_grooming.png';
+    } else if (clean.contains('bath') || clean.contains('wash')) {
+      return 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_bath_blowdry.png';
+    } else if (clean.contains('hydro') || clean.contains('spa') || clean.contains('4hr') || clean.contains('4-hour')) {
+      return 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_spa.png';
+    } else if (clean.contains('skin') || clean.contains('coat') || clean.contains('allergy') || clean.contains('medic')) {
+      return 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_skin_care.png';
+    } else if (clean.contains('puppy')) {
+      return 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_puppy.png';
+    } else if (clean.contains('deshed') || clean.contains('brush') || clean.contains('dematt')) {
+      return 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_deshed.png';
+    } else if (clean.contains('teeth') || clean.contains('breath') || clean.contains('dental')) {
+      return 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_teeth_brush.png';
+    } else if (clean.contains('nail')) {
+      return 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_nail_trim.png';
+    } else if (clean.contains('ear')) {
+      return 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_ear_clean.png';
+    } else if (clean.contains('trim') || clean.contains('hygiene') || clean.contains('sanitary') || clean.contains('touch-up')) {
+      return 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_hair_trim.png';
     }
-    return '$baseUrl/services_img/svc_full_grooming.png';
+    return 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_full_grooming.png';
   }
 
   static double _parseDouble(dynamic v) {
@@ -876,9 +874,6 @@ class ServiceRepository {
           if (desc.isEmpty) {
             desc = _defaultWalkInDescription(name);
           }
-          final rawImg = _imageUrl(w);
-          final walkInImg =
-              liveServiceImageUrl(name, rawUrl: rawImg, id: walkInCounter);
           walkIn.add(ServiceItem(
             id: walkInCounter++,
             code: code,
@@ -889,7 +884,7 @@ class ServiceRepository {
             price: price,
             priceDisplay: _priceDisplay(w['Price'] ?? w['price'], null),
             durationMinutes: dur > 0 ? dur : 15,
-            imageUrl: walkInImg,
+            imageUrl: _imageUrl(w),
             includes: [
               name,
               'Fast walk-in express service',
@@ -951,8 +946,19 @@ class ServiceRepository {
           }
 
           final rawImg = _imageUrl(p);
-          final pkgImg =
-              liveServiceImageUrl(name, rawUrl: rawImg, id: currentPkgId);
+          String? pkgImg = (rawImg != null && rawImg.isNotEmpty) ? rawImg : null;
+          if (pkgImg == null || pkgImg.isEmpty) {
+            final clean = name.toLowerCase();
+            if (clean.contains('special') || currentPkgId == 1) {
+              pkgImg = 'https://pcmdev.shearheavenpetspa.com/assets/images/home/promo_dog.png';
+            } else if (clean.contains('scent') || clean.contains('heaven') || currentPkgId == 2) {
+              pkgImg = 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_spa.png';
+            } else if (clean.contains('spa') || clean.contains('vip')) {
+              pkgImg = 'https://pcmdev.shearheavenpetspa.com/assets/images/common/svc_spa.png';
+            } else {
+              pkgImg = 'https://pcmdev.shearheavenpetspa.com/assets/images/home/promo_dog.png';
+            }
+          }
 
           packages.add(ServiceItem(
             id: currentPkgId,

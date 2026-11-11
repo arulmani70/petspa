@@ -200,13 +200,14 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
     }
 
     if (_draft.pet == null) {
-      final svcName = _draft.service?['service_name']?.toString() ?? _draft.service?['name']?.toString() ?? '';
+      final primary = _draft.primaryCatalogItem;
+      final svcName = _draft.primaryCatalogName;
       final breedName = svcName.contains(' — ') ? svcName.split(' — ').first.trim() : 'My Pet';
       _draft.setPet({
         'pet_name': breedName,
         'breed': breedName != 'My Pet' ? breedName : 'All Breeds',
         'weight': 'Standard',
-        'photo_url': _draft.service?['imageUrl'] ?? _draft.service?['photo_url'],
+        'photo_url': primary?['imageUrl'] ?? primary?['photo_url'],
       });
       if (mounted) setState(() {});
     }
@@ -291,9 +292,9 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
       if (!mounted) return;
 
       if (result.success) {
-        final serviceName = _draft.service?['service_name']?.toString() ??
-            _draft.service?['name']?.toString() ??
-            'Full Grooming';
+        final serviceName = _draft.primaryCatalogName.isNotEmpty
+            ? _draft.primaryCatalogName
+            : 'Full Grooming';
         String desc = result.description ?? result.label ?? result.title ?? '';
         if (desc.isEmpty || desc == '${result.promoCode ?? trimmed} applied') {
           if (result.discountValue != null && result.discountValue! > 0) {
@@ -836,10 +837,10 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
           bookingDate.isEmpty ||
           startTime.isEmpty ||
           endTime.isEmpty ||
-          (packageId == null && serviceId == null)) {
+          packageId == null) {
         if (!mounted) return;
         ToastUtil.showErrorToast(
-            context, 'Missing required booking information. Please go back and select a time slot.');
+            context, 'Missing required booking information. Please go back and select a package and time slot.');
         setState(() => _confirming = false);
         return;
       }
@@ -1106,8 +1107,10 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
           'pet_photo': petPhoto,
           'pet_photo_url': petPhoto,
           'photo_url': petPhoto,
-          'service_name': _draft.service?['service_name']?.toString() ?? _draft.service?[Constants.database.COLUMN_SERVICE_NAME]?.toString() ?? '',
-          'service': _draft.service,
+          'service_name': _draft.primaryCatalogName,
+          'service': _draft.primaryCatalogItem,
+          'package': _draft.package,
+          'standalone_service': _draft.service,
           'addOns': selectedAddOns,
           'addons': selectedAddOns,
           'has_addons': selectedAddOns.isNotEmpty,
@@ -1176,7 +1179,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
   Widget build(BuildContext context) {
     const db = DatabaseConstants();
     final petData = _draft.pet;
-    final svcName = _draft.service?['service_name']?.toString() ?? _draft.service?['name']?.toString() ?? '';
+    final svcName = _draft.primaryCatalogName;
     final inferredBreed = svcName.contains(' — ') ? svcName.split(' — ').first.trim() : '';
 
     String petName = petData?[db.COLUMN_PET_NAME]?.toString() ?? petData?['pet_name']?.toString() ?? '';
@@ -1205,8 +1208,18 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
     final petPhoto = PetImageHelper.extractPetPhoto(petData) ??
         PetImageHelper.extractPetPhoto(_draft.pet);
 
-    final serviceName = _draft.service?[db.COLUMN_SERVICE_NAME]?.toString() ?? _draft.service?['service_name']?.toString() ?? _draft.service?['name']?.toString() ?? 'Full Grooming';
-    final serviceDesc = _draft.service?[db.COLUMN_DESCRIPTION]?.toString() ?? _draft.service?['description']?.toString() ?? 'Bath, trim, nails, and ears — the complete pampering session.';
+    final primaryItem = _draft.primaryCatalogItem;
+    final serviceName = _draft.primaryCatalogName.isNotEmpty
+        ? _draft.primaryCatalogName
+        : 'Full Grooming';
+    final serviceDesc = primaryItem?[db.COLUMN_DESCRIPTION]?.toString() ??
+        primaryItem?['description']?.toString() ??
+        'Bath, trim, nails, and ears — the complete pampering session.';
+    final standaloneServiceName = _draft.service?[db.COLUMN_SERVICE_NAME]?.toString() ??
+        _draft.service?['service_name']?.toString() ??
+        _draft.service?['name']?.toString();
+    final standaloneServiceDesc = _draft.service?[db.COLUMN_DESCRIPTION]?.toString() ??
+        _draft.service?['description']?.toString();
     final date = _draft.date ?? DateTime.now();
     final slot = _draft.timeSlot ?? '';
 
@@ -1366,10 +1379,13 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    _sectionTitle("Selected Service", () => context.pushNamed(RouteNames.bookingService)),
+                    _sectionTitle(
+                      _draft.package != null ? "Selected Package" : "Selected Service",
+                      () => context.pushNamed(RouteNames.bookingService),
+                    ),
                     const SizedBox(height: 12),
                     _reviewCard(
-                      image: _serviceImage(_draft.service),
+                      image: _serviceImage(primaryItem),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -1390,6 +1406,38 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                         ],
                       ),
                     ),
+                    if (_draft.package != null &&
+                        _draft.service != null &&
+                        standaloneServiceName != null &&
+                        standaloneServiceName.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      _sectionTitle("Selected Service", () => context.pushNamed(RouteNames.bookingService)),
+                      const SizedBox(height: 12),
+                      _reviewCard(
+                        image: _serviceImage(_draft.service),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              standaloneServiceName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppFonts.poppins(size: 17, weight: FontWeight.w600, color: Colors.black),
+                            ),
+                            if (standaloneServiceDesc != null && standaloneServiceDesc.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                standaloneServiceDesc,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppFonts.poppins(size: 13, weight: FontWeight.w300, color: const Color(0xFF4B5563)),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
                     if (_draft.addOns.isNotEmpty) ...[
                       const SizedBox(height: 20),
                       _sectionTitle("Selected Add-ons", () => context.pushNamed(RouteNames.bookingService)),
@@ -1881,9 +1929,9 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
     final isApplied = appliedOffer != null;
     final appliedCode = _draft.appliedPromoCode ?? '';
 
-    final serviceName = _draft.service?['service_name']?.toString() ??
-        _draft.service?['name']?.toString() ??
-        'Full Grooming';
+    final serviceName = _draft.primaryCatalogName.isNotEmpty
+        ? _draft.primaryCatalogName
+        : 'Full Grooming';
 
     String offerDesc = appliedOffer?['description']?.toString() ?? '';
     if (offerDesc.isEmpty || offerDesc.toLowerCase().endsWith('applied')) {
@@ -2102,14 +2150,16 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
   }
 
   Widget _buildAmountDetailsCard() {
-    final servicePriceRaw = _draft.service?['price'] ??
+    final packagePrice = _draft.packageSubtotal;
+    final standaloneServicePriceRaw = _draft.service?['price'] ??
         _draft.service?[Constants.database.COLUMN_PRICE] ??
         _draft.service?['cost'];
-    double servicePrice = 0.0;
-    if (servicePriceRaw is num) {
-      servicePrice = servicePriceRaw.toDouble();
-    } else if (servicePriceRaw != null) {
-      servicePrice = double.tryParse(servicePriceRaw.toString().replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0.0;
+    double standaloneServicePrice = 0.0;
+    if (standaloneServicePriceRaw is num) {
+      standaloneServicePrice = standaloneServicePriceRaw.toDouble();
+    } else if (standaloneServicePriceRaw != null) {
+      standaloneServicePrice =
+          double.tryParse(standaloneServicePriceRaw.toString().replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0.0;
     }
 
     final addOnItems = <Map<String, dynamic>>[];
@@ -2129,9 +2179,10 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
       });
     }
 
+    double servicePrice = packagePrice > 0 ? packagePrice : standaloneServicePrice;
     double subtotal = _draft.totalPrice ?? _draft.estimatedTotal;
-    final minSubtotal = servicePrice + addOnsTotal;
-    if (subtotal <= 0.0 || (addOnsTotal > 0 && subtotal < minSubtotal)) {
+    final minSubtotal = packagePrice + standaloneServicePrice + addOnsTotal;
+    if (subtotal <= 0.0 || (addOnsTotal > 0 && subtotal < minSubtotal) || subtotal < minSubtotal) {
       subtotal = minSubtotal;
     }
     if (servicePrice <= 0.0 && addOnsTotal <= 0.0 && subtotal > 0.0) {
@@ -2184,10 +2235,15 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
         ? "Tax (${_draft.apiStateName})"
         : "Tax";
 
-    final serviceName = _draft.service?[Constants.database.COLUMN_SERVICE_NAME]?.toString() ??
+    final packageName = _draft.package?['service_name']?.toString() ??
+        _draft.package?['package_name']?.toString() ??
+        _draft.package?['name']?.toString();
+    final standaloneServiceName = _draft.service?[Constants.database.COLUMN_SERVICE_NAME]?.toString() ??
         _draft.service?['service_name']?.toString() ??
-        _draft.service?['name']?.toString() ??
-        'Full Grooming';
+        _draft.service?['name']?.toString();
+    final serviceName = _draft.primaryCatalogName.isNotEmpty
+        ? _draft.primaryCatalogName
+        : 'Full Grooming';
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -2234,11 +2290,27 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
             const SizedBox(height: 12),
           ],
 
-          // Base service charge row
-          _priceRow(
-            label: serviceName,
-            amount: '\$${servicePrice.toStringAsFixed(2)}',
-          ),
+          if (packageName != null && packageName.isNotEmpty && packagePrice > 0) ...[
+            _priceRow(
+              label: packageName,
+              amount: '\$${packagePrice.toStringAsFixed(2)}',
+            ),
+            if (standaloneServiceName != null &&
+                standaloneServiceName.isNotEmpty &&
+                standaloneServicePrice > 0) ...[
+              const SizedBox(height: 8),
+              _priceRow(
+                label: standaloneServiceName,
+                amount: '\$${standaloneServicePrice.toStringAsFixed(2)}',
+              ),
+            ],
+          ] else ...[
+            // Base service charge row
+            _priceRow(
+              label: serviceName,
+              amount: '\$${servicePrice.toStringAsFixed(2)}',
+            ),
+          ],
 
           // Add-on services
           for (final addOn in addOnItems) ...[

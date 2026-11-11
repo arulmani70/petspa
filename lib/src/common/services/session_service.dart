@@ -494,13 +494,17 @@ class SessionService {
   /// 1. Customer selected Preferred Groomer -> Reassignment is STRICTLY FORBIDDEN.
   /// 2. Admin -> Allowed to reassign any booking.
   /// 3. Currently assigned groomer -> Allowed to reassign their own booking.
-  /// 4. All other users -> Blocked.
+  /// 4. Fully unassigned booking -> Any logged-in groomer may claim/assign.
+  /// 5. All other users -> Blocked.
   bool canReassignBooking(GroomerBooking booking) {
     if (booking.isPreferredGroomer) {
       return false;
     }
     if (isAdmin) {
       return true;
+    }
+    if (!booking.hasAnyAssignedGroomer) {
+      return isGroomerLoggedIn;
     }
     return isCurrentGroomerAssigned(booking);
   }
@@ -510,10 +514,10 @@ class SessionService {
     if (booking.isPreferredGroomer) {
       return 'The customer selected a Preferred Groomer. Reassignment to another groomer is not allowed.';
     }
-    if (!isAdmin && !isCurrentGroomerAssigned(booking)) {
-      return 'Unauthorized: Only an Administrator or the currently assigned groomer can reassign this appointment.';
+    if (isAdmin || !booking.hasAnyAssignedGroomer || isCurrentGroomerAssigned(booking)) {
+      return null;
     }
-    return null;
+    return 'Unauthorized: Only an Administrator or the currently assigned groomer can reassign this appointment.';
   }
 
   // ── Temporary Groomer Credentials (for setup-account flow) ──

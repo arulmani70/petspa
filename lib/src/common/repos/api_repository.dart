@@ -55,6 +55,7 @@ class ApiRepository {
       '/api/groomer-auth/login',
       '/api/groomer-auth/register',
       '/api/groomer-auth/setup-account',
+      '/api/auth/groomer/setup-account',
       '/api/groomer-auth/refresh-token',
       '/api/groomer-auth/logout',
     ];

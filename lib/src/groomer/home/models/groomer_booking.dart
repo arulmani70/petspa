@@ -360,6 +360,12 @@ class GroomerBooking {
 
   int? get effectivePrimaryGroomerId => primaryGroomerId ?? groomerId;
 
+  /// Whether any groomer is assigned on the booking header, primary, or a service-progress line.
+  bool get hasAnyAssignedGroomer =>
+      (groomerId != null && groomerId! > 0) ||
+      (primaryGroomerId != null && primaryGroomerId! > 0) ||
+      serviceProgress.any((p) => p.assignedGroomerId != null && p.assignedGroomerId! > 0);
+
   /// Whether this booking or any of its individual services/tasks is assigned to the specified groomer.
   /// Matches canonical groomer ID, groomerCode, groomerName, primary groomer,
   /// serviceProgress line items, serviceAssignmentActivity, or reassignmentHistory.

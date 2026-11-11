@@ -58,7 +58,14 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
           }
           if (extra['service'] != null) {
             final svc = extra['service'] as Map<String, dynamic>;
-            _draft.setService(svc);
+            final isPackage = svc['isPackage'] == true ||
+                svc['packageId'] != null ||
+                svc['packageMasterId'] != null;
+            if (isPackage) {
+              _draft.setPackage(svc);
+            } else {
+              _draft.setService(svc);
+            }
             final existingPetId = BookingDateUtils.parsePetIdFromPet(_draft.pet);
             if (_draft.pet == null || existingPetId == null || existingPetId == 0) {
               final svcName = svc['service_name']?.toString() ?? svc['name']?.toString() ?? '';
@@ -80,10 +87,19 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
 
   // ── summary for bottom bar ────────────────────────────────────────────────
   String _buildSummary() {
-    final svcName    = _draft.service?['service_name']?.toString() ?? '';
+    final pkgName = _draft.package?['service_name']?.toString() ??
+        _draft.package?['package_name']?.toString() ??
+        _draft.package?['name']?.toString() ??
+        '';
+    final svcName = _draft.service?['service_name']?.toString() ??
+        _draft.service?['name']?.toString() ??
+        '';
     final addOnCount = _draft.addOns.length;
-    if (svcName.isEmpty && addOnCount == 0) return 'No service selected';
+    if (pkgName.isEmpty && svcName.isEmpty && addOnCount == 0) {
+      return 'No package selected';
+    }
     final parts = <String>[];
+    if (pkgName.isNotEmpty) parts.add(pkgName);
     if (svcName.isNotEmpty) parts.add(svcName);
     if (addOnCount > 0) {
       parts.add('+$addOnCount add-on${addOnCount > 1 ? 's' : ''}');
@@ -160,8 +176,8 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
   }
 
   void _onContinue() {
-    if (_draft.service == null) {
-      ToastUtil.showErrorToast(context, 'Please select a service.');
+    if (_draft.package == null) {
+      ToastUtil.showErrorToast(context, 'Please select a package.');
       return;
     }
     final notes = _notesController.text.trim();
@@ -238,7 +254,7 @@ class _BookingServicePageMobileState extends State<BookingServicePageMobile> {
               );
             }
 
-            final canContinue = _draft.service != null;
+            final canContinue = _draft.package != null;
             bool canPop = false;
             try {
               canPop = context.canPop();
@@ -444,9 +460,23 @@ class _SelectedBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final svcName = draft.service?['service_name']?.toString() ?? '';
-    final cnt     = draft.addOns.length;
-    if (svcName.isEmpty) return const SizedBox.shrink();
+    final pkgName = draft.package?['service_name']?.toString() ??
+        draft.package?['package_name']?.toString() ??
+        draft.package?['name']?.toString() ??
+        '';
+    final svcName = draft.service?['service_name']?.toString() ??
+        draft.service?['name']?.toString() ??
+        '';
+    final cnt = draft.addOns.length;
+    if (pkgName.isEmpty && svcName.isEmpty) return const SizedBox.shrink();
+
+    final parts = <String>[];
+    if (pkgName.isNotEmpty) parts.add(pkgName);
+    if (svcName.isNotEmpty) parts.add(svcName);
+    var label = parts.join(' + ');
+    if (cnt > 0) {
+      label = '$label + $cnt add-on${cnt > 1 ? 's' : ''}';
+    }
 
     return Container(
       width  : double.infinity,
@@ -458,8 +488,7 @@ class _SelectedBanner extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              svcName +
-                  (cnt > 0 ? ' + $cnt add-on${cnt > 1 ? 's' : ''}' : ''),
+              label,
               style   : AppFonts.poppins(
                   size: 12, weight: FontWeight.w500, color: Colors.white),
               maxLines: 1,
@@ -467,10 +496,7 @@ class _SelectedBanner extends StatelessWidget {
             ),
           ),
           GestureDetector(
-            onTap: () {
-              draft.setService(null);
-              draft.addOns.clear();
-            },
+            onTap: () => draft.clearCatalogSelections(),
             child: Text('Clear',
                 style: AppFonts.poppins(
                     size: 11, color: Colors.white70)),
@@ -616,10 +642,11 @@ class _PackageTab extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 12),
           child: _ServiceCard(
             item      : item,
-            isSelected: draft.service?['packageId'] == item.id,
+            isSelected: draft.package?['packageId'] == item.id ||
+                draft.package?['id'] == item.id,
             isAddOn   : false,
             onTap     : () {
-              draft.setService(item.toMap());
+              draft.setPackage(item.toMap());
               if (draft.pet == null) {
                 draft.setPet({
                   'pet_name': 'My Pet',

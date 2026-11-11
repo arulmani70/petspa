@@ -10,7 +10,7 @@ class GroomerRegisterRepository {
     log.d('GroomerRegisterRepository::initialize::Initialized');
   }
 
-  /// POST /api/groomer-auth/setup-account
+  /// POST /api/auth/groomer/setup-account (fallback: POST /api/groomer-auth/setup-account)
   Future<GroomerLoginResponse?> setupAccount({
     required String tempLoginId,
     required String tempPassword,
@@ -32,16 +32,29 @@ class GroomerRegisterRepository {
         throw Exception(errorMsg);
       }
 
-      final response = await ServicesLocator.apiRepository.post(
-        '/api/groomer-auth/setup-account',
-        {
-          'tempLoginId': tempLoginId.trim(),
-          'tempPassword': tempPassword,
-          'email': email.trim(),
-          'password': password,
-          'confirmPassword': confirmPassword,
-        },
-      );
+      final body = {
+        'tempLoginId': tempLoginId.trim(),
+        'tempPassword': tempPassword,
+        'email': email.trim(),
+        'password': password,
+        'confirmPassword': confirmPassword,
+      };
+
+      Map<String, dynamic>? response;
+      try {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/auth/groomer/setup-account',
+          body,
+        );
+      } catch (_) {
+        response = null;
+      }
+      if (response == null || response['success'] != true || response['data'] == null) {
+        response = await ServicesLocator.apiRepository.post(
+          '/api/groomer-auth/setup-account',
+          body,
+        );
+      }
 
       if (response == null || response['success'] != true || response['data'] == null) {
         final message = response?['message'] ?? 'Account setup failed. Please try again.';

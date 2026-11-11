@@ -18,11 +18,17 @@ class GroomerLoginRepository {
     try {
       log.d('GroomerLoginRepository::login::Logging in groomer: $email');
 
+      final loginBody = {
+        'email': email.trim(),
+        'password': password,
+        'role': 'groomer',
+      };
+
       Map<String, dynamic>? response;
       try {
         response = await ServicesLocator.apiRepository.post(
           '/api/auth/login',
-          {'email': email.trim(), 'password': password},
+          loginBody,
         );
       } catch (_) {
         response = null;
@@ -31,7 +37,7 @@ class GroomerLoginRepository {
       if (response == null || response['success'] != true || response['data'] == null) {
         response = await ServicesLocator.apiRepository.post(
           '/api/groomer-auth/login',
-          {'email': email.trim(), 'password': password},
+          loginBody,
         );
       }
 

@@ -12,7 +12,10 @@ class BookingDraft extends ChangeNotifier {
   final Logger log = Logger();
 
   Map<String, dynamic>? pet;
+  /// Standalone service selection (independent of [package]).
   Map<String, dynamic>? service;
+  /// Spa package selection (mandatory for Continue; independent of [service]).
+  Map<String, dynamic>? package;
   Map<String, dynamic>? groomer;
   DateTime? date;
   String? timeSlot;
@@ -29,73 +32,57 @@ class BookingDraft extends ChangeNotifier {
   BookingState get state => pet == null ? BookingState.newBooking : BookingState.existingPet;
 
   bool get isComplete =>
-      pet != null && service != null && date != null && timeSlot != null && endTime != null;
+      pet != null && package != null && date != null && timeSlot != null && endTime != null;
 
-  /// Whether the currently selected item is a spa package rather than a standalone service.
-  bool get isPackageSelected {
-    final s = service;
-    if (s == null) return false;
-    if (s['isPackage'] == true) return true;
-    if (s['isPackage'] == false) return false;
-    final pkgId = s['packageId'] ?? s['PackageId'];
-    if (pkgId != null && pkgId.toString().isNotEmpty) return true;
-    final pkgName = s['package_name'] ?? s[Constants.database.COLUMN_PACKAGE_NAME];
-    if (pkgName != null && pkgName.toString().trim().isNotEmpty) return true;
-    return false;
+  /// Whether a spa package is currently selected.
+  bool get isPackageSelected => package != null;
+
+  /// Primary catalog item for display (package preferred, then standalone service).
+  Map<String, dynamic>? get primaryCatalogItem => package ?? service;
+
+  String get primaryCatalogName {
+    final item = primaryCatalogItem;
+    if (item == null) return '';
+    return item['service_name']?.toString() ??
+        item['package_name']?.toString() ??
+        item[Constants.database.COLUMN_SERVICE_NAME]?.toString() ??
+        item[Constants.database.COLUMN_PACKAGE_NAME]?.toString() ??
+        item['name']?.toString() ??
+        '';
   }
 
-  /// Service subtotal (main service + add-ons, or if a package is selected, just add-ons).
+  double _priceOf(Map<String, dynamic>? item) {
+    if (item == null) return 0.0;
+    final p = item['price'] ?? item[Constants.database.COLUMN_PRICE];
+    if (p is num) return p.toDouble();
+    if (p != null) {
+      return double.tryParse(p.toString().replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0.0;
+    }
+    return 0.0;
+  }
+
+  double get _addOnsTotal {
+    double addOnTotal = 0.0;
+    for (final a in addOns) {
+      addOnTotal += _priceOf(a);
+    }
+    return addOnTotal;
+  }
+
+  /// Service subtotal: standalone service price + add-ons (package priced separately).
   double get serviceSubtotal {
     if (apiServiceSubtotal != null) return apiServiceSubtotal!;
-    if (isPackageSelected) {
-      double addOnTotal = 0.0;
-      for (final a in addOns) {
-        final p = a['price'] ?? a[Constants.database.COLUMN_PRICE];
-        if (p is num) {
-          addOnTotal += p.toDouble();
-        } else if (p != null) {
-          addOnTotal += double.tryParse(p.toString().replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0.0;
-        }
-      }
-      return addOnTotal;
-    } else {
-      return totalPrice ?? estimatedTotal;
-    }
+    return _priceOf(service) + _addOnsTotal;
   }
 
   /// Package subtotal (package price if a package is selected, else 0.0).
   double get packageSubtotal {
     if (apiPackageSubtotal != null) return apiPackageSubtotal!;
-    if (isPackageSelected) {
-      final s = service;
-      final p = s?['price'] ?? s?[Constants.database.COLUMN_PRICE];
-      if (p is num) return p.toDouble();
-      if (p != null) {
-        final parsed = double.tryParse(p.toString().replaceAll(RegExp(r'[^0-9.]'), ''));
-        if (parsed != null) return parsed;
-      }
-      return totalPrice ?? estimatedTotal;
-    }
-    return 0.0;
+    return _priceOf(package);
   }
 
   double get estimatedTotal {
-    double total = 0;
-    final servicePrice = service?['price'] ?? service?[Constants.database.COLUMN_PRICE];
-    if (servicePrice is num) {
-      total += servicePrice.toDouble();
-    } else if (servicePrice != null) {
-      total += double.tryParse(servicePrice.toString().replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
-    }
-    for (final addOn in addOns) {
-      final p = addOn['price'] ?? addOn[Constants.database.COLUMN_PRICE];
-      if (p is num) {
-        total += p.toDouble();
-      } else if (p != null) {
-        total += double.tryParse(p.toString().replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
-      }
-    }
-    return total;
+    return packageSubtotal + serviceSubtotal;
   }
 
   // ---------------------------------------------------------------------------
@@ -117,6 +104,19 @@ class BookingDraft extends ChangeNotifier {
   void setService(Map<String, dynamic>? value) {
     log.d("BookingDraft::setService::Service: ${value?['service_name']}");
     service = value;
+    notifyListeners();
+  }
+
+  void setPackage(Map<String, dynamic>? value) {
+    log.d("BookingDraft::setPackage::Package: ${value?['service_name'] ?? value?['package_name']}");
+    package = value;
+    notifyListeners();
+  }
+
+  void clearCatalogSelections() {
+    package = null;
+    service = null;
+    addOns.clear();
     notifyListeners();
   }
 
@@ -168,51 +168,52 @@ class BookingDraft extends ChangeNotifier {
   // Service / add-on ID extraction (used by date-time & review pages)
   // ---------------------------------------------------------------------------
 
-  /// Extracts `serviceId` and `packageId` from the current [_draft.service] map.
-  Map<String, dynamic> extractServiceIds() {
-    final serviceMap = service;
-    int? packageId;
-    int? serviceId;
-
-    if (serviceMap != null) {
-      final rawPkgId = serviceMap['packageMasterId'] ??
-          serviceMap['PackageMasterId'] ??
-          serviceMap['packageId'] ??
-          serviceMap['PackageId'];
-      if (rawPkgId != null) {
-        packageId = int.tryParse(rawPkgId.toString());
-      }
-
-      final rawSvcId = serviceMap['serviceMasterId'] ??
-          serviceMap['ServiceMasterId'] ??
-          serviceMap['serviceId'] ??
-          serviceMap['service_id'] ??
-          serviceMap['ServiceId'];
-      if (rawSvcId != null) {
-        serviceId = int.tryParse(rawSvcId.toString());
-      }
-
-      if (packageId == null && serviceId == null) {
-        final isPkg = serviceMap['isPackage'] == true ||
-            (serviceMap['package_name'] != null && serviceMap['package_name'].toString().trim().isNotEmpty) ||
-            (serviceMap[Constants.database.COLUMN_PACKAGE_NAME] != null && serviceMap[Constants.database.COLUMN_PACKAGE_NAME].toString().trim().isNotEmpty);
-
-        final rawId = serviceMap['id'] ?? serviceMap[Constants.database.COLUMN_ID];
-        int? extractedId = int.tryParse(rawId?.toString() ?? '');
-        if (extractedId == null && rawId != null) {
-          final match = RegExp(r'\d+').firstMatch(rawId.toString());
-          if (match != null) {
-            extractedId = int.tryParse(match.group(0)!);
-          }
-        }
-
-        if (isPkg) {
-          packageId = extractedId;
-        } else {
-          serviceId = extractedId;
-        }
+  int? _extractIdFromMap(
+    Map<String, dynamic>? map, {
+    required List<String> keys,
+  }) {
+    if (map == null) return null;
+    for (final key in keys) {
+      final raw = map[key];
+      if (raw != null) {
+        final parsed = int.tryParse(raw.toString());
+        if (parsed != null && parsed > 0) return parsed;
       }
     }
+    final rawId = map['id'] ?? map[Constants.database.COLUMN_ID];
+    int? extractedId = int.tryParse(rawId?.toString() ?? '');
+    if (extractedId == null && rawId != null) {
+      final match = RegExp(r'\d+').firstMatch(rawId.toString());
+      if (match != null) {
+        extractedId = int.tryParse(match.group(0)!);
+      }
+    }
+    if (extractedId != null && extractedId > 0) return extractedId;
+    return null;
+  }
+
+  /// Extracts `serviceId` from [service] and `packageId` from [package].
+  Map<String, dynamic> extractServiceIds() {
+    final packageId = _extractIdFromMap(
+      package,
+      keys: const [
+        'packageMasterId',
+        'PackageMasterId',
+        'packageId',
+        'PackageId',
+      ],
+    );
+
+    final serviceId = _extractIdFromMap(
+      service,
+      keys: const [
+        'serviceMasterId',
+        'ServiceMasterId',
+        'serviceId',
+        'service_id',
+        'ServiceId',
+      ],
+    );
 
     return {'serviceId': serviceId, 'packageId': packageId};
   }
@@ -356,6 +357,7 @@ class BookingDraft extends ChangeNotifier {
   void reset() {
     pet = null;
     service = null;
+    package = null;
     groomer = null;
     addOns.clear();
     serviceRequestNotes = null;

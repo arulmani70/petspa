@@ -285,7 +285,7 @@ class _BookingDateTimePageMobileState
   // ── Web-aligned availability load ──────────────────────────────────────────
 
   Future<void> _loadAvailability() async {
-    if (_draft.date == null || _draft.service == null) return;
+    if (_draft.date == null || _draft.package == null) return;
 
     if (!BookingDateUtils.isDateAllowed(_draft.date)) {
       setState(() {
