@@ -80,10 +80,12 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
       final availResp = await ServicesLocator.bookingRepository.getAvailability(
         date: dateStr,
         serviceId: ids['serviceId'],
+        extraServiceId: (ids['packageId'] != null && ids['packageId'] > 0) ? ids['serviceId'] : null,
         packageId: ids['packageId'],
         addOnIds: addOnIds,
         groomerId: groomerId,
         petId: petId,
+        petSizeKey: _draft.petSizeKey,
       );
 
       if (availResp != null && availResp['data'] != null && mounted) {
@@ -856,7 +858,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
       final session = ServicesLocator.sessionService;
 
       final finalServiceId = (serviceId != null && serviceId > 0) ? serviceId : null;
-      final finalPackageId = (packageId != null && packageId > 0) ? packageId : null;
+      final finalPackageId = packageId > 0 ? packageId : null;
 
       // ---- Step 1: POST /api/availability — fresh pre-flight capacity validation ---
       _log.d("BookingReviewPage::_confirmBooking::Refreshing slot availability before booking: serviceId=$finalServiceId, packageId=$finalPackageId");
@@ -864,6 +866,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
       final validateResponse = await ServicesLocator.bookingRepository.getAvailability(
         date: bookingDate,
         serviceId: finalServiceId,
+        extraServiceId: (finalPackageId != null && finalPackageId > 0) ? finalServiceId : null,
         packageId: finalPackageId,
         addOnIds: addOnIds.isEmpty ? null : addOnIds,
         groomerId: groomerId > 0 ? groomerId : null,
@@ -1048,8 +1051,10 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
         'RegionId'   : session.regionId ?? 'DWG-001',
         'StoreId'    : session.storeId  ?? 'SHEAR-001',
         'petId'      : petId,
-        'serviceId'  : ?finalServiceId,
-        'packageId'  : ?finalPackageId,
+        'serviceId'  : (finalPackageId != null && finalPackageId > 0) ? null : finalServiceId,
+        if (finalPackageId != null && finalPackageId > 0 && finalServiceId != null && finalServiceId > 0)
+          'extraServiceId': finalServiceId,
+        'packageId'  : finalPackageId,
         'addOnIds'   : addOnIds,
         'groomerId'  : groomerId,
         'bookingDate': bookingDate,
@@ -2151,16 +2156,7 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
 
   Widget _buildAmountDetailsCard() {
     final packagePrice = _draft.packageSubtotal;
-    final standaloneServicePriceRaw = _draft.service?['price'] ??
-        _draft.service?[Constants.database.COLUMN_PRICE] ??
-        _draft.service?['cost'];
-    double standaloneServicePrice = 0.0;
-    if (standaloneServicePriceRaw is num) {
-      standaloneServicePrice = standaloneServicePriceRaw.toDouble();
-    } else if (standaloneServicePriceRaw != null) {
-      standaloneServicePrice =
-          double.tryParse(standaloneServicePriceRaw.toString().replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0.0;
-    }
+    final standaloneServicePrice = _draft.standaloneServicePrice;
 
     final addOnItems = <Map<String, dynamic>>[];
     double addOnsTotal = 0.0;
@@ -2180,8 +2176,8 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
     }
 
     double servicePrice = packagePrice > 0 ? packagePrice : standaloneServicePrice;
-    double subtotal = _draft.totalPrice ?? _draft.estimatedTotal;
     final minSubtotal = packagePrice + standaloneServicePrice + addOnsTotal;
+    double subtotal = _draft.totalPrice ?? _draft.estimatedTotal;
     if (subtotal <= 0.0 || (addOnsTotal > 0 && subtotal < minSubtotal) || subtotal < minSubtotal) {
       subtotal = minSubtotal;
     }
@@ -2210,25 +2206,19 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
                 ? (apiTotWithTax - subtotal) / subtotal
                 : 0.0));
 
-    final double baseTax = apiTax != null && apiTax > 0
-        ? apiTax
-        : (apiTotWithTax != null && apiTotWithTax > subtotal
-            ? ((apiTotWithTax - subtotal) * 100).round() / 100
-            : (rawTaxRate > 0 ? ((subtotal * rawTaxRate * 100).round() / 100) : 0.0));
+    final double baseTax = (rawTaxRate > 0)
+        ? ((subtotal * rawTaxRate * 100).round() / 100)
+        : (apiTax != null && apiTax > 0 ? apiTax : 0.0);
 
     final double taxableAmount = isApplied
         ? (subtotal - discount).clamp(0.0, double.infinity)
         : subtotal;
 
     final double effectiveTax = isApplied
-        ? (rawTaxRate > 0 ? ((taxableAmount * rawTaxRate * 100).round() / 100) : baseTax)
+        ? ((rawTaxRate > 0) ? ((taxableAmount * rawTaxRate * 100).round() / 100) : baseTax)
         : baseTax;
 
-    final double finalTotal = isApplied
-        ? ((taxableAmount + effectiveTax) * 100).round() / 100
-        : (apiTotWithTax != null && apiTotWithTax > 0
-            ? apiTotWithTax
-            : (((subtotal + effectiveTax) * 100).round() / 100));
+    final double finalTotal = ((taxableAmount + effectiveTax) * 100).round() / 100;
 
     final bool showTax = effectiveTax > 0.005;
     final String taxLabel = (_draft.apiStateName != null && _draft.apiStateName!.isNotEmpty)
@@ -2238,9 +2228,10 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
     final packageName = _draft.package?['service_name']?.toString() ??
         _draft.package?['package_name']?.toString() ??
         _draft.package?['name']?.toString();
-    final standaloneServiceName = _draft.service?[Constants.database.COLUMN_SERVICE_NAME]?.toString() ??
-        _draft.service?['service_name']?.toString() ??
-        _draft.service?['name']?.toString();
+    final standaloneServiceName = _draft.service?['service_name']?.toString() ??
+        _draft.service?[Constants.database.COLUMN_SERVICE_NAME]?.toString() ??
+        _draft.service?['name']?.toString() ??
+        _draft.service?['title']?.toString();
     final serviceName = _draft.primaryCatalogName.isNotEmpty
         ? _draft.primaryCatalogName
         : 'Full Grooming';
@@ -2290,17 +2281,17 @@ class _BookingReviewPageMobileState extends State<BookingReviewPageMobile> {
             const SizedBox(height: 12),
           ],
 
-          if (packageName != null && packageName.isNotEmpty && packagePrice > 0) ...[
+          if (_draft.package != null) ...[
             _priceRow(
-              label: packageName,
+              label: (packageName != null && packageName.isNotEmpty) ? packageName : 'Spa Package',
               amount: '\$${packagePrice.toStringAsFixed(2)}',
             ),
-            if (standaloneServiceName != null &&
-                standaloneServiceName.isNotEmpty &&
-                standaloneServicePrice > 0) ...[
+            if (_draft.service != null && standaloneServicePrice > 0) ...[
               const SizedBox(height: 8),
               _priceRow(
-                label: standaloneServiceName,
+                label: (standaloneServiceName != null && standaloneServiceName.isNotEmpty)
+                    ? standaloneServiceName
+                    : 'Service',
                 amount: '\$${standaloneServicePrice.toStringAsFixed(2)}',
               ),
             ],

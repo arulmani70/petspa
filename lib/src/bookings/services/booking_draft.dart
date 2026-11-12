@@ -61,7 +61,8 @@ class BookingDraft extends ChangeNotifier {
     return 0.0;
   }
 
-  double get _addOnsTotal {
+  /// Total price of all selected add-ons.
+  double get addOnsTotal {
     double addOnTotal = 0.0;
     for (final a in addOns) {
       addOnTotal += _priceOf(a);
@@ -69,21 +70,27 @@ class BookingDraft extends ChangeNotifier {
     return addOnTotal;
   }
 
-  /// Service subtotal: standalone service price + add-ons (package priced separately).
-  double get serviceSubtotal {
-    if (apiServiceSubtotal != null) return apiServiceSubtotal!;
-    return _priceOf(service) + _addOnsTotal;
+  /// Standalone service price (excluding add-ons).
+  double get standaloneServicePrice {
+    if (apiServiceSubtotal != null && apiServiceSubtotal! > 0) {
+      return apiServiceSubtotal!;
+    }
+    return _priceOf(service);
   }
 
   /// Package subtotal (package price if a package is selected, else 0.0).
   double get packageSubtotal {
-    if (apiPackageSubtotal != null) return apiPackageSubtotal!;
+    if (apiPackageSubtotal != null && apiPackageSubtotal! > 0) {
+      return apiPackageSubtotal!;
+    }
     return _priceOf(package);
   }
 
-  double get estimatedTotal {
-    return packageSubtotal + serviceSubtotal;
-  }
+  /// Service subtotal: standalone service price + add-ons (package priced separately).
+  double get serviceSubtotal => standaloneServicePrice + addOnsTotal;
+
+  /// Estimated subtotal before tax and discounts: package + standalone service + add-ons.
+  double get estimatedTotal => packageSubtotal + standaloneServicePrice + addOnsTotal;
 
   // ---------------------------------------------------------------------------
   // Setters
@@ -104,12 +111,22 @@ class BookingDraft extends ChangeNotifier {
   void setService(Map<String, dynamic>? value) {
     log.d("BookingDraft::setService::Service: ${value?['service_name']}");
     service = value;
+    apiTotalPrice = null;
+    apiServiceSubtotal = null;
+    apiSalesTax = null;
+    apiTaxRate = null;
+    apiTotalWithTax = null;
     notifyListeners();
   }
 
   void setPackage(Map<String, dynamic>? value) {
     log.d("BookingDraft::setPackage::Package: ${value?['service_name'] ?? value?['package_name']}");
     package = value;
+    apiTotalPrice = null;
+    apiPackageSubtotal = null;
+    apiSalesTax = null;
+    apiTaxRate = null;
+    apiTotalWithTax = null;
     notifyListeners();
   }
 
@@ -117,6 +134,12 @@ class BookingDraft extends ChangeNotifier {
     package = null;
     service = null;
     addOns.clear();
+    apiTotalPrice = null;
+    apiServiceSubtotal = null;
+    apiPackageSubtotal = null;
+    apiSalesTax = null;
+    apiTaxRate = null;
+    apiTotalWithTax = null;
     notifyListeners();
   }
 
@@ -281,10 +304,29 @@ class BookingDraft extends ChangeNotifier {
 
   // Legacy names kept for backward compat (lastBooking, confirmed page).
   int? get duration => apiDurationMinutes;
-  double? get totalPrice => apiTotalPrice;
+
+  /// Effective total price (pre-tax subtotal): prefers apiTotalPrice if valid and >= estimatedTotal,
+  /// otherwise falls back to estimatedTotal.
+  double? get totalPrice {
+    if (apiTotalPrice != null && apiTotalPrice! >= estimatedTotal) {
+      return apiTotalPrice;
+    }
+    return estimatedTotal > 0 ? estimatedTotal : apiTotalPrice;
+  }
+
   double? get salesTax => apiSalesTax;
   double? get taxRate => apiTaxRate;
-  double? get totalWithTax => apiTotalWithTax;
+
+  /// Effective total with tax: prefers apiTotalWithTax if valid and >= totalPrice,
+  /// otherwise calculates (totalPrice + salesTax).
+  double? get totalWithTax {
+    final sub = totalPrice ?? estimatedTotal;
+    if (apiTotalWithTax != null && apiTotalWithTax! >= sub) {
+      return apiTotalWithTax;
+    }
+    final tax = salesTax ?? 0.0;
+    return sub > 0 ? ((sub + tax) * 100).round() / 100 : null;
+  }
 
   // ---------------------------------------------------------------------------
   // Offers & Promo Code State
@@ -351,6 +393,10 @@ class BookingDraft extends ChangeNotifier {
     } else {
       addOns.add(addOn);
     }
+    apiTotalPrice = null;
+    apiSalesTax = null;
+    apiTaxRate = null;
+    apiTotalWithTax = null;
     notifyListeners();
   }
 

@@ -86,6 +86,7 @@ class BookingRepository {
   Future<Map<String, dynamic>?> getAvailability({
     required String date,
     int? serviceId,
+    int? extraServiceId,
     int? packageId,
     List<int>? addOnIds,
     int? groomerId,
@@ -96,7 +97,7 @@ class BookingRepository {
       // Enforce 14-day booking window restriction
       BookingDateUtils.validateDateString(date);
 
-      log.d('BookingRepository::getAvailability::Fetching slot availability for $date serviceId=$serviceId packageId=$packageId petId=$petId groomerId=$groomerId petSizeKey=$petSizeKey');
+      log.d('BookingRepository::getAvailability::Fetching slot availability for $date serviceId=$serviceId extraServiceId=$extraServiceId packageId=$packageId petId=$petId groomerId=$groomerId petSizeKey=$petSizeKey');
       final session = ServicesLocator.sessionService;
       final clientId = session.clientId ?? 'SHEAR-001';
       final regionId = session.regionId ?? 'DWG-001';
@@ -104,14 +105,20 @@ class BookingRepository {
 
       final canonicalGroomId = BookingDateUtils.resolveCanonicalGroomerId(groomerId);
 
+      final hasPackage = packageId != null && packageId > 0;
+      final effectiveServiceId = hasPackage ? null : ((serviceId != null && serviceId > 0) ? serviceId : null);
+      final effectiveExtraServiceId = hasPackage
+          ? (extraServiceId ?? ((serviceId != null && serviceId > 0) ? serviceId : null))
+          : (extraServiceId != null && extraServiceId > 0 ? extraServiceId : null);
+
       final payload = <String, dynamic>{
         'ClientId'      : clientId,
         'RegionId'      : regionId,
         'StoreId'       : storeId,
         'date'          : date,
-        'serviceId'     : (serviceId != null && serviceId > 0) ? serviceId : null,
-        'extraServiceId': null,
-        'packageId'     : (packageId != null && packageId > 0) ? packageId : null,
+        'serviceId'     : effectiveServiceId,
+        'extraServiceId': effectiveExtraServiceId,
+        'packageId'     : hasPackage ? packageId : null,
         'addOnIds'      : addOnIds ?? <int>[],
         'groomerId'     : (canonicalGroomId != null && canonicalGroomId > 0) ? canonicalGroomId : 0,
         if (petId != null && petId > 0) 'petId': petId,
@@ -170,6 +177,20 @@ class BookingRepository {
         final canonId = BookingDateUtils.resolveCanonicalGroomerId(rawGroomId);
         if (canonId != null && canonId > 0) {
           normalizedPayload['groomerId'] = canonId;
+        }
+      }
+
+      final rawPkgId = normalizedPayload['packageId'];
+      final rawSvcId = normalizedPayload['serviceId'];
+      final rawExtraId = normalizedPayload['extraServiceId'];
+      final pkgIdInt = rawPkgId is int ? rawPkgId : int.tryParse(rawPkgId?.toString() ?? '');
+      if (pkgIdInt != null && pkgIdInt > 0) {
+        if (rawExtraId == null && rawSvcId != null) {
+          final svcIdInt = rawSvcId is int ? rawSvcId : int.tryParse(rawSvcId.toString());
+          if (svcIdInt != null && svcIdInt > 0) {
+            normalizedPayload['extraServiceId'] = svcIdInt;
+            normalizedPayload['serviceId'] = null;
+          }
         }
       }
 

@@ -338,6 +338,7 @@ class _BookingDateTimePageMobileState
       final availResp = await ServicesLocator.bookingRepository.getAvailability(
         date: dateStr,
         serviceId: serviceId,
+        extraServiceId: (packageId != null && packageId > 0) ? serviceId : null,
         packageId: packageId,
         addOnIds: addOnIds.isEmpty ? null : addOnIds,
         groomerId: groomerId > 0 ? groomerId : 0,
@@ -1820,16 +1821,21 @@ class _BookingDateTimePageMobileState
                           _sectionTitle('Select Time'),
                           const SizedBox(height: 4),
                           if (_draft.apiDurationMinutes != null)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Text(
-                                'Service duration: ${_draft.apiDurationMinutes} min'
-                                '${_draft.apiTotalPrice != null ? '  ·  Est. \$${_draft.apiTotalPrice!.toStringAsFixed(0)}' : ''}',
-                                style: AppFonts.poppins(
-                                    size: 12,
-                                    weight: FontWeight.w500,
-                                    color: _kTeal),
-                              ),
+                            Builder(
+                              builder: (context) {
+                                final estPrice = _draft.totalPrice ?? _draft.estimatedTotal;
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Text(
+                                    'Service duration: ${_draft.apiDurationMinutes} min'
+                                    '${estPrice > 0 ? '  ·  Est. \$${estPrice.toStringAsFixed(0)}' : ''}',
+                                    style: AppFonts.poppins(
+                                        size: 12,
+                                        weight: FontWeight.w500,
+                                        color: _kTeal),
+                                  ),
+                                );
+                              },
                             ),
                           const SizedBox(height: 8),
                           _buildSlotSection(),
